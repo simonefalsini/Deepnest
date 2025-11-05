@@ -1,8 +1,11 @@
 #include "deepnest/ThreadPool.h"
 
+#include <algorithm>
+
 namespace deepnest {
 
 ThreadPool::ThreadPool(int thread_count) : stop_(false) {
+  thread_count = std::max(1, thread_count);
   for (int i = 0; i < thread_count; ++i) {
     workers_.emplace_back(&ThreadPool::WorkerLoop, this);
   }
@@ -22,6 +25,9 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::Enqueue(const std::function<void()>& task) {
   {
     boost::unique_lock<boost::mutex> lock(mutex_);
+    if (stop_) {
+      throw std::runtime_error("ThreadPool is shutting down");
+    }
     tasks_.push(task);
   }
   condition_.notify_one();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "deepnest/DeepNestConfig.h"
 #include "deepnest/NestPolygon.h"
 
 #include <QHash>
@@ -24,13 +25,18 @@ struct NfpKeyHasher {
 
 class NfpCache {
  public:
-  void Store(const NfpKey& key, const PolygonWithHoles& value);
-  bool TryGet(const NfpKey& key, PolygonWithHoles* value) const;
+  NfpCache();
+
+  void SyncConfig(const DeepNestConfig& config);
+
+  void Store(const NfpKey& key, const PolygonCollection& value);
+  bool TryGet(const NfpKey& key, PolygonCollection* value) const;
   void Clear();
 
  private:
+  std::size_t config_signature_ {0};
   mutable std::mutex mutex_;
-  QHash<QString, PolygonWithHoles> cache_;
+  QHash<QString, PolygonCollection> cache_;
 };
 
 }  // namespace deepnest
