@@ -27,7 +27,7 @@ struct Bounds {
 };
 
 void UpdateBounds(const PolygonWithHoles& polygon, Bounds* bounds) {
-  if (polygon.outer().size() < 1) {
+  if (Outer(polygon).size() < 1) {
     return;
   }
   auto update = [bounds](const Point& pt) {
@@ -43,10 +43,10 @@ void UpdateBounds(const PolygonWithHoles& polygon, Bounds* bounds) {
     bounds->max_y = std::max(bounds->max_y, pt.y());
   };
 
-  for (const auto& pt : polygon.outer()) {
+  for (const auto& pt : Outer(polygon)) {
     update(pt);
   }
-  for (const auto& hole : polygon.inners()) {
+  for (const auto& hole : Holes(polygon)) {
     for (const auto& pt : hole) {
       update(pt);
     }
@@ -63,15 +63,15 @@ IntPoint ScalePoint(const Point& pt, double scale, bool negate) {
 
 void InsertPolygon(const PolygonWithHoles& polygon, double scale, bool negate,
                    IntPolygonSet* target) {
-  if (polygon.outer().size() < 3) {
+  if (Outer(polygon).size() < 3) {
     return;
   }
 
   using namespace boost::polygon::operators;
 
   std::vector<IntPoint> pts;
-  pts.reserve(polygon.outer().size());
-  for (const auto& pt : polygon.outer()) {
+  pts.reserve(Outer(polygon).size());
+  for (const auto& pt : Outer(polygon)) {
     pts.push_back(ScalePoint(pt, scale, negate));
   }
 
@@ -79,7 +79,7 @@ void InsertPolygon(const PolygonWithHoles& polygon, double scale, bool negate,
   boost::polygon::set_points(poly, pts.begin(), pts.end());
   (*target) += poly;
 
-  for (const auto& hole : polygon.inners()) {
+  for (const auto& hole : Holes(polygon)) {
     if (hole.size() < 3) {
       continue;
     }
@@ -210,8 +210,8 @@ PolygonWithHoles ConvertToPolygon(const IntPolygon& poly, double scale,
   }
 
   PolygonWithHoles result;
-  boost::polygon::set_outer(result, outer);
-  boost::polygon::set_holes(result, holes.begin(), holes.end());
+  SetOuter(result, outer);
+  SetHoles(result, holes.begin(), holes.end());
   return result;
 }
 
@@ -254,14 +254,14 @@ PolygonCollection MinkowskiConvolution::ComputeAll(const PolygonWithHoles& a,
 
   Coordinate xshift = 0.0;
   Coordinate yshift = 0.0;
-  if (!b.outer().empty()) {
-    xshift = b.outer().front().x();
-    yshift = b.outer().front().y();
+  if (!Outer(b).empty()) {
+    xshift = Outer(b).front().x();
+    yshift = Outer(b).front().y();
   }
 
   for (const auto& int_poly : int_polygons) {
     PolygonWithHoles poly = ConvertToPolygon(int_poly, scale, xshift, yshift);
-    if (poly.outer().size() < 3) {
+    if (Outer(poly).size() < 3) {
       continue;
     }
     polygons.push_back(poly);

@@ -153,7 +153,7 @@ PlacementResult GeneticAlgorithm::Run(const std::vector<NestPolygon>& parts) {
   for (int generation = 0; generation < std::max(1, config_.generations());
        ++generation) {
     if (thread_pool_ && config_.threads() > 1) {
-      std::vector<std::pair<Individual*, boost::future<PlacementResult>>> futures;
+      std::vector<std::pair<Individual*, boost::unique_future<PlacementResult>>> futures;
       futures.reserve(population_.size());
 
       for (auto& individual : population_) {

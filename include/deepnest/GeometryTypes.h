@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace deepnest {
@@ -135,8 +137,123 @@ inline Orientation OrientationOfPolygon(const Polygon& polygon) {
   return OrientationFromSignedArea(boost::polygon::area(polygon));
 }
 
-inline Orientation OrientationOfPolygonWithHoles(const PolygonWithHoles& polygon) {
-  return OrientationOfPolygon(polygon.outer());
+namespace detail {
+
+template <typename T, typename = void>
+struct has_outer_method : std::false_type {};
+
+template <typename T>
+struct has_outer_method<T, std::void_t<decltype(std::declval<T&>().outer())>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct has_polygon_method : std::false_type {};
+
+template <typename T>
+struct has_polygon_method<T, std::void_t<decltype(std::declval<T&>().polygon())>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct has_inners_method : std::false_type {};
+
+template <typename T>
+struct has_inners_method<T, std::void_t<decltype(std::declval<T&>().inners())>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct has_holes_method : std::false_type {};
+
+template <typename T>
+struct has_holes_method<T, std::void_t<decltype(std::declval<T&>().holes())>>
+    : std::true_type {};
+
+template <typename Poly>
+decltype(auto) AccessOuter(Poly& polygon) {
+  if constexpr (has_outer_method<Poly>::value) {
+    return (polygon.outer());
+  } else {
+    static_assert(has_polygon_method<Poly>::value,
+                  "polygon_with_holes_data requires outer() or polygon() accessor");
+    return (polygon.polygon());
+  }
+}
+
+template <typename Poly>
+decltype(auto) AccessHoles(Poly& polygon) {
+  if constexpr (has_inners_method<Poly>::value) {
+    return (polygon.inners());
+  } else {
+    static_assert(has_holes_method<Poly>::value,
+                  "polygon_with_holes_data requires inners() or holes() accessor");
+    return (polygon.holes());
+  }
+}
+
+template <typename Poly, typename = void>
+struct has_set_outer_function : std::false_type {};
+
+template <typename Poly>
+struct has_set_outer_function<
+    Poly, std::void_t<decltype(boost::polygon::set_outer(
+              std::declval<Poly&>(), std::declval<const Polygon&>()))>>
+    : std::true_type {};
+
+template <typename Poly, typename = void>
+struct has_add_hole_function : std::false_type {};
+
+template <typename Poly>
+struct has_add_hole_function<
+    Poly, std::void_t<decltype(boost::polygon::add_hole(
+              std::declval<Poly&>(), std::declval<const Polygon&>()))>>
+    : std::true_type {};
+
+}  // namespace detail
+
+inline Polygon& Outer(PolygonWithHoles& polygon) {
+  return detail::AccessOuter(polygon);
+}
+
+inline const Polygon& Outer(const PolygonWithHoles& polygon) {
+  return detail::AccessOuter(polygon);
+}
+
+inline std::vector<Polygon>& Holes(PolygonWithHoles& polygon) {
+  return detail::AccessHoles(polygon);
+}
+
+inline const std::vector<Polygon>& Holes(const PolygonWithHoles& polygon) {
+  return detail::AccessHoles(polygon);
+}
+
+inline void SetOuter(PolygonWithHoles& polygon, const Polygon& outer) {
+  if constexpr (detail::has_set_outer_function<PolygonWithHoles>::value) {
+    boost::polygon::set_outer(polygon, outer);
+  } else {
+    Outer(polygon) = outer;
+  }
+}
+
+inline void ClearHoles(PolygonWithHoles& polygon) {
+  Holes(polygon).clear();
+}
+
+inline void AddHole(PolygonWithHoles& polygon, const Polygon& hole) {
+  if constexpr (detail::has_add_hole_function<PolygonWithHoles>::value) {
+    boost::polygon::add_hole(polygon, hole);
+  } else {
+    Holes(polygon).push_back(hole);
+  }
+}
+
+template <typename Iterator>
+inline void SetHoles(PolygonWithHoles& polygon, Iterator begin, Iterator end) {
+  auto& container = Holes(polygon);
+  container.assign(begin, end);
+}
+
+inline Orientation OrientationOfPolygonWithHoles(
+    const PolygonWithHoles& polygon) {
+  return OrientationOfPolygon(Outer(polygon));
 }
 
 }  // namespace deepnest

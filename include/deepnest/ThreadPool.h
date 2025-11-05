@@ -21,7 +21,7 @@ class ThreadPool {
 
   template <typename Function>
   auto Submit(Function&& task)
-      -> boost::future<typename std::invoke_result_t<Function>>;
+      -> boost::unique_future<std::invoke_result_t<Function>>;
 
  private:
   void WorkerLoop();
@@ -39,12 +39,12 @@ namespace deepnest {
 
 template <typename Function>
 auto ThreadPool::Submit(Function&& task)
-    -> boost::future<typename std::invoke_result_t<Function>> {
-  using ResultType = typename std::invoke_result_t<Function>;
+    -> boost::unique_future<std::invoke_result_t<Function>> {
+  using ResultType = std::invoke_result_t<Function>;
 
   auto packaged_task = std::make_shared<boost::packaged_task<ResultType()>>(
       std::forward<Function>(task));
-  boost::future<ResultType> future = packaged_task->get_future();
+  boost::unique_future<ResultType> future = packaged_task->get_future();
 
   {
     boost::unique_lock<boost::mutex> lock(mutex_);

@@ -108,7 +108,7 @@ void NestEngine::PrecomputeNfps() {
 
   const bool parallel = thread_pool_ && config_.threads() > 1;
   const std::vector<double> rotations = CandidateRotations();
-  std::vector<boost::future<void>> futures;
+  std::vector<boost::unique_future<void>> futures;
   if (parallel) {
     futures.reserve(parts_.size() * parts_.size() * rotations.size() *
                     rotations.size());

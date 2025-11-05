@@ -40,8 +40,8 @@ Loop PolygonOuterToLoop(const Polygon& polygon) {
 
 std::vector<Loop> PolygonInnersToLoops(const PolygonWithHoles& polygon) {
   std::vector<Loop> holes;
-  holes.reserve(polygon.inners().size());
-  for (const auto& inner : polygon.inners()) {
+  holes.reserve(Holes(polygon).size());
+  for (const auto& inner : Holes(polygon)) {
     Loop loop;
     loop.reserve(inner.size());
     for (const auto& point : inner) {
@@ -64,12 +64,12 @@ Polygon PolygonFromLoop(const Loop& loop) {
 PolygonWithHoles PolygonWithHolesFromLoops(const Loop& outer,
                                            const std::vector<Loop>& holes) {
   PolygonWithHoles polygon;
-  boost::polygon::set_outer(polygon, PolygonFromLoop(outer));
+  SetOuter(polygon, PolygonFromLoop(outer));
   for (const auto& hole_loop : holes) {
     if (hole_loop.size() < 3) {
       continue;
     }
-    boost::polygon::add_hole(polygon, PolygonFromLoop(hole_loop));
+    AddHole(polygon, PolygonFromLoop(hole_loop));
   }
   return polygon;
 }
@@ -144,7 +144,7 @@ Loop ClipperToLoop(const clipper2::PathD& path) {
 
 clipper2::PathsD PolygonToClipper(const PolygonWithHoles& polygon) {
   clipper2::PathsD paths;
-  const Loop outer_loop = PolygonOuterToLoop(polygon.outer());
+  const Loop outer_loop = PolygonOuterToLoop(Outer(polygon));
   if (outer_loop.size() < 3) {
     return paths;
   }
@@ -221,7 +221,7 @@ PolygonCollection ClipperToPolygonCollection(const clipper2::PathsD& paths) {
     bool assigned = false;
     for (auto& outer : outers) {
       if (boost::polygon::contains(outer.polygon, repr.value())) {
-        boost::polygon::add_hole(outer.aggregate, PolygonFromLoop(hole));
+        AddHole(outer.aggregate, PolygonFromLoop(hole));
         assigned = true;
         break;
       }

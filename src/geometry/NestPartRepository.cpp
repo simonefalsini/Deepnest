@@ -128,14 +128,14 @@ PolygonWithHoles BuildPolygonWithHoles(const Loop& outer,
   PolygonWithHoles polygon;
   Polygon outer_polygon;
   boost::polygon::set_points(outer_polygon, outer.begin(), outer.end());
-  boost::polygon::set_outer(polygon, outer_polygon);
+  SetOuter(polygon, outer_polygon);
   for (const auto& hole : holes) {
     if (hole.size() < 3) {
       continue;
     }
     Polygon hole_polygon;
     boost::polygon::set_points(hole_polygon, hole.begin(), hole.end());
-    boost::polygon::add_hole(polygon, hole_polygon);
+    AddHole(polygon, hole_polygon);
   }
   return polygon;
 }
@@ -171,7 +171,7 @@ void NestPartRepository::LoadSheet(const QPainterPath& sheet) {
   if (!bounds.IsEmpty()) {
     sheet_.Translate(-bounds.min_x, -bounds.min_y);
   }
-  sheet_loaded_ = sheet_.geometry().outer().size() >= 3;
+  sheet_loaded_ = Outer(sheet_.geometry()).size() >= 3;
 }
 
 void NestPartRepository::LoadParts(const QHash<QString, QPainterPath>& parts) {
@@ -197,7 +197,7 @@ NestPolygon NestPartRepository::PreparePolygon(const QString& id,
 
   if (!config_.use_holes()) {
     PolygonWithHoles without_holes;
-    boost::polygon::set_outer(without_holes, polygon.outer());
+    SetOuter(without_holes, Outer(polygon));
     polygon = without_holes;
   }
 
@@ -213,8 +213,8 @@ PolygonWithHoles NestPartRepository::SimplifyPolygon(
   const Coordinate tolerance =
       inside ? config_.endpoint_tolerance() : config_.curve_tolerance();
   Loop outer_loop;
-  outer_loop.reserve(polygon.outer().size());
-  for (const auto& point : polygon.outer()) {
+  outer_loop.reserve(Outer(polygon).size());
+  for (const auto& point : Outer(polygon)) {
     outer_loop.emplace_back(point);
   }
 
@@ -225,8 +225,8 @@ PolygonWithHoles NestPartRepository::SimplifyPolygon(
   }
 
   std::vector<Loop> inner_loops;
-  inner_loops.reserve(polygon.inners().size());
-  for (const auto& hole : polygon.inners()) {
+  inner_loops.reserve(Holes(polygon).size());
+  for (const auto& hole : Holes(polygon)) {
     Loop loop;
     loop.reserve(hole.size());
     for (const auto& point : hole) {
@@ -273,7 +273,7 @@ void NestPartRepository::PopulateChildren(NestPolygon* polygon) const {
 
   const auto& geometry = polygon->geometry();
   std::size_t index = 0;
-  for (const auto& hole : geometry.inners()) {
+  for (const auto& hole : Holes(geometry)) {
     Loop loop;
     loop.reserve(hole.size());
     for (const auto& point : hole) {

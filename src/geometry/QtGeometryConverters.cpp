@@ -88,12 +88,11 @@ Polygon LoopToPolygon(const Loop& loop) {
 }
 
 Loop PolygonToLoop(const Polygon& polygon) {
-  std::vector<Point> points;
-  boost::polygon::get_points(polygon, std::back_inserter(points));
-  if (points.empty()) {
-    return {};
+  Loop loop;
+  loop.reserve(polygon.size());
+  for (const auto& point : polygon) {
+    loop.emplace_back(point);
   }
-  Loop loop(points.begin(), points.end());
   RemoveTrailingDuplicate(loop);
   return loop;
 }
@@ -155,7 +154,7 @@ PolygonWithHoles QPainterPathToPolygonWithHoles(const QPainterPath& path,
       static_cast<std::size_t>(std::distance(loops.begin(), outer_iter));
   Loop outer_loop = loops[outer_index];
   EnsureOrientation(outer_loop, Orientation::kCounterClockwise);
-  boost::polygon::set_outer(result, LoopToPolygon(outer_loop));
+  SetOuter(result, LoopToPolygon(outer_loop));
 
   for (std::size_t i = 0; i < loops.size(); ++i) {
     if (i == outer_index) {
@@ -163,7 +162,7 @@ PolygonWithHoles QPainterPathToPolygonWithHoles(const QPainterPath& path,
     }
     Loop hole_loop = loops[i];
     EnsureOrientation(hole_loop, Orientation::kClockwise);
-    result.inners().push_back(LoopToPolygon(hole_loop));
+    Holes(result).push_back(LoopToPolygon(hole_loop));
   }
   return result;
 }
@@ -173,10 +172,10 @@ QPainterPath PolygonWithHolesToQPainterPath(const PolygonWithHoles& polygon,
   QPainterPath path;
   path.setFillRule(Qt::OddEvenFill);
 
-  Loop outer_loop = PolygonToLoop(polygon.outer());
+  Loop outer_loop = PolygonToLoop(Outer(polygon));
   AppendLoopToPainterPath(path, outer_loop, scale);
 
-  for (const auto& hole : polygon.inners()) {
+  for (const auto& hole : Holes(polygon)) {
     Loop hole_loop = PolygonToLoop(hole);
     AppendLoopToPainterPath(path, hole_loop, scale);
   }

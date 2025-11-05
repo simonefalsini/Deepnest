@@ -236,8 +236,8 @@ BoundingBox ComputeBoundingBox(const Polygon& polygon) {
 }
 
 BoundingBox ComputeBoundingBox(const PolygonWithHoles& polygon) {
-  BoundingBox box = ComputeBoundingBox(polygon.outer());
-  for (const auto& hole : polygon.inners()) {
+  BoundingBox box = ComputeBoundingBox(Outer(polygon));
+  for (const auto& hole : Holes(polygon)) {
     box.Expand(ComputeBoundingBox(hole));
   }
   return box;
@@ -272,20 +272,18 @@ Point ComputeCentroid(const Loop& loop) {
 }
 
 Point ComputeCentroid(const Polygon& polygon) {
-  Point centroid;
-  boost::polygon::centroid(polygon, centroid);
-  return centroid;
+  return ComputeCentroid(LoopFromPolygon(polygon));
 }
 
 Point ComputeCentroid(const PolygonWithHoles& polygon) {
-  const Loop outer_loop = LoopFromPolygon(polygon.outer());
+  const Loop outer_loop = LoopFromPolygon(Outer(polygon));
   auto [outer_area, outer_centroid] = AccumulateCentroid(outer_loop);
 
   Coordinate total_area = outer_area;
   Coordinate centroid_x = outer_centroid.x() * outer_area;
   Coordinate centroid_y = outer_centroid.y() * outer_area;
 
-  for (const auto& hole : polygon.inners()) {
+  for (const auto& hole : Holes(polygon)) {
     const Loop hole_loop = LoopFromPolygon(hole);
     auto [hole_area, hole_centroid] = AccumulateCentroid(hole_loop);
     total_area += hole_area;
@@ -343,7 +341,7 @@ std::optional<bool> PointInPolygon(const PolygonWithHoles& polygon,
                                    const Point& point,
                                    Coordinate tolerance) {
   const auto outer_result =
-      PointInLoop(LoopFromPolygon(polygon.outer()), point, tolerance);
+      PointInLoop(LoopFromPolygon(Outer(polygon)), point, tolerance);
   if (!outer_result.has_value()) {
     return std::nullopt;
   }
@@ -351,7 +349,7 @@ std::optional<bool> PointInPolygon(const PolygonWithHoles& polygon,
     return false;
   }
 
-  for (const auto& hole : polygon.inners()) {
+  for (const auto& hole : Holes(polygon)) {
     const auto hole_result = PointInLoop(LoopFromPolygon(hole), point, tolerance);
     if (!hole_result.has_value()) {
       return std::nullopt;

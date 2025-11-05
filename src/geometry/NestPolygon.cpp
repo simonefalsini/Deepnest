@@ -25,8 +25,8 @@ Loop ExtractLoop(const Polygon& polygon) {
 
 std::vector<Loop> ExtractHoles(const PolygonWithHoles& polygon) {
   std::vector<Loop> holes;
-  holes.reserve(polygon.inners().size());
-  for (const auto& inner : polygon.inners()) {
+  holes.reserve(Holes(polygon).size());
+  for (const auto& inner : Holes(polygon)) {
     holes.emplace_back(ExtractLoop(inner));
   }
   return holes;
@@ -41,12 +41,12 @@ Polygon BuildPolygon(const Loop& loop) {
 PolygonWithHoles BuildPolygonWithHoles(const Loop& outer,
                                        const std::vector<Loop>& holes) {
   PolygonWithHoles polygon;
-  boost::polygon::set_outer(polygon, BuildPolygon(outer));
+  SetOuter(polygon, BuildPolygon(outer));
   for (const auto& hole : holes) {
     if (hole.size() < 3) {
       continue;
     }
-    boost::polygon::add_hole(polygon, BuildPolygon(hole));
+    AddHole(polygon, BuildPolygon(hole));
   }
   return polygon;
 }
@@ -97,20 +97,20 @@ void NestPolygon::set_geometry(const PolygonWithHoles& polygon) {
 }
 
 void NestPolygon::set_outer_vertex_exact(const std::vector<bool>& flags) {
-  if (flags.size() == geometry_.outer().size()) {
+  if (flags.size() == Outer(geometry_).size()) {
     outer_exact_ = flags;
   }
 }
 
 void NestPolygon::set_inner_vertex_exact(std::size_t index,
                                          const std::vector<bool>& flags) {
-  if (index >= geometry_.inners().size()) {
+  if (index >= Holes(geometry_).size()) {
     return;
   }
   if (index >= inner_exact_.size()) {
     inner_exact_.resize(index + 1);
   }
-  if (flags.size() == geometry_.inners()[index].size()) {
+  if (flags.size() == Holes(geometry_)[index].size()) {
     inner_exact_[index] = flags;
   }
 }
@@ -140,7 +140,7 @@ NestPolygon NestPolygon::Clone() const {
 }
 
 void NestPolygon::NormalizeOrientation() {
-  Loop outer = ExtractLoop(geometry_.outer());
+  Loop outer = ExtractLoop(Outer(geometry_));
   if (!outer.empty() &&
       OrientationOfLoop(outer) != Orientation::kCounterClockwise) {
     std::reverse(outer.begin(), outer.end());
@@ -164,7 +164,7 @@ void NestPolygon::NormalizeOrientation() {
 }
 
 void NestPolygon::Translate(Coordinate dx, Coordinate dy) {
-  Loop outer = ExtractLoop(geometry_.outer());
+  Loop outer = ExtractLoop(Outer(geometry_));
   TranslateLoop(&outer, dx, dy);
 
   auto holes = ExtractHoles(geometry_);
@@ -182,7 +182,7 @@ void NestPolygon::Translate(Coordinate dx, Coordinate dy) {
 
 void NestPolygon::Rotate(Coordinate degrees) {
   const Coordinate radians = DegreesToRadians(degrees);
-  Loop outer = ExtractLoop(geometry_.outer());
+  Loop outer = ExtractLoop(Outer(geometry_));
   RotateLoop(&outer, radians);
 
   auto holes = ExtractHoles(geometry_);
@@ -205,15 +205,15 @@ void NestPolygon::Rotate(Coordinate degrees) {
 }
 
 void NestPolygon::UpdateExactMetadata() {
-  const auto outer_size = geometry_.outer().size();
+  const auto outer_size = Outer(geometry_).size();
   if (outer_size != outer_exact_.size()) {
     outer_exact_.assign(outer_size, exact_);
   }
 
-  const auto inner_count = geometry_.inners().size();
+  const auto inner_count = Holes(geometry_).size();
   inner_exact_.resize(inner_count);
   std::size_t index = 0;
-  for (const auto& inner : geometry_.inners()) {
+  for (const auto& inner : Holes(geometry_)) {
     const auto required = inner.size();
     auto& flags = inner_exact_[index++];
     if (flags.size() != required) {

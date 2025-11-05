@@ -18,7 +18,7 @@ PolygonWithHoles LoopToPolygon(const Loop& loop) {
   Polygon outer;
   boost::polygon::set_points(outer, normalized.begin(), normalized.end());
   PolygonWithHoles polygon;
-  boost::polygon::set_outer(polygon, outer);
+  SetOuter(polygon, outer);
   return polygon;
 }
 
@@ -119,7 +119,7 @@ PolygonCollection NfpGenerator::ComputeOuter(const NestPolygon& a,
 PolygonCollection NfpGenerator::ComputeInner(const NestPolygon& a,
                                              const NestPolygon& b) {
   PolygonWithHoles frame = BuildFramePolygon(a);
-  if (frame.outer().size() < 3) {
+  if (Outer(frame).size() < 3) {
     return {};
   }
 

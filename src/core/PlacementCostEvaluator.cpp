@@ -31,11 +31,10 @@ Loop PlacementCostEvaluator::CollectHullPoints(
     const std::vector<NestPolygon>& placed_parts) const {
   Loop all_points;
   for (const auto& part : placed_parts) {
-    const auto& outer = part.geometry().outer();
-    for (auto it = boost::polygon::begin_points(outer);
-         it != boost::polygon::end_points(outer); ++it) {
-      const Coordinate x = it->x() + part.position().x();
-      const Coordinate y = it->y() + part.position().y();
+    const auto& outer = Outer(part.geometry());
+    for (const auto& point : outer) {
+      const Coordinate x = point.x() + part.position().x();
+      const Coordinate y = point.y() + part.position().y();
       all_points.emplace_back(x, y);
     }
   }

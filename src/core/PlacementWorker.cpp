@@ -124,9 +124,9 @@ void PlacementWorker::SetSheets(const std::vector<NestPolygon>& sheets) {
 
 Loop PlacementWorker::ExtractLoop(const Polygon& polygon) {
   Loop loop;
-  for (auto it = boost::polygon::begin_points(polygon);
-       it != boost::polygon::end_points(polygon); ++it) {
-    loop.emplace_back(it->x(), it->y());
+  loop.reserve(polygon.size());
+  for (const auto& point : polygon) {
+    loop.emplace_back(point.x(), point.y());
   }
   if (!loop.empty() && AlmostEqual(loop.front().x(), loop.back().x()) &&
       AlmostEqual(loop.front().y(), loop.back().y())) {
@@ -138,7 +138,7 @@ Loop PlacementWorker::ExtractLoop(const Polygon& polygon) {
 LoopCollection PlacementWorker::ExtractHoles(
     const PolygonWithHoles& polygon) {
   LoopCollection holes;
-  for (const auto& inner : polygon.inners()) {
+  for (const auto& inner : Holes(polygon)) {
     holes.emplace_back(ExtractLoop(inner));
   }
   return holes;
@@ -187,8 +187,8 @@ double PlacementWorker::ComputeMergedLength(
   const double min_length = 0.5 * config_.scale();
   const double tolerance = 0.1 * config_.curve_tolerance();
 
-  const Loop candidate_loop = TranslateLoop(
-      ExtractLoop(candidate.geometry().outer()), candidate_position);
+  const Loop candidate_loop =
+      TranslateLoop(ExtractLoop(Outer(candidate.geometry())), candidate_position);
 
   double merged = 0.0;
   if (candidate_loop.size() < 2) {
@@ -210,7 +210,7 @@ double PlacementWorker::ComputeMergedLength(
 
     for (std::size_t p = 0; p < placed.size(); ++p) {
       const Loop placed_loop = TranslateLoop(
-          ExtractLoop(placed[p].geometry().outer()), placements[p]);
+          ExtractLoop(Outer(placed[p].geometry())), placements[p]);
       if (placed_loop.size() < 2) {
         continue;
       }
@@ -259,7 +259,7 @@ PlacementWorker::FindBestPlacement(
     available = sheet_paths;
   }
 
-  const Loop part_loop = ExtractLoop(part.geometry().outer());
+  const Loop part_loop = ExtractLoop(Outer(part.geometry()));
   if (part_loop.empty()) {
     return std::nullopt;
   }
@@ -267,7 +267,7 @@ PlacementWorker::FindBestPlacement(
   BoundingBox existing_bounds = BoundingBox::Empty();
   Loop existing_points;
   for (std::size_t i = 0; i < placed.size(); ++i) {
-    Loop loop = TranslateLoop(ExtractLoop(placed[i].geometry().outer()),
+    Loop loop = TranslateLoop(ExtractLoop(Outer(placed[i].geometry())),
                               placements[i]);
     for (const auto& point : loop) {
       existing_points.push_back(point);
@@ -280,7 +280,7 @@ PlacementWorker::FindBestPlacement(
   for (const auto& path : available) {
     Loop loop = ClipperToLoop(path);
     for (const auto& point : loop) {
-      const QPointF shift(point.x, point.y);
+      const QPointF shift(point.x(), point.y());
       const QPointF offset(shift.x() - part_loop.front().x(),
                            shift.y() - part_loop.front().y());
 
