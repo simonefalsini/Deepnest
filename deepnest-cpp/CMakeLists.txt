@@ -51,6 +51,8 @@ set(DEEPNEST_SOURCES
 
     # Placement
     src/placement/PlacementStrategy.cpp
+    src/placement/MergeDetection.cpp
+    src/placement/PlacementWorker.cpp
 
     # Clipper2
     ../Clipper2Lib/src/clipper.engine.cpp
@@ -87,6 +89,8 @@ set(DEEPNEST_HEADERS
 
     # Placement
     include/deepnest/placement/PlacementStrategy.h
+    include/deepnest/placement/MergeDetection.h
+    include/deepnest/placement/PlacementWorker.h
 )
 
 # Create library
