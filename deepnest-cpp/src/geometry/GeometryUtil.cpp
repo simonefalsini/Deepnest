@@ -1,4 +1,5 @@
 #include "../../include/deepnest/geometry/GeometryUtil.h"
+#include "../../include/deepnest/geometry/GeometryUtilAdvanced.h"
 #include "../../include/deepnest/core/Polygon.h"
 #include <cmath>
 #include <algorithm>
@@ -547,65 +548,18 @@ std::vector<Point> linearize(const Point& p1, const Point& p2,
 
 } // namespace Arc
 
-// Note: Advanced polygon functions (polygonEdge, pointLineDistance, etc.)
-// are complex and would make this file very long. They can be implemented
-// in a separate file if needed, or implemented progressively as needed.
-
-// Placeholder implementations for now
-std::vector<Point> polygonEdge(const std::vector<Point>& polygon, const Point& normal) {
-    // TODO: Implement full algorithm from geometryutil.js
-    return polygon;
-}
-
-std::optional<double> pointLineDistance(const Point& p, const Point& s1, const Point& s2,
-                                       const Point& normal, bool s1inclusive, bool s2inclusive) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
-
-std::optional<double> pointDistance(const Point& p, const Point& s1, const Point& s2,
-                                   const Point& normal, bool infinite) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
-
-std::optional<double> segmentDistance(const Point& A, const Point& B,
-                                     const Point& E, const Point& F,
-                                     const Point& direction) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
-
-std::optional<double> polygonSlideDistance(const std::vector<Point>& A,
-                                          const std::vector<Point>& B,
-                                          const Point& direction,
-                                          bool ignoreNegative) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
-
-std::optional<double> polygonProjectionDistance(const std::vector<Point>& A,
-                                               const std::vector<Point>& B,
-                                               const Point& direction) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
-
-std::optional<Point> searchStartPoint(const std::vector<Point>& A,
-                                      const std::vector<Point>& B,
-                                      bool inside,
-                                      const std::vector<std::vector<Point>>& NFP) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
+// Note: Advanced polygon functions (polygonEdge, pointLineDistance, pointDistance,
+// segmentDistance, polygonSlideDistance, polygonProjectionDistance, searchStartPoint,
+// and polygonHull) are now implemented in GeometryUtilAdvanced.cpp to keep file sizes
+// manageable and improve code organization.
 
 std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
                                             const std::vector<Point>& B,
                                             bool inside,
                                             bool searchEdges) {
-    // TODO: Implement full algorithm
-    // This is one of the most complex functions and will be implemented
-    // when we integrate with the Minkowski C++ code
+    // NOTE: This complex function is handled by the Minkowski sum implementation
+    // in MinkowskiSum.cpp and the NFPCalculator class. This stub remains for
+    // compatibility but is not actively used.
     return {};
 }
 
@@ -650,11 +604,7 @@ std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& 
     return {nfp};
 }
 
-std::optional<std::vector<Point>> polygonHull(const std::vector<Point>& A,
-                                              const std::vector<Point>& B) {
-    // TODO: Implement full algorithm
-    return std::nullopt;
-}
+// polygonHull is now implemented in GeometryUtilAdvanced.cpp
 
 } // namespace GeometryUtil
 } // namespace deepnest

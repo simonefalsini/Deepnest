@@ -6,6 +6,8 @@ namespace deepnest {
 
 Individual::Individual()
     : fitness(std::numeric_limits<double>::max())
+    , area(0.0)
+    , mergedLength(0.0)
     , processing(false) {
 }
 
@@ -14,6 +16,8 @@ Individual::Individual(const std::vector<Polygon*>& parts,
                        unsigned int seed)
     : placement(parts)
     , fitness(std::numeric_limits<double>::max())
+    , area(0.0)
+    , mergedLength(0.0)
     , processing(false) {
 
     // Initialize random number generator
@@ -32,6 +36,8 @@ Individual Individual::clone() const {
     copy.placement = this->placement;  // Copy pointers
     copy.rotation = this->rotation;    // Deep copy of rotations
     copy.fitness = this->fitness;
+    copy.area = this->area;
+    copy.mergedLength = this->mergedLength;
     copy.processing = false;           // Reset processing flag
 
     return copy;

@@ -8,6 +8,7 @@ namespace deepnest {
 
 NestingEngine::NestingEngine(const DeepNestConfig& config)
     : config_(config)
+    , nfpCache_()
     , running_(false)
     , maxGenerations_(0)
     , evaluationsCompleted_(0)
@@ -221,15 +222,14 @@ bool NestingEngine::step() {
             //               if(displayCallback) { displayCallback(); }
             //             }
 
-            // For now, create a minimal result
-            // TODO: Store full PlacementResult in Individual for complete result tracking
+            // Create result from individual data (now includes area and mergedLength)
             if (results_.empty() || results_[0].fitness > individual.fitness) {
                 NestResult result;
                 result.fitness = individual.fitness;
                 result.generation = geneticAlgorithm_->getCurrentGeneration();
                 result.individualIndex = static_cast<int>(i);
-                result.area = 0.0; // TODO: Get from PlacementResult
-                result.mergedLength = 0.0; // TODO: Get from PlacementResult
+                result.area = individual.area;
+                result.mergedLength = individual.mergedLength;
 
                 updateResults(result);
 
@@ -328,6 +328,9 @@ PlacementWorker::PlacementResult NestingEngine::evaluateIndividual(
     const std::vector<Polygon>& parts,
     const std::vector<Polygon>& sheets
 ) {
+    // Suppress unused parameter warning - parts are retrieved from individual.placement
+    (void)parts;
+
     // Prepare parts with rotations from individual
     // JavaScript: for(j=0; j<GA.population[i].placement.length; j++) {
     //               var id = GA.population[i].placement[j].id;

@@ -131,10 +131,9 @@ void ParallelProcessor::processPopulation(
                 // JavaScript: GA.population[payload.index].processing = false;
                 //             GA.population[payload.index].fitness = payload.fitness;
                 individual.fitness = result.fitness;
+                individual.area = result.area;
+                individual.mergedLength = result.mergedLength;
                 individual.processing = false;
-
-                // Note: In a real implementation, you might want to store the full
-                // placement result somewhere for later use/visualization
             });
         }
     }
