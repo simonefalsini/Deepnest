@@ -30,7 +30,7 @@
 // NFP
 #include "../include/deepnest/nfp/NFPCache.h"
 #include "../include/deepnest/nfp/NFPCalculator.h"
-#include "../include/deepnest/nfp/MinkowskiSum.h"
+//#include "../include/deepnest/nfp/MinkowskiSum.h"
 
 // Algorithm
 #include "../include/deepnest/algorithm/Individual.h"

@@ -309,11 +309,6 @@ private:
      */
     NFPCache nfpCache_;
     /**
-     * @brief NFP cache for all NFP operations
-     */
-    NFPCache nfpCache_;
-
-    /**
      * @brief NFP calculator for all NFP operations
      */
     std::unique_ptr<NFPCalculator> nfpCalculator_;

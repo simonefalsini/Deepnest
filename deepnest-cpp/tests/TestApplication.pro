@@ -2,7 +2,7 @@
 # DeepNest C++ Qt Test Application
 ##############################################
 
-QT += core gui widgets xml
+QT += core gui widgets xml svg
 
 CONFIG += c++17
 CONFIG += console
@@ -41,8 +41,8 @@ unix {
 
 win32 {
     # Windows Boost paths - adjust as needed
-    INCLUDEPATH += ../../boost
-    LIBS += -L../../boost/lib64-msvc-14.1
+    INCLUDEPATH += ../../../boost
+    LIBS += -L../../../boost/lib64-msvc-14.1
     LIBS += -lboost_thread-mt -lboost_system-mt
 }
 

@@ -1,3 +1,4 @@
+#include "..\include\deepnest\core\Types.h"
 #include "RandomShapeGenerator.h"
 #include <QRectF>
 #include <cmath>
