@@ -2,7 +2,7 @@
 # DeepNest C++ Qt Test Application
 ##############################################
 
-QT += core gui widgets xml
+QT += core gui widgets xml svg
 
 CONFIG += c++17
 CONFIG += console
@@ -41,13 +41,13 @@ unix {
 
 win32 {
     # Windows Boost paths - adjust as needed
-    INCLUDEPATH += C:/boost/include
-    LIBS += -LC:/boost/lib
-    LIBS += -lboost_thread-mt -lboost_system-mt
+    INCLUDEPATH += $$PWD/../../../boost
+    LIBS += -L$$PWD/../../../boost/lib64-msvc-14.1
+    LIBS += boost_thread-vc141-mt-x64-1_89.lib
 }
 
 # Clipper2
-LIBS += -L$$PWD/../../Clipper2Lib/build -lClipper2
+#LIBS += -L$$PWD/../../Clipper2Lib/build -lClipper2
 
 # Build directories
 DESTDIR = $$PWD/../bin

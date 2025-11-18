@@ -89,6 +89,7 @@ SOURCES += \
     src/placement/PlacementWorker.cpp \
     src/parallel/ParallelProcessor.cpp \
     src/engine/NestingEngine.cpp \
+    src/converters/QtBoostConverter.cpp \
     src/DeepNestSolver.cpp
 
 # Installation

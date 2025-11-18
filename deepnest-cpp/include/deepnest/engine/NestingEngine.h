@@ -304,12 +304,10 @@ private:
      * @brief Configuration
      */
     const DeepNestConfig& config_;
-
     /**
      * @brief NFP cache for all NFP operations
      */
     NFPCache nfpCache_;
-
     /**
      * @brief NFP calculator for all NFP operations
      */

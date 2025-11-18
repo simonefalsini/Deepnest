@@ -1,2 +1,2 @@
-completa tutti i TODO nel file src\geometry\GeometryUtil.cpp, genera dei file aggiuntivi se il file diventa troppo complesso
+completa tutti i TODO nel file deepnest-cpp/src/geometry/GeometryUtil.cpp, genera dei file aggiuntivi se il file diventa troppo complesso.
 completa tutti i TODO nel src\core\Polygon.cpp
