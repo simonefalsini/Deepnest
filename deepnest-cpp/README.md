@@ -27,11 +27,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 19**: Main nesting engine coordination
 ✅ **Step 20**: DeepNestSolver user-facing interface
 ✅ **Step 21**: Qt-Boost converters (QtBoostConverter namespace)
+✅ **Step 22**: Qt-based test application with GUI
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (22-24)
+### Remaining Steps (23-24)
 
-⏳ Step 22: Test application
 ⏳ Step 23: SVG loader
 ⏳ Step 24: Random shape generator
 
@@ -85,7 +85,7 @@ deepnest-cpp/
 │   ├── placement/     # Placement strategies
 │   └── converters/    # Qt-Boost type converters
 ├── src/               # Implementation files
-├── tests/             # Test applications (TODO)
+├── tests/             # Qt-based test application
 ├── deepnest.pro       # qmake project file
 └── CMakeLists.txt     # CMake configuration
 ```
@@ -167,6 +167,17 @@ deepnest-cpp/
 - Batch conversion utilities for lists/vectors
 - Support for polygons with holes (BoostPolygonWithHoles)
 - BoostPolygonSet to QPainterPath conversion
+
+### Test Application
+- Qt-based GUI for testing and visualization
+- Real-time nesting visualization with QGraphicsView
+- Random shape generation (rectangles and polygons)
+- Interactive configuration of nesting parameters
+- Progress monitoring and statistics display
+- Result export to SVG
+- Menu, toolbar, and keyboard shortcuts (F5=Start, Esc=Stop)
+- Log widget for monitoring operations
+- Prepared for SVG loading (Step 23)
 
 ## Usage Example
 
