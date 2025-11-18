@@ -223,7 +223,8 @@ void TestApplication::loadSVG() {
             containerPath = result.container->transform.map(containerPath);
         }
 
-        deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath);
+        deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath, 0);
+        sheets_.push_back(sheetPoly);  // Save for visualization
         solver_->addSheet(sheetPoly, 1, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
         sheetCount++;
 
@@ -238,10 +239,11 @@ void TestApplication::loadSVG() {
             shapePath = shape.transform.map(shapePath);
         }
 
-        deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(shapePath);
+        deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(shapePath, partCount);
 
         if (partPoly.isValid()) {
             QString partName = shape.id.isEmpty() ? QString("Part_%1").arg(partCount) : shape.id;
+            parts_.push_back(partPoly);  // Save for visualization
             solver_->addPart(partPoly, 1, partName.toStdString());
             partCount++;
         }
@@ -345,6 +347,8 @@ void TestApplication::reset() {
     }
 
     solver_->clear();
+    parts_.clear();
+    sheets_.clear();
     clearScene();
     currentGeneration_ = 0;
     bestFitness_ = std::numeric_limits<double>::max();
@@ -376,7 +380,8 @@ void TestApplication::testRandomRectangles() {
         points.push_back(deepnest::Point(w, h));
         points.push_back(deepnest::Point(0, h));
 
-        deepnest::Polygon rect(points);
+        deepnest::Polygon rect(points, i);  // Assign id
+        parts_.push_back(rect);  // Save for visualization
         solver_->addPart(rect, 2, QString("Rect_%1").arg(i).toStdString());
     }
 
@@ -387,18 +392,19 @@ void TestApplication::testRandomRectangles() {
     sheetPoints.push_back(deepnest::Point(500, 400));
     sheetPoints.push_back(deepnest::Point(0, 400));
 
-    deepnest::Polygon sheet(sheetPoints);
+    deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
+    sheets_.push_back(sheet);  // Save for visualization
     solver_->addSheet(sheet, 3, "Sheet_500x400");
 
     log(QString("Created %1 part types (20 total parts) and 1 sheet type (3 sheets)")
         .arg(solver_->getPartCount()));
 
-    // Visualize the parts
+    // Visualize the parts on scene
     clearScene();
-    double x = 50;
-    for (size_t i = 0; i < solver_->getPartCount() && i < 10; ++i) {
-        // Note: We would need to store parts to visualize them here
-        // For now, just log
+    double xOffset = 50;
+    for (size_t i = 0; i < parts_.size(); ++i) {
+        drawPolygon(parts_[i], QColor(100, 150, 200), 0.3);
+        xOffset += 150;  // Space between parts
     }
 
     log("Ready to start nesting - click 'Start' button");
@@ -427,7 +433,8 @@ void TestApplication::testRandomPolygons() {
             points.push_back(deepnest::Point(x + radius, y + radius));
         }
 
-        deepnest::Polygon poly(points);
+        deepnest::Polygon poly(points, i);  // Assign id
+        parts_.push_back(poly);  // Save for visualization
         solver_->addPart(poly, 2, QString("Poly_%1").arg(i).toStdString());
     }
 
@@ -438,7 +445,8 @@ void TestApplication::testRandomPolygons() {
     sheetPoints.push_back(deepnest::Point(600, 400));
     sheetPoints.push_back(deepnest::Point(0, 400));
 
-    deepnest::Polygon sheet(sheetPoints);
+    deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
+    sheets_.push_back(sheet);  // Save for visualization
     solver_->addSheet(sheet, 2, "Sheet_600x400");
 
     log(QString("Created %1 part types (16 total parts) and 1 sheet type (2 sheets)")
@@ -565,8 +573,17 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
         // Draw each placed part with random color
         for (const auto& placement : sheetPlacements) {
-            QColor color(colorDist(gen), colorDist(gen), colorDist(gen));
-            drawPolygon(placement.polygon, color, 0.5);
+            // Find the original polygon by id
+            if (placement.id >= 0 && placement.id < static_cast<int>(parts_.size())) {
+                deepnest::Polygon part = parts_[placement.id];
+
+                // Apply rotation and translation
+                deepnest::Polygon transformed = part.rotate(placement.rotation);
+                transformed = transformed.translate(placement.position.x, placement.position.y);
+
+                QColor color(colorDist(gen), colorDist(gen), colorDist(gen));
+                drawPolygon(transformed, color, 0.5);
+            }
         }
 
         // Add offset for next sheet
