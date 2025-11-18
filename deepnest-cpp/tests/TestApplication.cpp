@@ -386,10 +386,11 @@ void TestApplication::testRandomRectangles() {
         double h = heightDist(gen);
 
         std::vector<deepnest::Point> points;
+        // Create counter-clockwise rectangle
         points.push_back(deepnest::Point(0, 0));
-        points.push_back(deepnest::Point(w, 0));
-        points.push_back(deepnest::Point(w, h));
-        points.push_back(deepnest::Point(0, h));
+        points.push_back(deepnest::Point(0, h));  // Up
+        points.push_back(deepnest::Point(w, h));  // Right
+        points.push_back(deepnest::Point(w, 0));  // Down
 
         deepnest::Polygon rect(points, i);  // Assign id
 
@@ -413,12 +414,12 @@ void TestApplication::testRandomRectangles() {
         solver_->addPart(rect, 2, QString("Rect_%1").arg(i).toStdString());
     }
 
-    // Create sheet (500x400)
+    // Create sheet (500x400) - counter-clockwise
     std::vector<deepnest::Point> sheetPoints;
     sheetPoints.push_back(deepnest::Point(0, 0));
-    sheetPoints.push_back(deepnest::Point(500, 0));
-    sheetPoints.push_back(deepnest::Point(500, 400));
-    sheetPoints.push_back(deepnest::Point(0, 400));
+    sheetPoints.push_back(deepnest::Point(0, 400));    // Up
+    sheetPoints.push_back(deepnest::Point(500, 400));  // Right
+    sheetPoints.push_back(deepnest::Point(500, 0));    // Down
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
 
@@ -480,12 +481,12 @@ void TestApplication::testRandomPolygons() {
         solver_->addPart(poly, 2, QString("Poly_%1").arg(i).toStdString());
     }
 
-    // Create sheet
+    // Create sheet - counter-clockwise
     std::vector<deepnest::Point> sheetPoints;
     sheetPoints.push_back(deepnest::Point(0, 0));
-    sheetPoints.push_back(deepnest::Point(600, 0));
-    sheetPoints.push_back(deepnest::Point(600, 400));
-    sheetPoints.push_back(deepnest::Point(0, 400));
+    sheetPoints.push_back(deepnest::Point(0, 400));    // Up
+    sheetPoints.push_back(deepnest::Point(600, 400));  // Right
+    sheetPoints.push_back(deepnest::Point(600, 0));    // Down
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
     sheets_.push_back(sheet);  // Save for visualization
@@ -605,11 +606,23 @@ void TestApplication::exportSVG() {
 }
 
 void TestApplication::updateVisualization(const deepnest::NestResult& result) {
+    // Detailed diagnostics
+    log(QString("=== Visualization Update ==="));
+    log(QString("Result fitness: %1, generation: %2")
+        .arg(result.fitness, 0, 'f', 2)
+        .arg(result.generation));
+    log(QString("Result has %1 sheets in placements vector")
+        .arg(result.placements.size()));
+
     // Count total placements to see if we have anything to show
     int totalPlacements = 0;
-    for (const auto& sheetPlacements : result.placements) {
+    for (size_t i = 0; i < result.placements.size(); ++i) {
+        const auto& sheetPlacements = result.placements[i];
+        log(QString("  Sheet %1: %2 placements").arg(i).arg(sheetPlacements.size()));
         totalPlacements += sheetPlacements.size();
     }
+
+    log(QString("Total placements: %1").arg(totalPlacements));
 
     // Only update visualization if we have placements to show
     if (totalPlacements == 0) {
