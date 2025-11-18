@@ -567,6 +567,22 @@ void TestApplication::exportSVG() {
 }
 
 void TestApplication::updateVisualization(const deepnest::NestResult& result) {
+    // Count total placements to see if we have anything to show
+    int totalPlacements = 0;
+    for (const auto& sheetPlacements : result.placements) {
+        totalPlacements += sheetPlacements.size();
+    }
+
+    // Only update visualization if we have placements to show
+    if (totalPlacements == 0) {
+        log(QString("Result has no placements yet, keeping current view"));
+        return;
+    }
+
+    log(QString("Visualizing %1 placed parts on %2 sheets")
+        .arg(totalPlacements)
+        .arg(result.placements.size()));
+
     clearScene();
 
     // Draw each sheet with placements
