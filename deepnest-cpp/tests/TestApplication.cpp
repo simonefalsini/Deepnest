@@ -39,6 +39,10 @@ TestApplication::TestApplication(QWidget* parent)
     setWindowTitle("DeepNest C++ Test Application");
     resize(1400, 900);
 
+    // Register custom types for Qt signal/slot system
+    qRegisterMetaType<deepnest::NestResult>("deepnest::NestResult");
+    qRegisterMetaType<deepnest::NestProgress>("deepnest::NestProgress");
+
     // Initialize UI
     initUI();
 
