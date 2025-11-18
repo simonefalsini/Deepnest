@@ -49,6 +49,22 @@ public:
     double fitness;
 
     /**
+     * @brief Total sheet area used
+     *
+     * Sum of areas of all sheets used in this placement.
+     * Populated when individual is evaluated.
+     */
+    double area;
+
+    /**
+     * @brief Total length of merged/aligned lines
+     *
+     * Used for cutting optimization - represents lines that can be merged
+     * for more efficient cutting paths. Populated when individual is evaluated.
+     */
+    double mergedLength;
+
+    /**
      * @brief Processing flag
      *
      * True when this individual is currently being evaluated by a worker thread.

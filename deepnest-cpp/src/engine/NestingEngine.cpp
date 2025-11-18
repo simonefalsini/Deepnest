@@ -222,15 +222,14 @@ bool NestingEngine::step() {
             //               if(displayCallback) { displayCallback(); }
             //             }
 
-            // For now, create a minimal result
-            // TODO: Store full PlacementResult in Individual for complete result tracking
+            // Create result from individual data (now includes area and mergedLength)
             if (results_.empty() || results_[0].fitness > individual.fitness) {
                 NestResult result;
                 result.fitness = individual.fitness;
                 result.generation = geneticAlgorithm_->getCurrentGeneration();
                 result.individualIndex = static_cast<int>(i);
-                result.area = 0.0; // TODO: Get from PlacementResult
-                result.mergedLength = 0.0; // TODO: Get from PlacementResult
+                result.area = individual.area;
+                result.mergedLength = individual.mergedLength;
 
                 updateResults(result);
 
