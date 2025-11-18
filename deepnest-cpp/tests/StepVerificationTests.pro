@@ -27,8 +27,8 @@ unix {
 
 win32 {
     # Windows Boost paths - adjust as needed
-    INCLUDEPATH += C:/boost/include
-    LIBS += -LC:/boost/lib
+    INCLUDEPATH += ../../boost
+    LIBS += -L../../boost/lib64-msvc-14.1
     LIBS += -lboost_thread-mt -lboost_system-mt
 }
 
