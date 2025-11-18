@@ -13,7 +13,7 @@ NestingEngine::NestingEngine(const DeepNestConfig& config)
     , evaluationsCompleted_(0)
 {
     // Create NFP calculator with cache
-    nfpCalculator_ = std::make_unique<NFPCalculator>();
+    nfpCalculator_ = std::make_unique<NFPCalculator>(nfpCache_);
 
     // Create placement worker
     placementWorker_ = std::make_unique<PlacementWorker>(config_, *nfpCalculator_);
