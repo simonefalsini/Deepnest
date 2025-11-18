@@ -16,11 +16,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 8**: Polygon class with hole support
 ✅ **Step 9**: Thread-safe NFP cache
 ✅ **Step 10**: Minkowski sum integration
+✅ **Step 11**: Complete NFP calculator
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (11-24)
+### Remaining Steps (12-24)
 
-⏳ Step 11: Complete NFP calculator
 ⏳ Step 12: Individual class for genetic algorithm
 ⏳ Step 13: Population and genetic operations
 ⏳ Step 14: Main genetic algorithm
@@ -126,7 +126,7 @@ deepnest-cpp/
 
 ```cpp
 #include <deepnest/core/Polygon.h>
-#include <deepnest/nfp/MinkowskiSum.h>
+#include <deepnest/nfp/NFPCalculator.h>
 #include <deepnest/nfp/NFPCache.h>
 
 using namespace deepnest;
@@ -135,12 +135,22 @@ using namespace deepnest;
 Polygon partA({{0, 0}, {100, 0}, {100, 100}, {0, 100}});
 Polygon partB({{0, 0}, {50, 0}, {50, 50}, {0, 50}});
 
-// Calculate NFP
-NFPCache cache;
-auto nfps = MinkowskiSum::calculateNFP(partA, partB);
+// Set IDs for caching
+partA.id = 1;
+partB.id = 2;
 
-// Cache the result
-cache.insert(partA.id, partB.id, 0.0, 0.0, nfps);
+// Create cache and calculator
+NFPCache cache;
+NFPCalculator calculator(cache);
+
+// Calculate outer NFP (B orbiting outside A)
+Polygon outerNfp = calculator.getOuterNFP(partA, partB);
+
+// Calculate inner NFP (B placed inside A)
+auto innerNfps = calculator.getInnerNFP(partA, partB);
+
+// Get cache statistics
+auto [hits, misses, size] = calculator.getCacheStats();
 ```
 
 ## Next Steps
