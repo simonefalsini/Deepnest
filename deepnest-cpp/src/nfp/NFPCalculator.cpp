@@ -55,11 +55,11 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
 
 Polygon NFPCalculator::getOuterNFP(const Polygon& A, const Polygon& B, bool inside) {
     // Try cache lookup first (background.js line 636-640)
-    auto cached = cache_.get(A.id, B.id, A.rotation, B.rotation, inside);
-    if (cached.has_value()) {
+    std::vector<Polygon> cached;
+    if (cache_.find(A.id, B.id, A.rotation, B.rotation, cached, inside)) {
         // Cache hit - return first polygon from cached result
-        if (!cached->empty()) {
-            return cached->front();
+        if (!cached.empty()) {
+            return cached.front();
         }
     }
 
@@ -85,8 +85,8 @@ Polygon NFPCalculator::createFrame(const Polygon& A) const {
     BoundingBox bounds = A.bounds();
 
     // Expand bounds by 10% (background.js line 716-719)
-    double originalWidth = bounds.width();
-    double originalHeight = bounds.height();
+    double originalWidth = bounds.width;
+    double originalHeight = bounds.height;
 
     double expandedWidth = originalWidth * 1.1;
     double expandedHeight = originalHeight * 1.1;
@@ -118,9 +118,9 @@ Polygon NFPCalculator::getFrame(const Polygon& A) const {
 std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon& B) {
     // Try cache lookup first (background.js line 735-742)
     // For inner NFP, rotation of A is always 0
-    auto cached = cache_.get(A.source, B.source, 0.0, B.rotation, true);
-    if (cached.has_value()) {
-        return *cached;
+    std::vector<Polygon> cached;
+    if (cache_.find(A.source, B.source, 0.0, B.rotation, cached, true)) {
+        return cached;
     }
 
     // Create frame around A (background.js line 744)
@@ -153,8 +153,15 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
 
                 for (auto& innerPoly : result) {
                     // Use PolygonOperations to perform difference
-                    auto difference = PolygonOperations::difference(innerPoly, holeNfp);
-                    updatedResult.insert(updatedResult.end(), difference.begin(), difference.end());
+                    // differencePolygons works with point vectors, so we need to convert
+                    auto differencePoints = PolygonOperations::differencePolygons(innerPoly.points, holeNfp.points);
+
+                    // Convert back to Polygon objects
+                    for (const auto& diffPoints : differencePoints) {
+                        Polygon diffPoly;
+                        diffPoly.points = diffPoints;
+                        updatedResult.push_back(diffPoly);
+                    }
                 }
 
                 result = updatedResult;
@@ -163,7 +170,7 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
     }
 
     // Cache the result (using source IDs and rotation)
-    if (result.empty() == false) {
+    if (!result.empty()) {
         cache_.insert(A.source, B.source, 0.0, B.rotation, result, true);
     }
 
@@ -175,7 +182,7 @@ void NFPCalculator::clearCache() {
 }
 
 std::tuple<size_t, size_t, size_t> NFPCalculator::getCacheStats() const {
-    return cache_.getStats();
+    return std::make_tuple(cache_.hitCount(), cache_.missCount(), cache_.size());
 }
 
 } // namespace deepnest
