@@ -1,0 +1,249 @@
+#include "../include/deepnest/DeepNestSolver.h"
+#include <stdexcept>
+#include <thread>
+#include <chrono>
+
+namespace deepnest {
+
+DeepNestSolver::DeepNestSolver()
+    : config_(DeepNestConfig::getInstance())
+    , running_(false)
+{
+}
+
+DeepNestSolver::DeepNestSolver(const DeepNestConfig& config)
+    : config_(DeepNestConfig::getInstance())
+    , running_(false)
+{
+    // Copy configuration values
+    config_.clipperScale = config.clipperScale;
+    config_.curveTolerance = config.curveTolerance;
+    config_.spacing = config.spacing;
+    config_.rotations = config.rotations;
+    config_.populationSize = config.populationSize;
+    config_.mutationRate = config.mutationRate;
+    config_.threads = config.threads;
+    config_.placementType = config.placementType;
+    config_.mergeLines = config.mergeLines;
+    config_.timeRatio = config.timeRatio;
+    config_.simplify = config.simplify;
+}
+
+DeepNestSolver::~DeepNestSolver() {
+    stop();
+}
+
+void DeepNestSolver::setSpacing(double spacing) {
+    config_.spacing = spacing;
+}
+
+void DeepNestSolver::setRotations(int rotations) {
+    config_.rotations = rotations;
+}
+
+void DeepNestSolver::setPopulationSize(int size) {
+    if (size < 1) {
+        throw std::invalid_argument("Population size must be at least 1");
+    }
+    config_.populationSize = size;
+}
+
+void DeepNestSolver::setMutationRate(int rate) {
+    if (rate < 0 || rate > 100) {
+        throw std::invalid_argument("Mutation rate must be between 0 and 100");
+    }
+    config_.mutationRate = rate;
+}
+
+void DeepNestSolver::setThreads(int threads) {
+    config_.threads = threads;
+}
+
+void DeepNestSolver::setPlacementType(const std::string& type) {
+    if (type != "gravity" && type != "box" && type != "convexhull") {
+        throw std::invalid_argument("Placement type must be 'gravity', 'box', or 'convexhull'");
+    }
+    config_.placementType = type;
+}
+
+void DeepNestSolver::setMergeLines(bool enable) {
+    config_.mergeLines = enable;
+}
+
+void DeepNestSolver::setCurveTolerance(double tolerance) {
+    config_.curveTolerance = tolerance;
+}
+
+void DeepNestSolver::setSimplify(bool enable) {
+    config_.simplify = enable;
+}
+
+const DeepNestConfig& DeepNestSolver::getConfig() const {
+    return config_;
+}
+
+void DeepNestSolver::addPart(const Polygon& polygon, int quantity, const std::string& name) {
+    if (quantity < 1) {
+        throw std::invalid_argument("Part quantity must be at least 1");
+    }
+    parts_.push_back(PartSpec(polygon, quantity, name));
+}
+
+void DeepNestSolver::addSheet(const Polygon& polygon, int quantity, const std::string& name) {
+    if (quantity < 1) {
+        throw std::invalid_argument("Sheet quantity must be at least 1");
+    }
+    sheets_.push_back(SheetSpec(polygon, quantity, name));
+}
+
+void DeepNestSolver::clearParts() {
+    parts_.clear();
+}
+
+void DeepNestSolver::clearSheets() {
+    sheets_.clear();
+}
+
+void DeepNestSolver::clear() {
+    clearParts();
+    clearSheets();
+}
+
+size_t DeepNestSolver::getPartCount() const {
+    return parts_.size();
+}
+
+size_t DeepNestSolver::getSheetCount() const {
+    return sheets_.size();
+}
+
+void DeepNestSolver::start(int maxGenerations) {
+    if (running_) {
+        throw std::runtime_error("Nesting is already running");
+    }
+
+    if (parts_.empty()) {
+        throw std::runtime_error("No parts added. Use addPart() to add parts to nest.");
+    }
+
+    if (sheets_.empty()) {
+        throw std::runtime_error("No sheets added. Use addSheet() to add sheets.");
+    }
+
+    // Create nesting engine
+    engine_ = std::make_unique<NestingEngine>(config_);
+
+    // Convert PartSpec to Polygon vectors
+    std::vector<Polygon> partPolygons;
+    std::vector<int> partQuantities;
+
+    for (const auto& part : parts_) {
+        partPolygons.push_back(part.polygon);
+        partQuantities.push_back(part.quantity);
+    }
+
+    // Convert SheetSpec to Polygon vectors
+    std::vector<Polygon> sheetPolygons;
+    std::vector<int> sheetQuantities;
+
+    for (const auto& sheet : sheets_) {
+        sheetPolygons.push_back(sheet.polygon);
+        sheetQuantities.push_back(sheet.quantity);
+    }
+
+    // Initialize engine
+    engine_->initialize(partPolygons, partQuantities, sheetPolygons, sheetQuantities);
+
+    // Start engine
+    engine_->start(progressCallback_, resultCallback_, maxGenerations);
+
+    running_ = true;
+}
+
+void DeepNestSolver::stop() {
+    if (engine_) {
+        engine_->stop();
+    }
+    running_ = false;
+}
+
+bool DeepNestSolver::step() {
+    if (!running_ || !engine_) {
+        return false;
+    }
+
+    bool stillRunning = engine_->step();
+
+    if (!stillRunning) {
+        running_ = false;
+    }
+
+    return stillRunning;
+}
+
+bool DeepNestSolver::isRunning() const {
+    return running_;
+}
+
+void DeepNestSolver::runUntilComplete(int maxGenerations, int stepDelayMs) {
+    // Start if not already running
+    if (!running_) {
+        start(maxGenerations);
+    }
+
+    // Run until complete
+    while (step()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(stepDelayMs));
+    }
+}
+
+NestProgress DeepNestSolver::getProgress() const {
+    if (!engine_) {
+        NestProgress progress;
+        progress.generation = 0;
+        progress.evaluationsCompleted = 0;
+        progress.bestFitness = std::numeric_limits<double>::max();
+        progress.percentComplete = 0.0;
+        return progress;
+    }
+
+    return engine_->getProgress();
+}
+
+const NestResult* DeepNestSolver::getBestResult() const {
+    if (!engine_) {
+        return nullptr;
+    }
+
+    return engine_->getBestResult();
+}
+
+const std::vector<NestResult>& DeepNestSolver::getResults() const {
+    static const std::vector<NestResult> emptyResults;
+
+    if (!engine_) {
+        return emptyResults;
+    }
+
+    return engine_->getResults();
+}
+
+void DeepNestSolver::setProgressCallback(NestingEngine::ProgressCallback callback) {
+    progressCallback_ = callback;
+    if (engine_) {
+        // Update callback on running engine
+        // Note: NestingEngine doesn't have a method to update callbacks after start
+        // The callback is passed in start(). For dynamic updates, we'd need to add
+        // a method to NestingEngine to update callbacks.
+    }
+}
+
+void DeepNestSolver::setResultCallback(NestingEngine::ResultCallback callback) {
+    resultCallback_ = callback;
+    if (engine_) {
+        // Update callback on running engine
+        // Same note as above
+    }
+}
+
+} // namespace deepnest

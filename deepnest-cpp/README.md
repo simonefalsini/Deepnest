@@ -4,7 +4,7 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 
 ## Project Status
 
-### Completed Steps (1-19, 25)
+### Completed Steps (1-20, 25)
 
 ✅ **Step 1**: Project structure and directory organization
 ✅ **Step 2**: Base types (Types.h, Point.h, BoundingBox.h)
@@ -25,11 +25,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 17**: Placement worker for part positioning
 ✅ **Step 18**: Parallel processing with Boost.Thread thread pool
 ✅ **Step 19**: Main nesting engine coordination
+✅ **Step 20**: DeepNestSolver user-facing interface
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (20-24)
+### Remaining Steps (21-24)
 
-⏳ Step 20: DeepNestSolver interface
 ⏳ Step 21: Qt-Boost converters
 ⏳ Step 22: Test application
 ⏳ Step 23: SVG loader
@@ -150,35 +150,79 @@ deepnest-cpp/
 - Generation-based optimization loop
 - Asynchronous processing with configurable max generations
 
+### DeepNestSolver Interface
+- High-level user-facing API for nesting
+- Simple configuration methods (spacing, rotations, population size, etc.)
+- Easy part and sheet management with quantities
+- Start/stop/step control for nesting process
+- Progress and result callbacks for UI integration
+- Synchronous and asynchronous execution modes
+- Complete example code in header documentation
+
 ## Usage Example
 
 ```cpp
-#include <deepnest/core/Polygon.h>
-#include <deepnest/nfp/NFPCalculator.h>
-#include <deepnest/nfp/NFPCache.h>
+#include <deepnest/DeepNestSolver.h>
+#include <iostream>
 
 using namespace deepnest;
 
-// Create polygons
-Polygon partA({{0, 0}, {100, 0}, {100, 100}, {0, 100}});
-Polygon partB({{0, 0}, {50, 0}, {50, 50}, {0, 50}});
+int main() {
+    // Create solver
+    DeepNestSolver solver;
 
-// Set IDs for caching
-partA.id = 1;
-partB.id = 2;
+    // Configure nesting parameters
+    solver.setSpacing(5.0);           // 5 units spacing between parts
+    solver.setRotations(4);           // Try 4 rotations (90° increments)
+    solver.setPopulationSize(10);     // GA population size
+    solver.setPlacementType("gravity"); // Use gravity placement strategy
 
-// Create cache and calculator
-NFPCache cache;
-NFPCalculator calculator(cache);
+    // Create parts (rectangles for this example)
+    Polygon part1({{0, 0}, {100, 0}, {100, 50}, {0, 50}});
+    Polygon part2({{0, 0}, {80, 0}, {80, 60}, {0, 60}});
 
-// Calculate outer NFP (B orbiting outside A)
-Polygon outerNfp = calculator.getOuterNFP(partA, partB);
+    // Add parts with quantities
+    solver.addPart(part1, 5, "Rectangle 100x50");
+    solver.addPart(part2, 3, "Rectangle 80x60");
 
-// Calculate inner NFP (B placed inside A)
-auto innerNfps = calculator.getInnerNFP(partA, partB);
+    // Create sheet
+    Polygon sheet({{0, 0}, {500, 0}, {500, 300}, {0, 300}});
+    solver.addSheet(sheet, 1, "Sheet 500x300");
 
-// Get cache statistics
-auto [hits, misses, size] = calculator.getCacheStats();
+    // Set callbacks
+    solver.setProgressCallback([](const NestProgress& progress) {
+        std::cout << "Generation " << progress.generation
+                  << ", Best fitness: " << progress.bestFitness
+                  << ", Progress: " << progress.percentComplete << "%"
+                  << std::endl;
+    });
+
+    solver.setResultCallback([](const NestResult& result) {
+        std::cout << "New best result! Fitness: " << result.fitness
+                  << " at generation " << result.generation << std::endl;
+    });
+
+    // Start nesting (100 generations max)
+    solver.start(100);
+
+    // Run nesting loop (step-based, can be called from timer/main loop)
+    while (solver.isRunning()) {
+        solver.step();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // Or use synchronous mode (blocks until complete)
+    // solver.runUntilComplete(100);
+
+    // Get best result
+    const NestResult* best = solver.getBestResult();
+    if (best) {
+        std::cout << "Final best fitness: " << best->fitness << std::endl;
+        std::cout << "Number of placements: " << best->placements.size() << std::endl;
+    }
+
+    return 0;
+}
 ```
 
 ## Next Steps

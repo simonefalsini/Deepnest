@@ -60,6 +60,9 @@ set(DEEPNEST_SOURCES
     # Engine
     src/engine/NestingEngine.cpp
 
+    # Main interface
+    src/DeepNestSolver.cpp
+
     # Clipper2
     ../Clipper2Lib/src/clipper.engine.cpp
     ../Clipper2Lib/src/clipper.offset.cpp
@@ -103,6 +106,9 @@ set(DEEPNEST_HEADERS
 
     # Engine
     include/deepnest/engine/NestingEngine.h
+
+    # Main interface
+    include/deepnest/DeepNestSolver.h
 )
 
 # Create library
