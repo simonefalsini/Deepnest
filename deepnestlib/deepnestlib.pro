@@ -5,7 +5,9 @@ QT += core gui
 TARGET = deepnest
 
 INCLUDEPATH += ../include \
-               ../Clipper2Lib/include
+               ../Clipper2Lib/include \
+               D:\buildOpencv\boost
+
 
 HEADERS = \
     ../include/deepnest/ClipperBridge.h \
