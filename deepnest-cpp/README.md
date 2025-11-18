@@ -4,7 +4,7 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 
 ## Project Status
 
-### Completed Steps (1-17, 25)
+### Completed Steps (1-18, 25)
 
 ✅ **Step 1**: Project structure and directory organization
 ✅ **Step 2**: Base types (Types.h, Point.h, BoundingBox.h)
@@ -23,11 +23,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 15**: Placement strategies (gravity, bounding box, convex hull)
 ✅ **Step 16**: Merge lines detection for cut optimization
 ✅ **Step 17**: Placement worker for part positioning
+✅ **Step 18**: Parallel processing with Boost.Thread thread pool
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (18-24)
+### Remaining Steps (19-24)
 
-⏳ Step 18: Parallelization with Boost.Thread
 ⏳ Step 19: Main nesting engine
 ⏳ Step 20: DeepNestSolver interface
 ⏳ Step 21: Qt-Boost converters
