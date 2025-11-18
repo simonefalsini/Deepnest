@@ -39,9 +39,9 @@
 
 // Placement
 #include "../include/deepnest/placement/PlacementStrategy.h"
-#include "../include/deepnest/placement/GravityPlacement.h"
-#include "../include/deepnest/placement/BoundingBoxPlacement.h"
-#include "../include/deepnest/placement/ConvexHullPlacement.h"
+//#include "../include/deepnest/placement/GravityPlacement.h"
+//#include "../include/deepnest/placement/BoundingBoxPlacement.h"
+//#include "../include/deepnest/placement/ConvexHullPlacement.h"
 #include "../include/deepnest/placement/PlacementWorker.h"
 
 // Engine
