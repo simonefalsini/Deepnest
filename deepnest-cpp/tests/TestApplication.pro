@@ -41,8 +41,8 @@ unix {
 
 win32 {
     # Windows Boost paths - adjust as needed
-    INCLUDEPATH += ../../../boost
-    LIBS += -L../../../boost/lib64-msvc-14.1
+    INCLUDEPATH += $$PWD/../../../boost
+    LIBS += -L$$PWD/../../../boost/lib64-msvc-14.1
     LIBS += boost_thread-vc141-mt-x64-1_89.lib
 }
 

@@ -20,7 +20,10 @@ INCLUDEPATH += $$PWD/../include
 INCLUDEPATH += $$PWD/../../Clipper2Lib/include
 
 # Source files
-SOURCES += StepVerificationTests.cpp
+SOURCES += StepVerificationTests.cpp \
+            SVGLoader.cpp \
+            RandomShapeGenerator.cpp
+
 
 # Link against deepnest library
 LIBS += -L$$PWD/../lib -ldeepnest
@@ -32,13 +35,13 @@ unix {
 
 win32 {
     # Windows Boost paths - adjust as needed
-    INCLUDEPATH += ../../../boost
-    LIBS += -L../../../boost/lib64-msvc-14.1
-    LIBS += -lboost_thread-mt -lboost_system-mt
+    INCLUDEPATH += $$PWD/../../../boost
+    LIBS += -L$$PWD/../../../boost/lib64-msvc-14.1
+    LIBS += boost_thread-vc141-mt-x64-1_89.lib
 }
 
 # Clipper2
-LIBS += -L$$PWD/../../Clipper2Lib/build -lClipper2
+#LIBS += -L$$PWD/../../Clipper2Lib/build -lClipper2
 
 # Build directories
 DESTDIR = $$PWD/../bin
