@@ -57,6 +57,9 @@ set(DEEPNEST_SOURCES
     # Parallel
     src/parallel/ParallelProcessor.cpp
 
+    # Engine
+    src/engine/NestingEngine.cpp
+
     # Clipper2
     ../Clipper2Lib/src/clipper.engine.cpp
     ../Clipper2Lib/src/clipper.offset.cpp
@@ -97,6 +100,9 @@ set(DEEPNEST_HEADERS
 
     # Parallel
     include/deepnest/parallel/ParallelProcessor.h
+
+    # Engine
+    include/deepnest/engine/NestingEngine.h
 )
 
 # Create library

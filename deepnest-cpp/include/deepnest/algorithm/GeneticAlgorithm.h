@@ -125,6 +125,15 @@ public:
     const std::vector<Individual>& getPopulation() const;
 
     /**
+     * @brief Get Population object
+     *
+     * Returns reference to the underlying Population object.
+     * This is needed for ParallelProcessor::processPopulation.
+     */
+    Population& getPopulationObject();
+    const Population& getPopulationObject() const;
+
+    /**
      * @brief Get number of individuals currently being processed
      */
     size_t getProcessingCount() const;

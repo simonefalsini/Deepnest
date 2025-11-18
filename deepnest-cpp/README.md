@@ -4,7 +4,7 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 
 ## Project Status
 
-### Completed Steps (1-18, 25)
+### Completed Steps (1-19, 25)
 
 ✅ **Step 1**: Project structure and directory organization
 ✅ **Step 2**: Base types (Types.h, Point.h, BoundingBox.h)
@@ -24,11 +24,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 16**: Merge lines detection for cut optimization
 ✅ **Step 17**: Placement worker for part positioning
 ✅ **Step 18**: Parallel processing with Boost.Thread thread pool
+✅ **Step 19**: Main nesting engine coordination
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (19-24)
+### Remaining Steps (20-24)
 
-⏳ Step 19: Main nesting engine
 ⏳ Step 20: DeepNestSolver interface
 ⏳ Step 21: Qt-Boost converters
 ⏳ Step 22: Test application
@@ -139,6 +139,16 @@ deepnest-cpp/
 - Convex hull placement: Minimize convex hull area
 - Pluggable strategy pattern for custom objectives
 - Automatic best position selection from NFP candidates
+
+### Nesting Engine
+- Main coordination layer for entire nesting process
+- Integrates GA, parallel processor, placement worker, NFP calculator
+- Automatic part sorting by area (largest first - "adam")
+- Spacing offset application to parts and sheets
+- Progress tracking with callback support
+- Result tracking (keeps top N best nests)
+- Generation-based optimization loop
+- Asynchronous processing with configurable max generations
 
 ## Usage Example
 

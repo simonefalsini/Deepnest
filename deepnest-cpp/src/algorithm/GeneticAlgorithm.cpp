@@ -105,6 +105,14 @@ const std::vector<Individual>& GeneticAlgorithm::getPopulation() const {
     return population_.getIndividuals();
 }
 
+Population& GeneticAlgorithm::getPopulationObject() {
+    return population_;
+}
+
+const Population& GeneticAlgorithm::getPopulationObject() const {
+    return population_;
+}
+
 size_t GeneticAlgorithm::getProcessingCount() const {
     // Count individuals currently being processed
     // JavaScript: var running = GA.population.filter(function(p){ return !!p.processing; }).length;
