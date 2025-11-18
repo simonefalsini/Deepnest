@@ -71,7 +71,7 @@ public:
      * Contains the actual placement results - position and rotation of each part
      * on each sheet. Populated when individual is evaluated.
      */
-    std::vector<std::vector<Placement>> placements;
+    std::vector<std::vector<PlacementWorker::Placement>> placements;
 
     /**
      * @brief Processing flag
