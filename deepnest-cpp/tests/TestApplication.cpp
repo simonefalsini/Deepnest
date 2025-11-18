@@ -523,6 +523,8 @@ void TestApplication::onStepTimer() {
         const deepnest::NestResult* best = solver_->getBestResult();
         if (best) {
             log(QString("Final best fitness: %1").arg(best->fitness, 0, 'f', 2));
+            // Visualize the final best result
+            updateVisualization(*best);
         }
         return;
     }
@@ -565,6 +567,22 @@ void TestApplication::exportSVG() {
 }
 
 void TestApplication::updateVisualization(const deepnest::NestResult& result) {
+    // Count total placements to see if we have anything to show
+    int totalPlacements = 0;
+    for (const auto& sheetPlacements : result.placements) {
+        totalPlacements += sheetPlacements.size();
+    }
+
+    // Only update visualization if we have placements to show
+    if (totalPlacements == 0) {
+        log(QString("Result has no placements yet, keeping current view"));
+        return;
+    }
+
+    log(QString("Visualizing %1 placed parts on %2 sheets")
+        .arg(totalPlacements)
+        .arg(result.placements.size()));
+
     clearScene();
 
     // Draw each sheet with placements
@@ -577,9 +595,12 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
         // Draw each placed part with random color
         for (const auto& placement : sheetPlacements) {
-            // Find the original polygon by id
-            if (placement.id >= 0 && placement.id < static_cast<int>(parts_.size())) {
-                deepnest::Polygon part = parts_[placement.id];
+            // Use source ID to find the original polygon type
+            // source contains the ID of the original part before quantity expansion
+            int sourceId = (placement.source >= 0) ? placement.source : placement.id;
+
+            if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
+                deepnest::Polygon part = parts_[sourceId];
 
                 // Apply rotation and translation
                 deepnest::Polygon transformed = part.rotate(placement.rotation);
