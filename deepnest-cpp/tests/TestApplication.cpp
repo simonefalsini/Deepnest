@@ -523,6 +523,8 @@ void TestApplication::onStepTimer() {
         const deepnest::NestResult* best = solver_->getBestResult();
         if (best) {
             log(QString("Final best fitness: %1").arg(best->fitness, 0, 'f', 2));
+            // Visualize the final best result
+            updateVisualization(*best);
         }
         return;
     }
@@ -577,9 +579,12 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
         // Draw each placed part with random color
         for (const auto& placement : sheetPlacements) {
-            // Find the original polygon by id
-            if (placement.id >= 0 && placement.id < static_cast<int>(parts_.size())) {
-                deepnest::Polygon part = parts_[placement.id];
+            // Use source ID to find the original polygon type
+            // source contains the ID of the original part before quantity expansion
+            int sourceId = (placement.source >= 0) ? placement.source : placement.id;
+
+            if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
+                deepnest::Polygon part = parts_[sourceId];
 
                 // Apply rotation and translation
                 deepnest::Polygon transformed = part.rotate(placement.rotation);
