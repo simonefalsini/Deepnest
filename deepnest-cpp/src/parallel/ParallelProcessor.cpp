@@ -133,6 +133,7 @@ void ParallelProcessor::processPopulation(
                 individual.fitness = result.fitness;
                 individual.area = result.area;
                 individual.mergedLength = result.mergedLength;
+                individual.placements = result.placements;  // Store actual placements!
                 individual.processing = false;
             });
         }
