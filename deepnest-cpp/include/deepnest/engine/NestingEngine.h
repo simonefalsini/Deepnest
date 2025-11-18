@@ -6,6 +6,7 @@
 #include "../placement/PlacementWorker.h"
 #include "../parallel/ParallelProcessor.h"
 #include "../nfp/NFPCalculator.h"
+#include "../nfp/NFPCache.h"
 #include "../config/DeepNestConfig.h"
 #include "../core/Polygon.h"
 #include <vector>
@@ -285,6 +286,11 @@ private:
      * @brief Configuration
      */
     const DeepNestConfig& config_;
+
+    /**
+     * @brief NFP cache for all NFP operations
+     */
+    NFPCache nfpCache_;
 
     /**
      * @brief NFP calculator for all NFP operations

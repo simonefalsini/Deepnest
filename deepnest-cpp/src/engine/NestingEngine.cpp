@@ -8,12 +8,13 @@ namespace deepnest {
 
 NestingEngine::NestingEngine(const DeepNestConfig& config)
     : config_(config)
+    , nfpCache_()
     , running_(false)
     , maxGenerations_(0)
     , evaluationsCompleted_(0)
 {
     // Create NFP calculator with cache
-    nfpCalculator_ = std::make_unique<NFPCalculator>();
+    nfpCalculator_ = std::make_unique<NFPCalculator>(nfpCache_);
 
     // Create placement worker
     placementWorker_ = std::make_unique<PlacementWorker>(config_, *nfpCalculator_);
@@ -328,6 +329,9 @@ PlacementWorker::PlacementResult NestingEngine::evaluateIndividual(
     const std::vector<Polygon>& parts,
     const std::vector<Polygon>& sheets
 ) {
+    // Suppress unused parameter warning - parts are retrieved from individual.placement
+    (void)parts;
+
     // Prepare parts with rotations from individual
     // JavaScript: for(j=0; j<GA.population[i].placement.length; j++) {
     //               var id = GA.population[i].placement[j].id;
