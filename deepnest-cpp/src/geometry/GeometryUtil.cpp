@@ -1,0 +1,660 @@
+#include "../../include/deepnest/geometry/GeometryUtil.h"
+#include "../../include/deepnest/core/Polygon.h"
+#include <cmath>
+#include <algorithm>
+#include <limits>
+#include <deque>
+
+namespace deepnest {
+namespace GeometryUtil {
+
+// ========== Basic Utility Functions ==========
+
+bool almostEqualPoints(const Point& a, const Point& b, double tolerance) {
+    double dx = a.x - b.x;
+    double dy = a.y - b.y;
+    return (dx * dx + dy * dy) < (tolerance * tolerance);
+}
+
+Point normalizeVector(const Point& v) {
+    if (almostEqual(v.x * v.x + v.y * v.y, 1.0)) {
+        return v;  // Already a unit vector
+    }
+    return v.normalize();
+}
+
+// ========== Line Segment Functions ==========
+
+bool onSegment(const Point& A, const Point& B, const Point& p, double tolerance) {
+    // Vertical line
+    if (almostEqual(A.x, B.x, tolerance) && almostEqual(p.x, A.x, tolerance)) {
+        if (!almostEqual(p.y, B.y, tolerance) && !almostEqual(p.y, A.y, tolerance) &&
+            p.y < std::max(B.y, A.y) && p.y > std::min(B.y, A.y)) {
+            return true;
+        }
+        return false;
+    }
+
+    // Horizontal line
+    if (almostEqual(A.y, B.y, tolerance) && almostEqual(p.y, A.y, tolerance)) {
+        if (!almostEqual(p.x, B.x, tolerance) && !almostEqual(p.x, A.x, tolerance) &&
+            p.x < std::max(B.x, A.x) && p.x > std::min(B.x, A.x)) {
+            return true;
+        }
+        return false;
+    }
+
+    // Range check
+    if ((p.x < A.x && p.x < B.x) || (p.x > A.x && p.x > B.x) ||
+        (p.y < A.y && p.y < B.y) || (p.y > A.y && p.y > B.y)) {
+        return false;
+    }
+
+    // Exclude endpoints
+    if ((almostEqual(p.x, A.x, tolerance) && almostEqual(p.y, A.y, tolerance)) ||
+        (almostEqual(p.x, B.x, tolerance) && almostEqual(p.y, B.y, tolerance))) {
+        return false;
+    }
+
+    double cross = (p.y - A.y) * (B.x - A.x) - (p.x - A.x) * (B.y - A.y);
+    if (std::abs(cross) > tolerance) {
+        return false;
+    }
+
+    double dot = (p.x - A.x) * (B.x - A.x) + (p.y - A.y) * (B.y - A.y);
+    if (dot < 0 || almostEqual(dot, 0, tolerance)) {
+        return false;
+    }
+
+    double len2 = (B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y);
+    if (dot > len2 || almostEqual(dot, len2, tolerance)) {
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<Point> lineIntersect(const Point& A, const Point& B,
+                                   const Point& E, const Point& F,
+                                   bool infinite) {
+    double a1 = B.y - A.y;
+    double b1 = A.x - B.x;
+    double c1 = B.x * A.y - A.x * B.y;
+
+    double a2 = F.y - E.y;
+    double b2 = E.x - F.x;
+    double c2 = F.x * E.y - E.x * F.y;
+
+    double denom = a1 * b2 - a2 * b1;
+
+    double x = (b1 * c2 - b2 * c1) / denom;
+    double y = (a2 * c1 - a1 * c2) / denom;
+
+    if (!std::isfinite(x) || !std::isfinite(y)) {
+        return std::nullopt;
+    }
+
+    if (!infinite) {
+        // Check if intersection point is within both segments
+        if (std::abs(A.x - B.x) > TOL) {
+            if ((A.x < B.x) ? (x < A.x || x > B.x) : (x > A.x || x < B.x)) {
+                return std::nullopt;
+            }
+        }
+        if (std::abs(A.y - B.y) > TOL) {
+            if ((A.y < B.y) ? (y < A.y || y > B.y) : (y > A.y || y < B.y)) {
+                return std::nullopt;
+            }
+        }
+
+        if (std::abs(E.x - F.x) > TOL) {
+            if ((E.x < F.x) ? (x < E.x || x > F.x) : (x > E.x || x < F.x)) {
+                return std::nullopt;
+            }
+        }
+        if (std::abs(E.y - F.y) > TOL) {
+            if ((E.y < F.y) ? (y < E.y || y > F.y) : (y > E.y || y < F.y)) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    return Point(x, y);
+}
+
+// ========== Polygon Functions ==========
+
+BoundingBox getPolygonBounds(const std::vector<Point>& polygon) {
+    if (polygon.empty()) {
+        return BoundingBox();
+    }
+
+    return BoundingBox::fromPoints(polygon);
+}
+
+std::optional<bool> pointInPolygon(const Point& point,
+                                   const std::vector<Point>& polygon,
+                                   double tolerance) {
+    if (polygon.size() < 3) {
+        return std::nullopt;
+    }
+
+    bool inside = false;
+
+    for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+        const Point& pi = polygon[i];
+        const Point& pj = polygon[j];
+
+        // Check if point is exactly on a vertex
+        if (almostEqual(pi.x, point.x, tolerance) &&
+            almostEqual(pi.y, point.y, tolerance)) {
+            return std::nullopt;
+        }
+
+        // Check if point is on a segment
+        if (onSegment(pi, pj, point, tolerance)) {
+            return std::nullopt;
+        }
+
+        // Ignore very small lines
+        if (almostEqual(pi.x, pj.x, tolerance) && almostEqual(pi.y, pj.y, tolerance)) {
+            continue;
+        }
+
+        // Ray casting algorithm
+        bool intersect = ((pi.y > point.y) != (pj.y > point.y)) &&
+                        (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x);
+        if (intersect) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
+double polygonArea(const std::vector<Point>& polygon) {
+    double area = 0.0;
+    for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+        area += (polygon[j].x + polygon[i].x) * (polygon[j].y - polygon[i].y);
+    }
+    return 0.5 * area;
+}
+
+bool intersect(const std::vector<Point>& A, const std::vector<Point>& B) {
+    // This is a simplified version - the full implementation is quite complex
+    // For now, we check segment-segment intersections
+
+    for (size_t i = 0; i < A.size(); i++) {
+        size_t nexti = (i == A.size() - 1) ? 0 : i + 1;
+
+        for (size_t j = 0; j < B.size(); j++) {
+            size_t nextj = (j == B.size() - 1) ? 0 : j + 1;
+
+            const Point& a1 = A[i];
+            const Point& a2 = A[nexti];
+            const Point& b1 = B[j];
+            const Point& b2 = B[nextj];
+
+            // Check for segment intersection
+            auto intersection = lineIntersect(a1, a2, b1, b2, false);
+            if (intersection.has_value()) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool isRectangle(const std::vector<Point>& poly, double tolerance) {
+    BoundingBox bb = getPolygonBounds(poly);
+
+    for (const auto& p : poly) {
+        if (!almostEqual(p.x, bb.x, tolerance) &&
+            !almostEqual(p.x, bb.x + bb.width, tolerance)) {
+            return false;
+        }
+        if (!almostEqual(p.y, bb.y, tolerance) &&
+            !almostEqual(p.y, bb.y + bb.height, tolerance)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::vector<Point> rotatePolygon(const std::vector<Point>& polygon, double angle) {
+    std::vector<Point> rotated;
+    rotated.reserve(polygon.size());
+
+    double angleRad = degreesToRadians(angle);
+    double cosA = std::cos(angleRad);
+    double sinA = std::sin(angleRad);
+
+    for (const auto& p : polygon) {
+        double x1 = p.x * cosA - p.y * sinA;
+        double y1 = p.x * sinA + p.y * cosA;
+        rotated.emplace_back(x1, y1);
+    }
+
+    return rotated;
+}
+
+// ========== Bezier Curve Functions ==========
+
+namespace QuadraticBezier {
+
+bool isFlat(const Point& p1, const Point& p2, const Point& c1, double tol) {
+    tol = 4.0 * tol * tol;
+
+    double ux = 2.0 * c1.x - p1.x - p2.x;
+    ux *= ux;
+
+    double uy = 2.0 * c1.y - p1.y - p2.y;
+    uy *= uy;
+
+    return (ux + uy <= tol);
+}
+
+std::pair<BezierSegment, BezierSegment> subdivide(
+    const Point& p1, const Point& p2, const Point& c1, double t) {
+
+    Point mid1(
+        p1.x + (c1.x - p1.x) * t,
+        p1.y + (c1.y - p1.y) * t
+    );
+
+    Point mid2(
+        c1.x + (p2.x - c1.x) * t,
+        c1.y + (p2.y - c1.y) * t
+    );
+
+    Point mid3(
+        mid1.x + (mid2.x - mid1.x) * t,
+        mid1.y + (mid2.y - mid1.y) * t
+    );
+
+    BezierSegment seg1{p1, mid3, mid1};
+    BezierSegment seg2{mid3, p2, mid2};
+
+    return {seg1, seg2};
+}
+
+std::vector<Point> linearize(const Point& p1, const Point& p2, const Point& c1, double tol) {
+    std::vector<Point> finished;
+    finished.push_back(p1);
+
+    std::deque<BezierSegment> todo;
+    todo.push_back({p1, p2, c1});
+
+    while (!todo.empty()) {
+        BezierSegment segment = todo.front();
+
+        if (isFlat(segment.p1, segment.p2, segment.c1, tol)) {
+            finished.push_back(segment.p2);
+            todo.pop_front();
+        } else {
+            auto divided = subdivide(segment.p1, segment.p2, segment.c1, 0.5);
+            todo.pop_front();
+            todo.push_front(divided.second);
+            todo.push_front(divided.first);
+        }
+    }
+
+    return finished;
+}
+
+} // namespace QuadraticBezier
+
+namespace CubicBezier {
+
+bool isFlat(const Point& p1, const Point& p2, const Point& c1, const Point& c2, double tol) {
+    tol = 16.0 * tol * tol;
+
+    double ux = 3.0 * c1.x - 2.0 * p1.x - p2.x;
+    ux *= ux;
+
+    double uy = 3.0 * c1.y - 2.0 * p1.y - p2.y;
+    uy *= uy;
+
+    double vx = 3.0 * c2.x - 2.0 * p2.x - p1.x;
+    vx *= vx;
+
+    double vy = 3.0 * c2.y - 2.0 * p2.y - p1.y;
+    vy *= vy;
+
+    if (ux < vx) {
+        ux = vx;
+    }
+    if (uy < vy) {
+        uy = vy;
+    }
+
+    return (ux + uy <= tol);
+}
+
+std::pair<BezierSegment, BezierSegment> subdivide(
+    const Point& p1, const Point& p2,
+    const Point& c1, const Point& c2, double t) {
+
+    Point mid1(
+        p1.x + (c1.x - p1.x) * t,
+        p1.y + (c1.y - p1.y) * t
+    );
+
+    Point mid2(
+        c2.x + (p2.x - c2.x) * t,
+        c2.y + (p2.y - c2.y) * t
+    );
+
+    Point mid3(
+        c1.x + (c2.x - c1.x) * t,
+        c1.y + (c2.y - c1.y) * t
+    );
+
+    Point mida(
+        mid1.x + (mid3.x - mid1.x) * t,
+        mid1.y + (mid3.y - mid1.y) * t
+    );
+
+    Point midb(
+        mid3.x + (mid2.x - mid3.x) * t,
+        mid3.y + (mid2.y - mid3.y) * t
+    );
+
+    Point midx(
+        mida.x + (midb.x - mida.x) * t,
+        mida.y + (midb.y - mida.y) * t
+    );
+
+    BezierSegment seg1{p1, midx, mid1, mida};
+    BezierSegment seg2{midx, p2, midb, mid2};
+
+    return {seg1, seg2};
+}
+
+std::vector<Point> linearize(
+    const Point& p1, const Point& p2,
+    const Point& c1, const Point& c2, double tol) {
+
+    std::vector<Point> finished;
+    finished.push_back(p1);
+
+    std::deque<BezierSegment> todo;
+    todo.push_back({p1, p2, c1, c2});
+
+    while (!todo.empty()) {
+        BezierSegment segment = todo.front();
+
+        if (isFlat(segment.p1, segment.p2, segment.c1, segment.c2, tol)) {
+            finished.push_back(segment.p2);
+            todo.pop_front();
+        } else {
+            auto divided = subdivide(segment.p1, segment.p2, segment.c1, segment.c2, 0.5);
+            todo.pop_front();
+            todo.push_front(divided.second);
+            todo.push_front(divided.first);
+        }
+    }
+
+    return finished;
+}
+
+} // namespace CubicBezier
+
+// ========== Arc Functions ==========
+
+namespace Arc {
+
+SvgArc centerToSvg(const Point& center, double rx, double ry,
+                   double theta1, double extent, double angleDegrees) {
+    double theta2 = theta1 + extent;
+
+    double theta1Rad = degreesToRadians(theta1);
+    double theta2Rad = degreesToRadians(theta2);
+    double angleRad = degreesToRadians(angleDegrees);
+
+    double cosAngle = std::cos(angleRad);
+    double sinAngle = std::sin(angleRad);
+
+    double t1cos = std::cos(theta1Rad);
+    double t1sin = std::sin(theta1Rad);
+    double t2cos = std::cos(theta2Rad);
+    double t2sin = std::sin(theta2Rad);
+
+    double x0 = center.x + cosAngle * rx * t1cos + (-sinAngle) * ry * t1sin;
+    double y0 = center.y + sinAngle * rx * t1cos + cosAngle * ry * t1sin;
+
+    double x1 = center.x + cosAngle * rx * t2cos + (-sinAngle) * ry * t2sin;
+    double y1 = center.y + sinAngle * rx * t2cos + cosAngle * ry * t2sin;
+
+    int largearc = (extent > 180) ? 1 : 0;
+    int sweep = (extent > 0) ? 1 : 0;
+
+    return SvgArc{Point(x0, y0), Point(x1, y1), rx, ry, angleRad, largearc, sweep};
+}
+
+CenterArc svgToCenter(const Point& p1, const Point& p2,
+                     double rx, double ry, double angleDegrees,
+                     int largearc, int sweep) {
+    Point mid((p1.x + p2.x) / 2.0, (p1.y + p2.y) / 2.0);
+    Point diff((p2.x - p1.x) / 2.0, (p2.y - p1.y) / 2.0);
+
+    double angleRad = degreesToRadians(std::fmod(angleDegrees, 360.0));
+    double cosAngle = std::cos(angleRad);
+    double sinAngle = std::sin(angleRad);
+
+    double x1 = cosAngle * diff.x + sinAngle * diff.y;
+    double y1 = -sinAngle * diff.x + cosAngle * diff.y;
+
+    rx = std::abs(rx);
+    ry = std::abs(ry);
+    double Prx = rx * rx;
+    double Pry = ry * ry;
+    double Px1 = x1 * x1;
+    double Py1 = y1 * y1;
+
+    double radiiCheck = Px1 / Prx + Py1 / Pry;
+    if (radiiCheck > 1.0) {
+        double radiiSqrt = std::sqrt(radiiCheck);
+        rx = radiiSqrt * rx;
+        ry = radiiSqrt * ry;
+        Prx = rx * rx;
+        Pry = ry * ry;
+    }
+
+    int sign = (largearc != sweep) ? -1 : 1;
+    double sq = ((Prx * Pry) - (Prx * Py1) - (Pry * Px1)) /
+                ((Prx * Py1) + (Pry * Px1));
+    sq = (sq < 0) ? 0 : sq;
+
+    double coef = sign * std::sqrt(sq);
+    double cx1 = coef * ((rx * y1) / ry);
+    double cy1 = coef * -((ry * x1) / rx);
+
+    double cx = mid.x + (cosAngle * cx1 - sinAngle * cy1);
+    double cy = mid.y + (sinAngle * cx1 + cosAngle * cy1);
+
+    double ux = (x1 - cx1) / rx;
+    double uy = (y1 - cy1) / ry;
+    double vx = (-x1 - cx1) / rx;
+    double vy = (-y1 - cy1) / ry;
+    double n = std::sqrt((ux * ux) + (uy * uy));
+    double p = ux;
+    sign = (uy < 0) ? -1 : 1;
+
+    double theta = sign * std::acos(p / n);
+    theta = radiansToDegrees(theta);
+
+    n = std::sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+    p = ux * vx + uy * vy;
+    sign = ((ux * vy - uy * vx) < 0) ? -1 : 1;
+    double delta = sign * std::acos(p / n);
+    delta = radiansToDegrees(delta);
+
+    if (sweep == 1 && delta > 0) {
+        delta -= 360.0;
+    } else if (sweep == 0 && delta < 0) {
+        delta += 360.0;
+    }
+
+    delta = std::fmod(delta, 360.0);
+    theta = std::fmod(theta, 360.0);
+
+    return CenterArc{Point(cx, cy), rx, ry, theta, delta, angleDegrees};
+}
+
+std::vector<Point> linearize(const Point& p1, const Point& p2,
+                             double rx, double ry, double angle,
+                             int largearc, int sweep, double tol) {
+    std::vector<Point> finished;
+
+    CenterArc arc = svgToCenter(p1, p2, rx, ry, angle, largearc, sweep);
+    std::deque<CenterArc> todo;
+    todo.push_back(arc);
+
+    while (!todo.empty()) {
+        arc = todo.front();
+
+        SvgArc fullarc = centerToSvg(arc.center, arc.rx, arc.ry,
+                                     arc.theta, arc.extent, arc.angle);
+        SvgArc subarc = centerToSvg(arc.center, arc.rx, arc.ry,
+                                    arc.theta, 0.5 * arc.extent, arc.angle);
+        Point arcmid = subarc.p2;
+
+        Point mid(
+            0.5 * (fullarc.p1.x + fullarc.p2.x),
+            0.5 * (fullarc.p1.y + fullarc.p2.y)
+        );
+
+        if (withinDistance(mid, arcmid, tol)) {
+            finished.insert(finished.begin(), fullarc.p2);
+            todo.pop_front();
+        } else {
+            CenterArc arc1{arc.center, arc.rx, arc.ry, arc.theta,
+                          0.5 * arc.extent, arc.angle};
+            CenterArc arc2{arc.center, arc.rx, arc.ry, arc.theta + 0.5 * arc.extent,
+                          0.5 * arc.extent, arc.angle};
+            todo.pop_front();
+            todo.push_front(arc2);
+            todo.push_front(arc1);
+        }
+    }
+
+    finished.push_back(p2);
+    return finished;
+}
+
+} // namespace Arc
+
+// Note: Advanced polygon functions (polygonEdge, pointLineDistance, etc.)
+// are complex and would make this file very long. They can be implemented
+// in a separate file if needed, or implemented progressively as needed.
+
+// Placeholder implementations for now
+std::vector<Point> polygonEdge(const std::vector<Point>& polygon, const Point& normal) {
+    // TODO: Implement full algorithm from geometryutil.js
+    return polygon;
+}
+
+std::optional<double> pointLineDistance(const Point& p, const Point& s1, const Point& s2,
+                                       const Point& normal, bool s1inclusive, bool s2inclusive) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::optional<double> pointDistance(const Point& p, const Point& s1, const Point& s2,
+                                   const Point& normal, bool infinite) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::optional<double> segmentDistance(const Point& A, const Point& B,
+                                     const Point& E, const Point& F,
+                                     const Point& direction) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::optional<double> polygonSlideDistance(const std::vector<Point>& A,
+                                          const std::vector<Point>& B,
+                                          const Point& direction,
+                                          bool ignoreNegative) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::optional<double> polygonProjectionDistance(const std::vector<Point>& A,
+                                               const std::vector<Point>& B,
+                                               const Point& direction) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::optional<Point> searchStartPoint(const std::vector<Point>& A,
+                                      const std::vector<Point>& B,
+                                      bool inside,
+                                      const std::vector<std::vector<Point>>& NFP) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
+                                            const std::vector<Point>& B,
+                                            bool inside,
+                                            bool searchEdges) {
+    // TODO: Implement full algorithm
+    // This is one of the most complex functions and will be implemented
+    // when we integrate with the Minkowski C++ code
+    return {};
+}
+
+std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& A,
+                                                     const std::vector<Point>& B) {
+    // Special case for rectangle NFP
+    if (A.size() < 3 || B.size() < 3) {
+        return {};
+    }
+
+    // Find min/max of A
+    double minAx = A[0].x, minAy = A[0].y;
+    double maxAx = A[0].x, maxAy = A[0].y;
+    for (const auto& p : A) {
+        minAx = std::min(minAx, p.x);
+        minAy = std::min(minAy, p.y);
+        maxAx = std::max(maxAx, p.x);
+        maxAy = std::max(maxAy, p.y);
+    }
+
+    // Find min/max of B
+    double minBx = B[0].x, minBy = B[0].y;
+    double maxBx = B[0].x, maxBy = B[0].y;
+    for (const auto& p : B) {
+        minBx = std::min(minBx, p.x);
+        minBy = std::min(minBy, p.y);
+        maxBx = std::max(maxBx, p.x);
+        maxBy = std::max(maxBy, p.y);
+    }
+
+    if (maxBx - minBx > maxAx - minAx || maxBy - minBy > maxAy - minAy) {
+        return {};
+    }
+
+    std::vector<Point> nfp{
+        Point(minAx - minBx + B[0].x, minAy - minBy + B[0].y),
+        Point(maxAx - maxBx + B[0].x, minAy - minBy + B[0].y),
+        Point(maxAx - maxBx + B[0].x, maxAy - maxBy + B[0].y),
+        Point(minAx - minBx + B[0].x, maxAy - maxBy + B[0].y)
+    };
+
+    return {nfp};
+}
+
+std::optional<std::vector<Point>> polygonHull(const std::vector<Point>& A,
+                                              const std::vector<Point>& B) {
+    // TODO: Implement full algorithm
+    return std::nullopt;
+}
+
+} // namespace GeometryUtil
+} // namespace deepnest
