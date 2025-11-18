@@ -3,6 +3,7 @@
 
 #include "../core/Polygon.h"
 #include "../config/DeepNestConfig.h"
+#include "../placement/PlacementWorker.h"
 #include <vector>
 #include <limits>
 #include <random>
@@ -63,6 +64,14 @@ public:
      * for more efficient cutting paths. Populated when individual is evaluated.
      */
     double mergedLength;
+
+    /**
+     * @brief Placements organized by sheet
+     *
+     * Contains the actual placement results - position and rotation of each part
+     * on each sheet. Populated when individual is evaluated.
+     */
+    std::vector<std::vector<Placement>> placements;
 
     /**
      * @brief Processing flag

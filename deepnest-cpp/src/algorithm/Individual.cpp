@@ -38,6 +38,7 @@ Individual Individual::clone() const {
     copy.fitness = this->fitness;
     copy.area = this->area;
     copy.mergedLength = this->mergedLength;
+    copy.placements = this->placements; // Copy placement results
     copy.processing = false;           // Reset processing flag
 
     return copy;
@@ -84,6 +85,9 @@ bool Individual::hasValidFitness() const {
 
 void Individual::resetFitness() {
     fitness = std::numeric_limits<double>::max();
+    area = 0.0;
+    mergedLength = 0.0;
+    placements.clear();  // Clear placement results when fitness is reset
 }
 
 size_t Individual::size() const {

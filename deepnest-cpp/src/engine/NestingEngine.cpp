@@ -222,7 +222,7 @@ bool NestingEngine::step() {
             //               if(displayCallback) { displayCallback(); }
             //             }
 
-            // Create result from individual data (now includes area and mergedLength)
+            // Create result from individual data (now includes placements!)
             if (results_.empty() || results_[0].fitness > individual.fitness) {
                 NestResult result;
                 result.fitness = individual.fitness;
@@ -230,6 +230,7 @@ bool NestingEngine::step() {
                 result.individualIndex = static_cast<int>(i);
                 result.area = individual.area;
                 result.mergedLength = individual.mergedLength;
+                result.placements = individual.placements;  // Copy actual placements!
 
                 updateResults(result);
 
