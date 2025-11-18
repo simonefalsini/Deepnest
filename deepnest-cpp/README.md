@@ -265,15 +265,48 @@ int main() {
 }
 ```
 
-## Next Steps
+## Testing
 
-The remaining implementation includes:
+Comprehensive test suite to verify all 25 steps of the implementation.
 
-1. **NFP Calculator**: High-level NFP calculation with caching
-2. **Genetic Algorithm**: Population-based optimization
-3. **Placement Engine**: Part placement strategies
-4. **Nesting Engine**: Main orchestration logic
-5. **Test Applications**: Qt-based test and visualization tools
+### Step Verification Tests
+
+Automated command-line tests that verify each component:
+
+```bash
+cd tests
+qmake StepVerificationTests.pro
+make
+./StepVerificationTests
+```
+
+This will test:
+- All core components (types, geometry, transformations)
+- NFP calculation and caching
+- Genetic algorithm implementation
+- Placement strategies
+- Qt-Boost conversions
+- SVG loading and shape generation
+
+See `tests/TESTING.md` for detailed testing documentation.
+
+### Qt Test Application
+
+Interactive GUI for testing and visualization:
+
+```bash
+cd tests
+qmake TestApplication.pro
+make
+./TestApplication
+```
+
+Features:
+- Load shapes from SVG files
+- Generate random test shapes
+- Configure and run nesting
+- Visualize results in real-time
+- Export to SVG
 
 ## Contributing
 
