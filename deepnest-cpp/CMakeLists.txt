@@ -44,6 +44,9 @@ set(DEEPNEST_SOURCES
     # Config
     src/config/DeepNestConfig.cpp
 
+    # Algorithm
+    src/algorithm/Individual.cpp
+
     # Clipper2
     ../Clipper2Lib/src/clipper.engine.cpp
     ../Clipper2Lib/src/clipper.offset.cpp
@@ -71,6 +74,9 @@ set(DEEPNEST_HEADERS
 
     # Config
     include/deepnest/config/DeepNestConfig.h
+
+    # Algorithm
+    include/deepnest/algorithm/Individual.h
 )
 
 # Create library

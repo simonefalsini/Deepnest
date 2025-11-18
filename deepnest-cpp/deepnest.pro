@@ -50,7 +50,8 @@ HEADERS += \
     include/deepnest/nfp/NFPCache.h \
     include/deepnest/nfp/MinkowskiSum.h \
     include/deepnest/nfp/NFPCalculator.h \
-    include/deepnest/config/DeepNestConfig.h
+    include/deepnest/config/DeepNestConfig.h \
+    include/deepnest/algorithm/Individual.h
 
 # Sources
 SOURCES += \
@@ -64,7 +65,8 @@ SOURCES += \
     src/nfp/NFPCache.cpp \
     src/nfp/MinkowskiSum.cpp \
     src/nfp/NFPCalculator.cpp \
-    src/config/DeepNestConfig.cpp
+    src/config/DeepNestConfig.cpp \
+    src/algorithm/Individual.cpp
 
 # Installation
 headers.files = $$HEADERS
