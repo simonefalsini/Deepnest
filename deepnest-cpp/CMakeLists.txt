@@ -39,6 +39,7 @@ set(DEEPNEST_SOURCES
     # NFP
     src/nfp/NFPCache.cpp
     src/nfp/MinkowskiSum.cpp
+    src/nfp/NFPCalculator.cpp
 
     # Config
     src/config/DeepNestConfig.cpp
@@ -66,6 +67,7 @@ set(DEEPNEST_HEADERS
     # NFP
     include/deepnest/nfp/NFPCache.h
     include/deepnest/nfp/MinkowskiSum.h
+    include/deepnest/nfp/NFPCalculator.h
 
     # Config
     include/deepnest/config/DeepNestConfig.h

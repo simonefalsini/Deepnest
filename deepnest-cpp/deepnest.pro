@@ -49,6 +49,7 @@ HEADERS += \
     include/deepnest/geometry/Transformation.h \
     include/deepnest/nfp/NFPCache.h \
     include/deepnest/nfp/MinkowskiSum.h \
+    include/deepnest/nfp/NFPCalculator.h \
     include/deepnest/config/DeepNestConfig.h
 
 # Sources
@@ -62,6 +63,7 @@ SOURCES += \
     src/geometry/Transformation.cpp \
     src/nfp/NFPCache.cpp \
     src/nfp/MinkowskiSum.cpp \
+    src/nfp/NFPCalculator.cpp \
     src/config/DeepNestConfig.cpp
 
 # Installation
