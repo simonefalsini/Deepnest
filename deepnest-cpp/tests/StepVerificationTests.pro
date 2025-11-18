@@ -10,6 +10,11 @@ CONFIG += console
 TARGET = StepVerificationTests
 TEMPLATE = app
 
+# Windows-specific settings
+win32 {
+    DEFINES += _WIN32_WINNT=0x0601  # Windows 7 target
+}
+
 # Include paths
 INCLUDEPATH += $$PWD/../include
 INCLUDEPATH += $$PWD/../../Clipper2Lib/include

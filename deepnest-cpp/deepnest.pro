@@ -10,6 +10,11 @@ CONFIG -= debug_and_release debug_and_release_target
 #QMAKE_CXXFLAGS += -std=c++17
 #QMAKE_CXXFLAGS_WARN_ON += -Wall
 
+# Windows-specific settings
+win32 {
+    DEFINES += _WIN32_WINNT=0x0601  # Windows 7 target
+}
+
 # Build directories
 DESTDIR = $$PWD/lib
 OBJECTS_DIR = $$PWD/build/obj

@@ -53,8 +53,8 @@ std::optional<double> pointLineDistance(
     const Point& s1,
     const Point& s2,
     const Point& normal,
-    bool s1inclusive = false,
-    bool s2inclusive = false
+    bool s1inclusive,
+    bool s2inclusive
 );
 
 /**
@@ -75,7 +75,7 @@ std::optional<double> pointDistance(
     const Point& s1,
     const Point& s2,
     const Point& normal,
-    bool infinite = false
+    bool infinite
 );
 
 /**
@@ -115,7 +115,7 @@ std::optional<double> polygonSlideDistance(
     const std::vector<Point>& A,
     const std::vector<Point>& B,
     const Point& direction,
-    bool ignoreNegative = false
+    bool ignoreNegative
 );
 
 /**
@@ -152,7 +152,7 @@ std::optional<Point> searchStartPoint(
     const std::vector<Point>& A,
     const std::vector<Point>& B,
     bool inside,
-    const std::vector<std::vector<Point>>& NFP = {}
+    const std::vector<std::vector<Point>>& NFP
 );
 
 /**
