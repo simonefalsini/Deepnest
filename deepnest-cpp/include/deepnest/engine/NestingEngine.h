@@ -23,7 +23,7 @@ struct NestResult {
     /**
      * @brief All placements organized by sheet
      */
-    std::vector<std::vector<PlacementWorker::PlacementResult::Placement>> placements;
+    std::vector<std::vector<PlacementWorker::Placement>> placements;
 
     /**
      * @brief Total fitness value (lower is better)

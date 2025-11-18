@@ -298,9 +298,9 @@ Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
     // JavaScript: offsetTree(t, offset, offsetFunction, simpleFunction, inside)
     // Uses ClipperLib offset with config.curveTolerance
 
-    // Use PolygonOperations::offsetPolygon
+    // Use PolygonOperations::offset
     std::vector<std::vector<Point>> offsetResults =
-        PolygonOperations::offsetPolygon(polygon.points, offset);
+        PolygonOperations::offset(polygon.points, offset, 4.0, config_.curveTolerance);
 
     if (offsetResults.empty()) {
         // Offset failed, return original
