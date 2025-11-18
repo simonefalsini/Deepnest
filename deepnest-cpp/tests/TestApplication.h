@@ -208,6 +208,10 @@ private:
     double bestFitness_;             ///< Best fitness value found
     deepnest::NestResult* lastResult_;  ///< Last result (owned)
 
+    // Parts tracking for visualization
+    std::vector<deepnest::Polygon> parts_;  ///< Loaded parts (indexed by id)
+    std::vector<deepnest::Polygon> sheets_; ///< Loaded sheets
+
     // Configuration
     int maxGenerations_;             ///< Maximum generations to run
     int stepTimerInterval_;          ///< Timer interval in milliseconds
