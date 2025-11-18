@@ -63,10 +63,6 @@ std::vector<std::vector<Point>> PolygonOperations::offset(
         return {};
     }
 
-    // Get clipper scale from config
-    auto& config = DeepNestConfig::getInstance();
-    double scale = config.getClipperScale();
-
     // Convert to Clipper path
     PathD pathD = toClipperPathD(poly);
 
@@ -103,7 +99,7 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     Path64 path = toClipperPath64(poly, scale);
 
     // Simplify to remove self-intersections
-    Paths64 solution = SimplifyPaths({path}, scale * 0.0001);  // Small epsilon
+    Paths64 solution = SimplifyPaths<int64_t>({path}, scale * 0.0001);  // Small epsilon
 
     if (solution.empty()) {
         return {};

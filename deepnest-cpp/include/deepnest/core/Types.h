@@ -1,6 +1,11 @@
 #ifndef DEEPNEST_TYPES_H
 #define DEEPNEST_TYPES_H
 
+// Define M_PI for MSVC
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include <boost/polygon/polygon.hpp>
 #include <vector>
 #include <memory>
@@ -9,7 +14,7 @@ namespace deepnest {
 
 // Forward declarations
 class Polygon;
-class Point;
+struct Point;
 
 // Boost.Polygon types for internal geometry representation
 using BoostPoint = boost::polygon::point_data<double>;

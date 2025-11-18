@@ -253,8 +253,8 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
     IntPolygonWithHoles boostB = toBoostIntPolygon(B, scale);
 
-    polySetA += boostA;
-    polySetB += boostB;
+    polySetA.insert(boostA);
+    polySetB.insert(boostB);
 
     // Compute Minkowski sum
     convolve_two_polygon_sets(result, polySetA, polySetB);
