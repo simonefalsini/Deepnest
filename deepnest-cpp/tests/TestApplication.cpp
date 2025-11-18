@@ -1,4 +1,5 @@
 #include "TestApplication.h"
+#include "SVGLoader.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
 
 #include <QMenuBar>
@@ -202,10 +203,84 @@ void TestApplication::loadSVG() {
         return;
     }
 
+    reset();
     log("Loading SVG: " + filename);
-    QMessageBox::information(this, "Not Implemented",
-                            "SVG loading will be implemented in Step 23.\n"
-                            "For now, use 'Test Rectangles' or 'Test Polygons'.");
+
+    // Load SVG file
+    SVGLoader::LoadResult result = SVGLoader::loadFile(filename);
+
+    if (!result.success()) {
+        log("Error loading SVG: " + result.errorMessage);
+        QMessageBox::critical(this, "Load Error", "Failed to load SVG file:\n" + result.errorMessage);
+        return;
+    }
+
+    // Add container/sheet if found
+    int sheetCount = 0;
+    if (result.container) {
+        QPainterPath containerPath = result.container->path;
+        if (!result.container->transform.isIdentity()) {
+            containerPath = result.container->transform.map(containerPath);
+        }
+
+        deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath);
+        solver_->addSheet(sheetPoly, 1, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
+        sheetCount++;
+
+        log(QString("Added sheet: %1").arg(result.container->id.isEmpty() ? "Sheet" : result.container->id));
+    }
+
+    // Add all shapes as parts
+    int partCount = 0;
+    for (const auto& shape : result.shapes) {
+        QPainterPath shapePath = shape.path;
+        if (!shape.transform.isIdentity()) {
+            shapePath = shape.transform.map(shapePath);
+        }
+
+        deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(shapePath);
+
+        if (partPoly.isValid()) {
+            QString partName = shape.id.isEmpty() ? QString("Part_%1").arg(partCount) : shape.id;
+            solver_->addPart(partPoly, 1, partName.toStdString());
+            partCount++;
+        }
+    }
+
+    log(QString("Loaded %1 parts and %2 sheet(s) from SVG").arg(partCount).arg(sheetCount));
+
+    if (partCount == 0) {
+        QMessageBox::warning(this, "No Parts", "No valid parts found in SVG file");
+        return;
+    }
+
+    if (sheetCount == 0) {
+        QMessageBox::warning(this, "No Sheet",
+                           "No sheet/container found in SVG.\n"
+                           "Please add a sheet manually or mark a shape as 'container' in the SVG.");
+    }
+
+    // Visualize loaded shapes
+    clearScene();
+    for (const auto& shape : result.shapes) {
+        QPainterPath shapePath = shape.path;
+        if (!shape.transform.isIdentity()) {
+            shapePath = shape.transform.map(shapePath);
+        }
+        scene_->addPath(shapePath, QPen(Qt::blue, 2), QBrush(QColor(100, 100, 255, 80)));
+    }
+
+    if (result.container) {
+        QPainterPath containerPath = result.container->path;
+        if (!result.container->transform.isIdentity()) {
+            containerPath = result.container->transform.map(containerPath);
+        }
+        scene_->addPath(containerPath, QPen(Qt::green, 3), QBrush(QColor(100, 255, 100, 40)));
+    }
+
+    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+
+    log("Ready to start nesting - click 'Start' button");
 }
 
 void TestApplication::startNesting() {

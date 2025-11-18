@@ -28,11 +28,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 20**: DeepNestSolver user-facing interface
 ✅ **Step 21**: Qt-Boost converters (QtBoostConverter namespace)
 ✅ **Step 22**: Qt-based test application with GUI
+✅ **Step 23**: SVG loader for importing shapes from files
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (23-24)
+### Remaining Steps (24)
 
-⏳ Step 23: SVG loader
 ⏳ Step 24: Random shape generator
 
 ## Features
@@ -172,12 +172,21 @@ deepnest-cpp/
 - Qt-based GUI for testing and visualization
 - Real-time nesting visualization with QGraphicsView
 - Random shape generation (rectangles and polygons)
+- SVG file loading with automatic shape extraction
 - Interactive configuration of nesting parameters
 - Progress monitoring and statistics display
 - Result export to SVG
 - Menu, toolbar, and keyboard shortcuts (F5=Start, Esc=Stop)
 - Log widget for monitoring operations
-- Prepared for SVG loading (Step 23)
+
+### SVG Loader
+- Complete SVG file parser for shape extraction
+- Supports all common SVG elements: path, rect, circle, ellipse, polygon, polyline
+- Full SVG path command support (M, L, H, V, C, S, Q, T, A, Z)
+- Transform parsing and application (translate, rotate, scale, matrix, skew)
+- Automatic container/sheet detection by ID or class attributes
+- Nested transform accumulation for grouped elements
+- Integration with Qt (QPainterPath) and DeepNest (Polygon) types
 
 ## Usage Example
 
