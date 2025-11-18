@@ -231,18 +231,16 @@ const std::vector<NestResult>& DeepNestSolver::getResults() const {
 void DeepNestSolver::setProgressCallback(NestingEngine::ProgressCallback callback) {
     progressCallback_ = callback;
     if (engine_) {
-        // Update callback on running engine
-        // Note: NestingEngine doesn't have a method to update callbacks after start
-        // The callback is passed in start(). For dynamic updates, we'd need to add
-        // a method to NestingEngine to update callbacks.
+        // Update callback on running engine dynamically
+        engine_->setProgressCallback(callback);
     }
 }
 
 void DeepNestSolver::setResultCallback(NestingEngine::ResultCallback callback) {
     resultCallback_ = callback;
     if (engine_) {
-        // Update callback on running engine
-        // Same note as above
+        // Update callback on running engine dynamically
+        engine_->setResultCallback(callback);
     }
 }
 

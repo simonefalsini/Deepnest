@@ -44,6 +44,7 @@ HEADERS += \
     include/deepnest/core/BoundingBox.h \
     include/deepnest/core/Polygon.h \
     include/deepnest/geometry/GeometryUtil.h \
+    include/deepnest/geometry/GeometryUtilAdvanced.h \
     include/deepnest/geometry/PolygonOperations.h \
     include/deepnest/geometry/ConvexHull.h \
     include/deepnest/geometry/Transformation.h \
@@ -67,6 +68,7 @@ SOURCES += \
     src/core/Point.cpp \
     src/core/Polygon.cpp \
     src/geometry/GeometryUtil.cpp \
+    src/geometry/GeometryUtilAdvanced.cpp \
     src/geometry/PolygonOperations.cpp \
     src/geometry/ConvexHull.cpp \
     src/geometry/Transformation.cpp \
