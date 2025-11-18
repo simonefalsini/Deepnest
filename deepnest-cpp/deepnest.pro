@@ -53,7 +53,8 @@ HEADERS += \
     include/deepnest/config/DeepNestConfig.h \
     include/deepnest/algorithm/Individual.h \
     include/deepnest/algorithm/Population.h \
-    include/deepnest/algorithm/GeneticAlgorithm.h
+    include/deepnest/algorithm/GeneticAlgorithm.h \
+    include/deepnest/placement/PlacementStrategy.h
 
 # Sources
 SOURCES += \
@@ -70,7 +71,8 @@ SOURCES += \
     src/config/DeepNestConfig.cpp \
     src/algorithm/Individual.cpp \
     src/algorithm/Population.cpp \
-    src/algorithm/GeneticAlgorithm.cpp
+    src/algorithm/GeneticAlgorithm.cpp \
+    src/placement/PlacementStrategy.cpp
 
 # Installation
 headers.files = $$HEADERS

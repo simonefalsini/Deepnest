@@ -49,6 +49,9 @@ set(DEEPNEST_SOURCES
     src/algorithm/Population.cpp
     src/algorithm/GeneticAlgorithm.cpp
 
+    # Placement
+    src/placement/PlacementStrategy.cpp
+
     # Clipper2
     ../Clipper2Lib/src/clipper.engine.cpp
     ../Clipper2Lib/src/clipper.offset.cpp
@@ -81,6 +84,9 @@ set(DEEPNEST_HEADERS
     include/deepnest/algorithm/Individual.h
     include/deepnest/algorithm/Population.h
     include/deepnest/algorithm/GeneticAlgorithm.h
+
+    # Placement
+    include/deepnest/placement/PlacementStrategy.h
 )
 
 # Create library
