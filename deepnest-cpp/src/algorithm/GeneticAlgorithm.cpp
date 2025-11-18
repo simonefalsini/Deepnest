@@ -5,7 +5,8 @@
 namespace deepnest {
 
 GeneticAlgorithm::GeneticAlgorithm(const std::vector<Polygon*>& adam, const DeepNestConfig& config)
-    : config_(config)
+    : population_(config)
+    , config_(config)
     , parts_(adam)
     , currentGeneration_(0) {
 
@@ -19,7 +20,7 @@ GeneticAlgorithm::GeneticAlgorithm(const std::vector<Polygon*>& adam, const Deep
     //                 var mutant = this.mutate(this.population[0]);
     //                 this.population.push(mutant);
     //             }
-    population_.initialize(adam, config_);
+    population_.initialize(adam);
 }
 
 void GeneticAlgorithm::generation() {
@@ -130,7 +131,7 @@ void GeneticAlgorithm::reinitialize(const std::vector<Polygon*>& adam) {
 
     reset();
     parts_ = adam;
-    population_.initialize(adam, config_);
+    population_.initialize(adam);
 }
 
 std::tuple<int, size_t, size_t, bool> GeneticAlgorithm::getStatistics() const {

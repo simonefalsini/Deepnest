@@ -4,16 +4,17 @@
 
 namespace deepnest {
 
-Population::Population()
-    : rng_(std::random_device{}()) {
+Population::Population(const DeepNestConfig& config)
+    : config_(config)
+    , rng_(std::random_device{}()) {
 }
 
-Population::Population(unsigned int seed)
-    : rng_(seed) {
+Population::Population(const DeepNestConfig& config, unsigned int seed)
+    : config_(config)
+    , rng_(seed) {
 }
 
-void Population::initialize(const std::vector<Polygon*>& parts, const DeepNestConfig& config) {
-    config_ = config;
+void Population::initialize(const std::vector<Polygon*>& parts) {
     individuals_.clear();
 
     if (parts.empty()) {
