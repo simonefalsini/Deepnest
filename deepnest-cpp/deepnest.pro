@@ -54,7 +54,8 @@ HEADERS += \
     include/deepnest/algorithm/Individual.h \
     include/deepnest/algorithm/Population.h \
     include/deepnest/algorithm/GeneticAlgorithm.h \
-    include/deepnest/placement/PlacementStrategy.h
+    include/deepnest/placement/PlacementStrategy.h \
+    include/deepnest/placement/MergeDetection.h
 
 # Sources
 SOURCES += \
@@ -72,7 +73,8 @@ SOURCES += \
     src/algorithm/Individual.cpp \
     src/algorithm/Population.cpp \
     src/algorithm/GeneticAlgorithm.cpp \
-    src/placement/PlacementStrategy.cpp
+    src/placement/PlacementStrategy.cpp \
+    src/placement/MergeDetection.cpp
 
 # Installation
 headers.files = $$HEADERS
