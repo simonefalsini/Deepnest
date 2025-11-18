@@ -36,7 +36,7 @@ private:
     /**
      * @brief Algorithm configuration
      */
-    DeepNestConfig config_;
+    const DeepNestConfig& config_;
 
     /**
      * @brief Parts to be nested (stored as pointers for efficiency)

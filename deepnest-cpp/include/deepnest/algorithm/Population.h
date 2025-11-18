@@ -28,7 +28,7 @@ private:
     /**
      * @brief Configuration for genetic algorithm
      */
-    DeepNestConfig config_;
+    const DeepNestConfig& config_;
 
     /**
      * @brief Random number generator
@@ -37,14 +37,14 @@ private:
 
 public:
     /**
-     * @brief Default constructor
+     * @brief Constructor with config
      */
-    Population();
+    explicit Population(const DeepNestConfig& config);
 
     /**
-     * @brief Constructor with seed for random number generator
+     * @brief Constructor with config and seed for random number generator
      */
-    explicit Population(unsigned int seed);
+    Population(const DeepNestConfig& config, unsigned int seed);
 
     /**
      * @brief Initialize population from parts list
@@ -54,11 +54,10 @@ public:
      * 2. Remaining individuals are mutations of adam
      *
      * @param parts List of polygon pointers to be nested
-     * @param config Configuration containing population size and mutation rate
      *
      * Corresponds to JavaScript GeneticAlgorithm constructor (line 1331-1345)
      */
-    void initialize(const std::vector<Polygon*>& parts, const DeepNestConfig& config);
+    void initialize(const std::vector<Polygon*>& parts);
 
     /**
      * @brief Perform single-point crossover between two parents
