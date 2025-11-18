@@ -228,7 +228,7 @@ double ConvexHullPlacement::calculateMetric(
 
     // Calculate convex hull of placed parts
     // JavaScript: allpoints = getHull(allpoints);
-    std::vector<Point> hull = ConvexHull::calculate(allPoints);
+    std::vector<Point> hull = ConvexHull::computeHull(allPoints);
 
     // Add part points at candidate position
     // JavaScript: var localpoints = clone(allpoints);
@@ -240,7 +240,7 @@ double ConvexHullPlacement::calculateMetric(
 
     // Calculate convex hull of combined points
     // JavaScript: localpoints = getHull(localpoints);
-    std::vector<Point> combinedHull = ConvexHull::calculate(combinedPoints);
+    std::vector<Point> combinedHull = ConvexHull::computeHull(combinedPoints);
 
     // Calculate area of convex hull
     // JavaScript: area = -GeometryUtil.polygonArea(localpoints);
