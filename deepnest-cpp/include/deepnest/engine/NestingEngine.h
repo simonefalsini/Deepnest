@@ -383,4 +383,8 @@ private:
 
 } // namespace deepnest
 
+// Declare metatypes for Qt signal/slot system
+Q_DECLARE_METATYPE(deepnest::NestResult)
+Q_DECLARE_METATYPE(deepnest::NestProgress)
+
 #endif // DEEPNEST_NESTING_ENGINE_H
