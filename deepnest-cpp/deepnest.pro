@@ -7,8 +7,8 @@ QT += core gui widgets
 CONFIG -= debug_and_release debug_and_release_target
 
 # Compiler settings
-QMAKE_CXXFLAGS += -std=c++17
-QMAKE_CXXFLAGS_WARN_ON += -Wall -Wextra
+#QMAKE_CXXFLAGS += -std=c++17
+#QMAKE_CXXFLAGS_WARN_ON += -Wall
 
 # Build directories
 DESTDIR = $$PWD/lib
@@ -22,8 +22,8 @@ INCLUDEPATH += $$PWD/include
 INCLUDEPATH += $$PWD/include/deepnest
 
 # Boost
-INCLUDEPATH += /usr/local/include
-LIBS += -L/usr/local/lib
+INCLUDEPATH += ../../boost
+LIBS += -L../../boost/lib64-msvc-14.1
 LIBS += -lboost_thread
 LIBS += -lboost_system
 LIBS += -lpthread
