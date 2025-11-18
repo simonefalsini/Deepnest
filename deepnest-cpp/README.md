@@ -4,7 +4,7 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 
 ## Project Status
 
-### Completed Steps (1-13, 25)
+### Completed Steps (1-14, 25)
 
 ✅ **Step 1**: Project structure and directory organization
 ✅ **Step 2**: Base types (Types.h, Point.h, BoundingBox.h)
@@ -19,11 +19,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 11**: Complete NFP calculator
 ✅ **Step 12**: Individual class for genetic algorithm
 ✅ **Step 13**: Population management and genetic operations
+✅ **Step 14**: Main genetic algorithm orchestration
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (14-24)
+### Remaining Steps (15-24)
 
-⏳ Step 14: Main genetic algorithm
 ⏳ Step 15: Placement strategies
 ⏳ Step 16: Merge lines detection
 ⏳ Step 17: Placement worker
@@ -130,6 +130,8 @@ deepnest-cpp/
 - Single-point crossover for breeding
 - Weighted random selection (fitness-based)
 - Automatic generation evolution
+- High-level GeneticAlgorithm orchestrator
+- Generation tracking and statistics
 
 ## Usage Example
 
