@@ -234,32 +234,36 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
     }
 
     // Convert QPainterPath to polygon points
-    // This is a simplified version - a full implementation would
-    // handle curves by converting them to line segments
+    // Use Qt's toSubpathPolygons() which automatically converts curves to line segments
+    // This is more robust than manual conversion and handles all curve types correctly
+    QList<QPolygonF> subpaths = path.toSubpathPolygons();
 
-    for (int i = 0; i < path.elementCount(); i++) {
-        QPainterPath::Element elem = path.elementAt(i);
+    if (subpaths.isEmpty()) {
+        return result;
+    }
 
-        switch (elem.type) {
-            case QPainterPath::MoveToElement:
-                // Start a new subpath
-                if (!result.points.empty()) {
-                    // Previous subpath becomes outer or hole
-                    // (simplified - full implementation would handle this better)
-                }
-                result.points.push_back(Point::fromQt(QPointF(elem.x, elem.y)));
-                break;
+    // Use the first subpath as the outer boundary
+    const QPolygonF& firstSubpath = subpaths.first();
+    result.points.reserve(firstSubpath.size());
 
-            case QPainterPath::LineToElement:
-                result.points.push_back(Point::fromQt(QPointF(elem.x, elem.y)));
-                break;
+    for (const QPointF& pt : firstSubpath) {
+        result.points.push_back(Point::fromQt(pt));
+    }
 
-            case QPainterPath::CurveToElement:
-            case QPainterPath::CurveToDataElement:
-                // TODO: Convert curves to line segments
-                // For now, just add the point
-                result.points.push_back(Point::fromQt(QPointF(elem.x, elem.y)));
-                break;
+    // Additional subpaths become holes/children
+    // Note: This is a simplified approach - a full implementation would need to
+    // determine which subpaths are holes vs separate polygons based on winding order
+    for (int i = 1; i < subpaths.size(); ++i) {
+        const QPolygonF& subpath = subpaths[i];
+
+        Polygon hole;
+        hole.points.reserve(subpath.size());
+        for (const QPointF& pt : subpath) {
+            hole.points.push_back(Point::fromQt(pt));
+        }
+
+        if (hole.isValid()) {
+            result.children.push_back(hole);
         }
     }
 
