@@ -124,14 +124,14 @@ public:
 
 private:
     /**
-     * @brief IO service for task queue
+     * @brief IO context for task queue
      */
-    boost::asio::io_service ioService_;
+    boost::asio::io_context ioContext_;
 
     /**
-     * @brief Work object to keep io_service running
+     * @brief Work guard to keep io_context running
      */
-    std::unique_ptr<boost::asio::io_service::work> work_;
+    std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> workGuard_;
 
     /**
      * @brief Thread group managing worker threads
@@ -166,8 +166,8 @@ auto ParallelProcessor::enqueue(Func&& f) -> std::future<typename std::result_of
 
     std::future<return_type> result = task->get_future();
 
-    // Post task to io_service
-    ioService_.post([task]() {
+    // Post task to io_context
+    boost::asio::post(ioContext_, [task]() {
         (*task)();
     });
 

@@ -4,7 +4,7 @@
 namespace deepnest {
 
 ParallelProcessor::ParallelProcessor(int numThreads)
-    : work_(nullptr)
+    : workGuard_(nullptr)
     , threadCount_(numThreads)
     , stopped_(false)
 {
@@ -16,13 +16,15 @@ ParallelProcessor::ParallelProcessor(int numThreads)
         }
     }
 
-    // Create work object to keep io_service running
-    work_ = std::make_unique<boost::asio::io_service::work>(ioService_);
+    // Create work guard to keep io_context running
+    workGuard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+        boost::asio::make_work_guard(ioContext_)
+    );
 
     // Create worker threads
     for (int i = 0; i < threadCount_; ++i) {
         threads_.create_thread([this]() {
-            ioService_.run();
+            ioContext_.run();
         });
     }
 }
@@ -40,23 +42,23 @@ void ParallelProcessor::stop() {
 
     stopped_ = true;
 
-    // Destroy work object to allow io_service to finish
-    work_.reset();
+    // Destroy work guard to allow io_context to finish
+    workGuard_.reset();
 
     // Wait for all threads to complete
     threads_.join_all();
 
-    // Stop io_service
-    ioService_.stop();
+    // Stop io_context
+    ioContext_.stop();
 }
 
 void ParallelProcessor::waitAll() {
-    // Poll until io_service has no pending work
-    while (!ioService_.stopped()) {
+    // Poll until io_context has no pending work
+    while (!ioContext_.stopped()) {
         boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
 
         // Check if there are any pending handlers
-        if (ioService_.poll() == 0) {
+        if (ioContext_.poll() == 0) {
             // No more work to do
             break;
         }

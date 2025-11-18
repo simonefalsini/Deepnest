@@ -44,7 +44,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     //             parts = rotated;
     std::vector<Polygon> rotatedParts;
     for (auto& part : parts) {
-        Polygon rotated = Transformation::rotate(part, part.rotation);
+        Polygon rotated = part.rotate(part.rotation);
         rotated.rotation = part.rotation;
         rotated.source = part.source;
         rotated.id = part.id;
@@ -99,7 +99,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 : 1;
 
             for (int rotAttempt = 0; rotAttempt < maxRotationAttempts; rotAttempt++) {
-                innerNfp = nfpCalculator_.getInnerNFP(sheet, part, true);
+                auto innerNfps = nfpCalculator_.getInnerNFP(sheet, part);
+                if (!innerNfps.empty()) {
+                    innerNfp = innerNfps[0]; // Use first NFP polygon
+                }
 
                 if (!innerNfp.points.empty()) {
                     foundValidRotation = true;
@@ -109,7 +112,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 // Try next rotation
                 if (rotAttempt < maxRotationAttempts - 1) {
                     double rotationStep = 360.0 / config_.rotations;
-                    Polygon rotated = Transformation::rotate(part, rotationStep);
+                    Polygon rotated = part.rotate(rotationStep);
                     rotated.rotation = part.rotation + rotationStep;
                     rotated.source = part.source;
                     rotated.id = part.id;
