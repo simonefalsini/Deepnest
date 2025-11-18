@@ -385,6 +385,23 @@ void TestApplication::testRandomRectangles() {
         points.push_back(deepnest::Point(0, h));
 
         deepnest::Polygon rect(points, i);  // Assign id
+
+        // Validate polygon
+        if (!rect.isValid()) {
+            log(QString("WARNING: Rectangle %1 is invalid!").arg(i));
+        }
+        if (!rect.isCounterClockwise()) {
+            log(QString("WARNING: Rectangle %1 is clockwise, reversing").arg(i));
+            rect.reverse();  // Fix orientation
+        }
+
+        log(QString("Created rect %1: %2x%3, area=%4, CCW=%5")
+            .arg(i)
+            .arg(w, 0, 'f', 1)
+            .arg(h, 0, 'f', 1)
+            .arg(std::abs(rect.area()), 0, 'f', 1)
+            .arg(rect.isCounterClockwise() ? "yes" : "no"));
+
         parts_.push_back(rect);  // Save for visualization
         solver_->addPart(rect, 2, QString("Rect_%1").arg(i).toStdString());
     }
@@ -397,6 +414,20 @@ void TestApplication::testRandomRectangles() {
     sheetPoints.push_back(deepnest::Point(0, 400));
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
+
+    // Validate sheet
+    if (!sheet.isValid()) {
+        log("ERROR: Sheet is invalid!");
+    }
+    if (!sheet.isCounterClockwise()) {
+        log("WARNING: Sheet is clockwise, reversing");
+        sheet.reverse();
+    }
+
+    log(QString("Created sheet: 500x400, area=%1, CCW=%2")
+        .arg(std::abs(sheet.area()), 0, 'f', 1)
+        .arg(sheet.isCounterClockwise() ? "yes" : "no"));
+
     sheets_.push_back(sheet);  // Save for visualization
     solver_->addSheet(sheet, 3, "Sheet_500x400");
 
