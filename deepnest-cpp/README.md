@@ -26,11 +26,11 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 ✅ **Step 18**: Parallel processing with Boost.Thread thread pool
 ✅ **Step 19**: Main nesting engine coordination
 ✅ **Step 20**: DeepNestSolver user-facing interface
+✅ **Step 21**: Qt-Boost converters (QtBoostConverter namespace)
 ✅ **Step 25**: Build system (qmake and CMake)
 
-### Remaining Steps (21-24)
+### Remaining Steps (22-24)
 
-⏳ Step 21: Qt-Boost converters
 ⏳ Step 22: Test application
 ⏳ Step 23: SVG loader
 ⏳ Step 24: Random shape generator
@@ -82,8 +82,8 @@ deepnest-cpp/
 │   ├── nfp/           # NFP calculation
 │   ├── config/        # Configuration
 │   ├── algorithm/     # Genetic algorithm
-│   ├── placement/     # Placement strategies (TODO)
-│   └── converters/    # Type converters (TODO)
+│   ├── placement/     # Placement strategies
+│   └── converters/    # Qt-Boost type converters
 ├── src/               # Implementation files
 ├── tests/             # Test applications (TODO)
 ├── deepnest.pro       # qmake project file
@@ -158,6 +158,15 @@ deepnest-cpp/
 - Progress and result callbacks for UI integration
 - Synchronous and asynchronous execution modes
 - Complete example code in header documentation
+
+### Qt-Boost Converters
+- Centralized conversion namespace (QtBoostConverter)
+- Point conversions: Point ↔ QPointF ↔ BoostPoint
+- Polygon conversions: Polygon ↔ QPainterPath ↔ BoostPolygon
+- Direct conversions for performance-critical operations
+- Batch conversion utilities for lists/vectors
+- Support for polygons with holes (BoostPolygonWithHoles)
+- BoostPolygonSet to QPainterPath conversion
 
 ## Usage Example
 
