@@ -290,6 +290,14 @@ const DeepNestConfig& NestingEngine::getConfig() const {
     return config_;
 }
 
+void NestingEngine::setProgressCallback(ProgressCallback callback) {
+    progressCallback_ = callback;
+}
+
+void NestingEngine::setResultCallback(ResultCallback callback) {
+    resultCallback_ = callback;
+}
+
 Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
     if (std::abs(offset) < 1e-6) {
         return polygon;

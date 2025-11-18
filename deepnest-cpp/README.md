@@ -54,23 +54,56 @@ A C++ implementation of the DeepNest nesting algorithm, converted from the origi
 
 ## Building
 
-### Using qmake
+### Build Everything (Library + Tests + GUI)
+
+To build the complete project including library, test application, and verification tests:
 
 ```bash
 cd deepnest-cpp
-qmake
+qmake deepnest-all.pro
 make
-sudo make install
 ```
 
-### Using CMake
+This will create:
+- `lib/libdeepnest.a` - Static library
+- `bin/TestApplication` - Qt GUI test application
+- `bin/StepVerificationTests` - Automated test suite
 
+### Build Library Only
+
+Using qmake:
+```bash
+cd deepnest-cpp
+qmake deepnest.pro
+make
+sudo make install  # Optional: install to system
+```
+
+Using CMake:
 ```bash
 cd deepnest-cpp
 mkdir build && cd build
 cmake ..
 make
-sudo make install
+sudo make install  # Optional: install to system
+```
+
+### Build Individual Test Applications
+
+Build Qt GUI test application:
+```bash
+cd deepnest-cpp/tests
+qmake TestApplication.pro
+make
+# Run: ../bin/TestApplication
+```
+
+Build verification test suite:
+```bash
+cd deepnest-cpp/tests
+qmake StepVerificationTests.pro
+make
+# Run: ../bin/StepVerificationTests
 ```
 
 ## Project Structure
@@ -84,10 +117,23 @@ deepnest-cpp/
 │   ├── config/        # Configuration
 │   ├── algorithm/     # Genetic algorithm
 │   ├── placement/     # Placement strategies
+│   ├── parallel/      # Parallel processing
+│   ├── engine/        # Nesting engine
 │   └── converters/    # Qt-Boost type converters
-├── src/               # Implementation files
-├── tests/             # Qt-based test application
-├── deepnest.pro       # qmake project file
+├── src/               # Implementation files (mirrors include structure)
+├── tests/             # Test applications and utilities
+│   ├── TestApplication.cpp/.h      # Qt GUI test application
+│   ├── TestApplication.pro         # Build file for GUI app
+│   ├── StepVerificationTests.cpp   # Automated test suite
+│   ├── StepVerificationTests.pro   # Build file for tests
+│   ├── SVGLoader.cpp/.h            # SVG file parser
+│   ├── RandomShapeGenerator.cpp/.h # Shape generation
+│   ├── main.cpp                    # GUI application entry point
+│   └── TESTING.md                  # Testing documentation
+├── lib/               # Compiled library output
+├── bin/               # Compiled executables output
+├── deepnest.pro       # qmake project file (library only)
+├── deepnest-all.pro   # qmake project file (library + tests + GUI)
 └── CMakeLists.txt     # CMake configuration
 ```
 

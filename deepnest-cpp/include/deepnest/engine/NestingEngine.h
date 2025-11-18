@@ -225,6 +225,24 @@ public:
      */
     const DeepNestConfig& getConfig() const;
 
+    /**
+     * @brief Set or update progress callback
+     *
+     * Allows changing the progress callback dynamically, even while nesting is running.
+     *
+     * @param callback New progress callback (nullptr to disable)
+     */
+    void setProgressCallback(ProgressCallback callback);
+
+    /**
+     * @brief Set or update result callback
+     *
+     * Allows changing the result callback dynamically, even while nesting is running.
+     *
+     * @param callback New result callback (nullptr to disable)
+     */
+    void setResultCallback(ResultCallback callback);
+
 private:
     /**
      * @brief Apply spacing offset to a polygon
