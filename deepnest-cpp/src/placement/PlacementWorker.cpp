@@ -161,11 +161,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 double minX = std::numeric_limits<double>::max();
                 double minY = std::numeric_limits<double>::max();
 
-                // CRITICAL FIX: Use bbox min as reference, not points[0]!
-                // After normalization, points[0] may not be at (0,0)
-                // This MUST match extractCandidatePositions() logic
-                auto partBbox = GeometryUtil::getPolygonBounds(part.points);
-                Point partRef(partBbox.x, partBbox.y);  // Should be (0,0) after normalization
+                // CRITICAL FIX: Use part.points[0] NOT bbox.min!
+                // NFPCalculator translates innerNFP by B.points[0] (see NFPCalculator.cpp:30)
+                // We MUST subtract the SAME value to cancel the translation
+                // Using bbox.min (0,0) doesn't cancel the points[0] offset!
+                Point partRef(part.points[0].x, part.points[0].y);
 
                 // innerNfp may have children, check main polygon
                 for (const auto& nfpPoint : innerNfp.points) {
@@ -406,16 +406,15 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
     //             }
     std::vector<Point> positions;
 
-    // Get the part's reference point (bounding box min, not first point!)
-    // After rotation normalization, part.points[0] might not be at bbox min
-    // Example: rotated 180° rect has first point at (100,100) after normalization
+    // CRITICAL FIX: Get the part's reference point using points[0] NOT bbox.min!
+    // JavaScript code: shiftvector = { x: nf[k].x-part[0].x, y: nf[k].y-part[0].y }
+    // NFPCalculator translates NFP by part.points[0], so we MUST subtract the same
     if (part.points.empty()) {
         return positions;
     }
 
-    // Use bounding box min as reference point (should be 0,0 after normalization)
-    auto bbox = GeometryUtil::getPolygonBounds(part.points);
-    Point referencePoint(bbox.x, bbox.y);
+    // Use part.points[0] as reference point to match NFP translation
+    Point referencePoint(part.points[0].x, part.points[0].y);
 
     for (const auto& nfp : finalNfp) {
         // Skip very small NFPs
