@@ -2,6 +2,7 @@
 #include "SVGLoader.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
+#include "../include/deepnest/geometry/GeometryUtil.h"
 
 #include <QMenuBar>
 #include <QToolBar>
@@ -443,14 +444,52 @@ void TestApplication::testRandomRectangles() {
     log(QString("Created %1 part types (20 total parts) and 1 sheet type (3 sheets)")
         .arg(solver_->getPartCount()));
 
-    // Visualize the parts on scene
+    // Visualize the parts BEFORE nesting - arranged side by side
     clearScene();
-    double xOffset = 50;
+
+    // Draw sheet boundary first (green outline, no fill)
+    QPainterPath sheetPath = sheet.toQPainterPath();
+    scene_->addPath(sheetPath, QPen(Qt::green, 3), QBrush(Qt::NoBrush));
+
+    // Add sheet label
+    QGraphicsTextItem* sheetLabel = scene_->addText("SHEET 500x400", QFont("Arial", 12));
+    sheetLabel->setDefaultTextColor(Qt::darkGreen);
+    sheetLabel->setPos(10, -30);
+
+    // Draw parts arranged in a grid OUTSIDE the sheet area
+    double xOffset = 550;  // Start after sheet
+    double yOffset = 50;
+    double maxHeight = 0;
+
     for (size_t i = 0; i < parts_.size(); ++i) {
-        drawPolygon(parts_[i], QColor(100, 150, 200), 0.3);
-        xOffset += 150;  // Space between parts
+        // Get bounding box
+        auto bbox = deepnest::GeometryUtil::boundingBox(parts_[i].points);
+        double width = bbox.maxX - bbox.minX;
+        double height = bbox.maxY - bbox.minY;
+
+        // Check if we need to wrap to next row
+        if (xOffset + width > 1400) {
+            xOffset = 550;
+            yOffset += maxHeight + 20;
+            maxHeight = 0;
+        }
+
+        // Translate part to current position
+        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.minX, yOffset - bbox.minY);
+
+        // Draw part (blue with transparency)
+        drawPolygon(translated, QColor(100, 150, 200), 0.3);
+
+        // Add ID label on the part
+        QGraphicsTextItem* idLabel = scene_->addText(QString::number(i), QFont("Arial", 10, QFont::Bold));
+        idLabel->setDefaultTextColor(Qt::darkBlue);
+        idLabel->setPos(xOffset + width/2 - 10, yOffset + height/2 - 10);
+
+        xOffset += width + 20;
+        maxHeight = std::max(maxHeight, height);
     }
 
+    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
     log("Ready to start nesting - click 'Start' button");
 }
 
@@ -638,16 +677,42 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
     clearScene();
 
     // Draw each sheet with placements
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> colorDist(0, 255);
+    double sheetOffsetX = 0;
 
     for (size_t sheetIdx = 0; sheetIdx < result.placements.size(); ++sheetIdx) {
         const auto& sheetPlacements = result.placements[sheetIdx];
 
         log(QString("--- Sheet %1 ---").arg(sheetIdx));
 
-        // Draw each placed part with random color
+        // Draw sheet boundary (green, thick border, no fill)
+        if (sheetIdx < sheets_.size()) {
+            deepnest::Polygon sheetTranslated = sheets_[sheetIdx].translate(sheetOffsetX, 0);
+            QPainterPath sheetPath = sheetTranslated.toQPainterPath();
+            scene_->addPath(sheetPath, QPen(Qt::darkGreen, 4), QBrush(Qt::NoBrush));
+
+            // Add sheet label
+            QGraphicsTextItem* sheetLabel = scene_->addText(
+                QString("SHEET %1").arg(sheetIdx),
+                QFont("Arial", 14, QFont::Bold));
+            sheetLabel->setDefaultTextColor(Qt::darkGreen);
+            sheetLabel->setPos(sheetOffsetX + 10, -35);
+        }
+
+        // Define distinct colors for each part type (by source ID)
+        QColor partColors[10] = {
+            QColor(255, 100, 100),  // Red
+            QColor(100, 255, 100),  // Green
+            QColor(100, 100, 255),  // Blue
+            QColor(255, 255, 100),  // Yellow
+            QColor(255, 100, 255),  // Magenta
+            QColor(100, 255, 255),  // Cyan
+            QColor(255, 150, 100),  // Orange
+            QColor(150, 100, 255),  // Purple
+            QColor(100, 255, 150),  // Lime
+            QColor(255, 100, 150)   // Pink
+        };
+
+        // Draw each placed part
         int placementCount = 0;
         for (const auto& placement : sheetPlacements) {
             // Log first 5 placements for diagnostics
@@ -663,29 +728,42 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
             placementCount++;
 
             // Use source ID to find the original polygon type
-            // source contains the ID of the original part before quantity expansion
             int sourceId = (placement.source >= 0) ? placement.source : placement.id;
 
             if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
                 deepnest::Polygon part = parts_[sourceId];
 
                 // Apply transformation: rotate FIRST, then translate
-                // DO NOT apply spacing offset here - placement.position already accounts for it!
-                // The spacing is "virtual" - used only for NFP calculations during placement
-
                 // Step 1: Rotate around origin
                 deepnest::Polygon rotated = part.rotate(placement.rotation);
 
-                // Step 2: Translate to final position (position already includes spacing compensation)
-                deepnest::Polygon transformed = rotated.translate(placement.position.x, placement.position.y);
+                // Step 2: Translate to final position + sheet offset
+                deepnest::Polygon transformed = rotated.translate(
+                    placement.position.x + sheetOffsetX,
+                    placement.position.y);
 
-                QColor color(colorDist(gen), colorDist(gen), colorDist(gen));
+                // Draw with color based on source ID
+                QColor color = partColors[sourceId % 10];
                 drawPolygon(transformed, color, 0.5);
+
+                // Add ID label on the part
+                auto bbox = deepnest::GeometryUtil::boundingBox(transformed.points);
+                double centerX = (bbox.minX + bbox.maxX) / 2;
+                double centerY = (bbox.minY + bbox.maxY) / 2;
+
+                QGraphicsTextItem* idLabel = scene_->addText(
+                    QString::number(sourceId),
+                    QFont("Arial", 12, QFont::Bold));
+                idLabel->setDefaultTextColor(Qt::black);
+                idLabel->setPos(centerX - 8, centerY - 10);
             }
         }
 
-        // Add offset for next sheet
-        // (In a real implementation, we'd position sheets properly)
+        // Offset for next sheet (if multiple sheets)
+        if (sheetIdx < sheets_.size()) {
+            auto bbox = deepnest::GeometryUtil::boundingBox(sheets_[sheetIdx].points);
+            sheetOffsetX += (bbox.maxX - bbox.minX) + 50;  // 50 units spacing between sheets
+        }
     }
 
     // Fit view to scene
