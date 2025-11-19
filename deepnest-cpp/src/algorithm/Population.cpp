@@ -21,10 +21,22 @@ void Population::initialize(const std::vector<Polygon*>& parts) {
         throw std::invalid_argument("Parts list cannot be empty");
     }
 
+    std::cout << "\n=== POPULATION INITIALIZATION ===" << std::endl;
+    std::cout << "Creating population of " << config_.populationSize
+              << " individuals from " << parts.size() << " parts" << std::endl;
+    std::cout << "Mutation rate: " << config_.mutationRate << " (probability)" << std::endl;
+
     // Create first individual "adam" with parts in given order and random rotations
     // JavaScript: this.population = [{placement: adam, rotation: angles}];
     Individual adam(parts, config_, rng_());
     individuals_.push_back(adam);
+
+    std::cout << "Adam created with rotations: ";
+    for (size_t i = 0; i < std::min(size_t(5), adam.rotation.size()); ++i) {
+        std::cout << adam.rotation[i] << "° ";
+    }
+    if (adam.rotation.size() > 5) std::cout << "...";
+    std::cout << std::endl;
 
     // Fill rest of population with mutated versions of adam
     // JavaScript: while(this.population.length < config.populationSize)
@@ -32,7 +44,21 @@ void Population::initialize(const std::vector<Polygon*>& parts) {
         Individual mutant = adam.clone();
         mutant.mutate(config_.mutationRate, config_.rotations, rng_());
         individuals_.push_back(mutant);
+
+        // Show first mutant's rotations to verify diversity
+        if (individuals_.size() == 2) {
+            std::cout << "First mutant rotations: ";
+            for (size_t i = 0; i < std::min(size_t(5), mutant.rotation.size()); ++i) {
+                std::cout << mutant.rotation[i] << "° ";
+            }
+            if (mutant.rotation.size() > 5) std::cout << "...";
+            std::cout << std::endl;
+        }
     }
+
+    std::cout << "Population initialized with " << individuals_.size() << " individuals" << std::endl;
+    std::cout << "=== END INITIALIZATION ===" << std::endl;
+    std::cout.flush();
 }
 
 std::pair<Individual, Individual> Population::crossover(

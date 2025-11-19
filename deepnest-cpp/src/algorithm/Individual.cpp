@@ -82,13 +82,16 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
         }
     }
 
-    // GA DEBUG: Log mutations (only for first call)
-    static bool first_mutation = true;
-    if (first_mutation) {
-        std::cout << "  Mutation: swaps=" << swapCount
-                  << ", rotation changes=" << rotationChangeCount
-                  << " (probability=" << mutationProb << ")" << std::endl;
-        first_mutation = false;
+    // GA DEBUG: Log mutations for every call during initialization and first generation
+    static int mutationCount = 0;
+    mutationCount++;
+
+    // Log first 15 mutations to see initial diversity, then every 100th
+    if (mutationCount <= 15 || mutationCount % 100 == 0) {
+        std::cout << "  Mutation #" << mutationCount << ": swaps=" << swapCount
+                  << ", rotation_changes=" << rotationChangeCount
+                  << ", prob=" << mutationProb << std::endl;
+        std::cout.flush();
     }
 
     // Reset fitness since individual has changed

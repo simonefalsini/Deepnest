@@ -184,8 +184,28 @@ bool NestingEngine::step() {
 
     // Check if current generation is complete
     if (isGenerationComplete()) {
+        // Get current best before creating next generation
+        const Individual& bestBefore = geneticAlgorithm_->getBestIndividual();
+        double fitnessBefore = bestBefore.fitness;
+        int genBefore = geneticAlgorithm_->getCurrentGeneration();
+
         // All individuals evaluated, create next generation
         geneticAlgorithm_->generation();
+
+        // Log generation transition with fitness comparison
+        const Individual& bestAfter = geneticAlgorithm_->getBestIndividual();
+        std::cout << "\n*** Generation " << genBefore << " -> " << geneticAlgorithm_->getCurrentGeneration()
+                  << ": Best fitness " << fitnessBefore;
+        if (bestAfter.fitness < fitnessBefore) {
+            std::cout << " -> " << bestAfter.fitness << " (IMPROVED by "
+                      << (fitnessBefore - bestAfter.fitness) << ")";
+        } else if (bestAfter.fitness == fitnessBefore) {
+            std::cout << " (NO CHANGE)";
+        } else {
+            std::cout << " -> " << bestAfter.fitness << " (WORSE?!)";
+        }
+        std::cout << " ***" << std::endl;
+        std::cout.flush();
 
         // Report progress
         if (progressCallback_) {

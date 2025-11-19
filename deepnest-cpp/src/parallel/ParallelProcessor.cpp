@@ -154,6 +154,17 @@ void ParallelProcessor::processPopulation(
                         individuals[index].mergedLength = result.mergedLength;
                         individuals[index].placements = result.placements;  // Store actual placements!
                         individuals[index].processing = false;
+
+                        // GA DEBUG: Log fitness evaluation (first 10 individuals only to avoid spam)
+                        static int evalCount = 0;
+                        evalCount++;
+                        if (evalCount <= 10) {
+                            std::cout << "  [Eval #" << evalCount << "] Individual[" << index
+                                      << "] fitness=" << result.fitness
+                                      << ", area=" << result.area
+                                      << ", merged=" << result.mergedLength << std::endl;
+                            std::cout.flush();
+                        }
                     }
                 }
             });
