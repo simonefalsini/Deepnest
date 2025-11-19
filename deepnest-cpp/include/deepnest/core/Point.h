@@ -19,10 +19,15 @@ struct Point {
     bool exact;  // Used for merge detection - marks if this point is an exact match
 
     // Constructors
-    Point() : x(0.0), y(0.0), exact(false) {}
+    Point() : x(0.0), y(0.0), exact(true) {}  // Default constructor: exact coordinates
 
-    Point(double x_, double y_, bool exact_ = false)
+    Point(double x_, double y_, bool exact_ = true)  // CRITICAL FIX: exact=true by default
         : x(x_), y(y_), exact(exact_) {}
+
+    // LINE MERGE FIX: When creating points from explicit coordinates (not curve approximations),
+    // they should be marked as exact=true so that MergeDetection can use them.
+    // In JavaScript, points are marked exact if they appear in the original polygon.
+    // For programmatically generated shapes (rectangles, regular polygons), all points are exact.
 
     // Conversion to Boost point
     BoostPoint toBoost() const;
