@@ -547,7 +547,7 @@ void testStep19_NestingEngine() {
 
     try {
         DeepNestConfig& config = DeepNestConfig::getInstance();
-        config.setPopulationSize(2);
+        config.setPopulationSize(3);  // Must be > 2
         config.setRotations(2);
 
         // Create engine - may require initialization
@@ -737,8 +737,8 @@ void testStep26_PlacementTransformation() {
         NFPCache cache;
         NFPCalculator calculator(cache);
         DeepNestConfig& config = DeepNestConfig::getInstance();
-        config.spacing = 2.0;
-        config.placementType = "gravity";
+        config.setSpacing(2.0);
+        config.setPlacementType("gravity");
 
         PlacementWorker worker(config, calculator);
 
