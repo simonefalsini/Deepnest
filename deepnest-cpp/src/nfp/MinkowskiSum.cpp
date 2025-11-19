@@ -175,6 +175,15 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
 
     // CRITICAL: Aggressive cleaning function
     // Removes: duplicates, near-duplicates, and collinear points
+
+    // TUNABLE PARAMETERS (increase if crashes persist in Debug mode):
+    // - MIN_EDGE_DISTANCE_SQ: Minimum edge length squared (default: 1)
+    //   Increase to 4 or 9 if crashes continue
+    // - COLLINEARITY_THRESHOLD: Cross product threshold (default: 2)
+    //   Increase to 5 or 10 for more aggressive simplification
+    constexpr int MIN_EDGE_DISTANCE_SQ = 1;      // Minimum: distSq > 1
+    constexpr long long COLLINEARITY_THRESHOLD = 2;  // Minimum: |cross| > 2
+
     auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
         if (pts.size() < 3) return false;
 
@@ -190,8 +199,8 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             int dy = pts[next].y() - pts[i].y();
             int distSq = dx * dx + dy * dy;
 
-            // Only keep if distance > 1 (prevents zero-length and near-zero edges)
-            if (distSq > 1) {
+            // Only keep if distance > MIN_EDGE_DISTANCE_SQ
+            if (distSq > MIN_EDGE_DISTANCE_SQ) {
                 cleaned.push_back(pts[i]);
             }
         }
@@ -217,9 +226,8 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             long long cross = static_cast<long long>(dx1) * dy2 -
                              static_cast<long long>(dy1) * dx2;
 
-            // Keep point if NOT collinear (cross != 0)
-            // Use small threshold to be more aggressive
-            if (std::abs(cross) > 2) {
+            // Keep point if NOT collinear (|cross| > COLLINEARITY_THRESHOLD)
+            if (std::abs(cross) > COLLINEARITY_THRESHOLD) {
                 final.push_back(cleaned[i]);
             }
         }
