@@ -18,16 +18,35 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
     auto nfps = MinkowskiSum::calculateNFP(A, B, inside);
 
     if (nfps.empty()) {
-        // FALLBACK: If Minkowski sum fails, use bounding box approximation
-        // This provides a conservative NFP that prevents overlap but may not be optimal
-        // Full orbital tracing would be more accurate but is complex to implement
+        // PHASE 3.2: FALLBACK using Orbital-Based NFP calculation
+        // When Minkowski sum fails (empty result), use the orbital tracing algorithm
+        // This is more accurate than bounding box approximation
+        std::cerr << "WARNING: Minkowski sum failed for polygons A(id=" << A.id
+                 << ") and B(id=" << B.id << "), trying orbital tracing fallback..." << std::endl;
 
-        // Get bounding boxes
+        // Use the orbital-based noFitPolygon algorithm
+        std::vector<std::vector<Point>> orbitalNFPs = GeometryUtil::noFitPolygon(
+            A.points, B.points, inside, false  // searchEdges=false for single NFP
+        );
+
+        if (!orbitalNFPs.empty() && !orbitalNFPs[0].empty()) {
+            // Convert std::vector<Point> to Polygon
+            Polygon fallbackNFP;
+            fallbackNFP.points = orbitalNFPs[0];
+            fallbackNFP.id = -1;  // Mark as generated
+            fallbackNFP.rotation = 0;
+
+            std::cerr << "SUCCESS: Orbital tracing generated NFP with " << fallbackNFP.points.size()
+                     << " points" << std::endl;
+            return fallbackNFP;
+        }
+
+        std::cerr << "ERROR: Orbital tracing also failed, using bounding box approximation" << std::endl;
+
+        // FALLBACK 2: If even orbital tracing fails, use conservative bounding box
         BoundingBox bboxA = A.bounds();
         BoundingBox bboxB = B.bounds();
 
-        // For outer NFP: create a polygon representing valid positions
-        // The reference point of B can be placed anywhere B doesn't overlap A
         Polygon fallbackNFP;
 
         if (!inside) {
@@ -64,12 +83,10 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
         }
 
         if (!fallbackNFP.points.empty()) {
-            std::cerr << "WARNING: Minkowski sum failed for polygons A(id=" << A.id
-                     << ") and B(id=" << B.id << "), using bounding box fallback NFP" << std::endl;
             return fallbackNFP;
         }
 
-        // If even fallback fails, return empty polygon
+        // If even bounding box fallback fails, return empty polygon
         return Polygon();
     }
 

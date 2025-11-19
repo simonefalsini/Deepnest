@@ -247,6 +247,16 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     // Calculate scale factor
     double scale = calculateScale(A, B);
 
+    // PHASE 3.1: Store reference point (first point of ORIGINAL B before negation)
+    // This matches JavaScript behavior where NFP is offset by B's reference point
+    // See: geometryutil.js nfpGenerator function
+    double xshift = 0.0;
+    double yshift = 0.0;
+    if (!B.points.empty()) {
+        xshift = B.points[0].x;
+        yshift = B.points[0].y;
+    }
+
     // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
     // This applies to BOTH:
     // - Inner NFP (sheet boundary): sheet ⊖ part
@@ -287,6 +297,25 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
 
     // Convert back to our Polygon type
     std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
+
+    // PHASE 3.1: Apply reference point shift to all NFP polygons
+    // This ensures the NFP is positioned relative to B's reference point
+    // Matches JavaScript: nfp.offsetBy(B.points[0].x, B.points[0].y)
+    for (auto& nfp : nfps) {
+        // Shift outer polygon
+        for (auto& point : nfp.points) {
+            point.x += xshift;
+            point.y += yshift;
+        }
+
+        // Shift holes (children)
+        for (auto& child : nfp.children) {
+            for (auto& point : child.points) {
+                point.x += xshift;
+                point.y += yshift;
+            }
+        }
+    }
 
     return nfps;
 }

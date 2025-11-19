@@ -69,3 +69,4 @@ CTestTestfile.cmake
 # Package managers
 *.deb
 *.rpm
+deepnest-cpp/bin/TestApplication
