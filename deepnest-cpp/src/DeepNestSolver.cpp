@@ -70,6 +70,10 @@ void DeepNestSolver::setMergeLines(bool enable) {
     config_.mergeLines = enable;
 }
 
+void DeepNestSolver::setTimeRatio(double ratio) {
+    config_.timeRatio = ratio;
+}
+
 void DeepNestSolver::setCurveTolerance(double tolerance) {
     config_.curveTolerance = tolerance;
 }

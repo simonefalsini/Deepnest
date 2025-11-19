@@ -191,6 +191,13 @@ public:
     void setMergeLines(bool enable);
 
     /**
+     * @brief Set time ratio for line merge bonus
+     *
+     * @param ratio Time ratio value (default: 0.5, range: 0.0-2.0)
+     */
+    void setTimeRatio(double ratio);
+
+    /**
      * @brief Set curve tolerance for polygon simplification
      *
      * @param tolerance Tolerance value (default: 0.3)

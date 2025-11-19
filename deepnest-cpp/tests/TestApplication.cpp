@@ -630,21 +630,31 @@ void TestApplication::openConfigDialog() {
 
         // Apply nesting parameters to solver
         solver_->setSpacing(config_.spacing);
+        solver_->setCurveTolerance(config_.curveTolerance);
         solver_->setRotations(config_.rotations);
         solver_->setPopulationSize(config_.populationSize);
         solver_->setMutationRate(config_.mutationRate);
         solver_->setThreads(config_.threads);
+        solver_->setPlacementType(config_.placementType.toStdString());
+        solver_->setMergeLines(config_.mergeLines);
+        solver_->setTimeRatio(config_.timeRatio);
 
         // Update max generations
         maxGenerations_ = config_.maxGenerations;
 
-        log(QString("Configuration updated: spacing=%1, rotations=%2, popSize=%3, threads=%4")
+        log(QString("Configuration updated: spacing=%1, curveTol=%2, rotations=%3, popSize=%4")
             .arg(config_.spacing, 0, 'f', 1)
+            .arg(config_.curveTolerance, 0, 'f', 2)
             .arg(config_.rotations)
-            .arg(config_.populationSize)
+            .arg(config_.populationSize));
+
+        log(QString("  Algorithm: placementType=%1, mergeLines=%2, timeRatio=%3, threads=%4")
+            .arg(config_.placementType)
+            .arg(config_.mergeLines ? "ON" : "OFF")
+            .arg(config_.timeRatio, 0, 'f', 2)
             .arg(config_.threads));
 
-        log(QString("Generation settings: %1 part types × %2 qty, %3 sheet types × %4 qty")
+        log(QString("  Generation: %1 part types × %2 qty, %3 sheet types × %4 qty")
             .arg(config_.numPartTypes)
             .arg(config_.quantityPerPart)
             .arg(config_.numSheetTypes)
