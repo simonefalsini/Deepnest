@@ -465,8 +465,8 @@ void TestApplication::testRandomRectangles() {
     for (size_t i = 0; i < parts_.size(); ++i) {
         // Get bounding box
         auto bbox = deepnest::GeometryUtil::getPolygonBounds(parts_[i].points);
-        double width = bbox.maxX - bbox.minX;
-        double height = bbox.maxY - bbox.minY;
+        double width = bbox.width;
+        double height = bbox.height;
 
         // Check if we need to wrap to next row
         if (xOffset + width > 1400) {
@@ -476,7 +476,7 @@ void TestApplication::testRandomRectangles() {
         }
 
         // Translate part to current position
-        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.minX, yOffset - bbox.minY);
+        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.x, yOffset - bbox.y);
 
         // Draw part (blue with transparency)
         drawPolygon(translated, QColor(100, 150, 200), 0.3);
@@ -749,8 +749,8 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
                 // Add ID label on the part
                 auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
-                double centerX = (bbox.minX + bbox.maxX) / 2;
-                double centerY = (bbox.minY + bbox.maxY) / 2;
+                double centerX = bbox.x + bbox.width / 2.0;
+                double centerY = bbox.y + bbox.height / 2.0;
 
                 QGraphicsTextItem* idLabel = scene_->addText(
                     QString::number(sourceId),
@@ -763,7 +763,7 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
         // Offset for next sheet (if multiple sheets)
         if (sheetIdx < sheets_.size()) {
             auto bbox = deepnest::GeometryUtil::getPolygonBounds(sheets_[sheetIdx].points);
-            sheetOffsetX += (bbox.maxX - bbox.minX) + 50;  // 50 units spacing between sheets
+            sheetOffsetX += bbox.width + 50;  // 50 units spacing between sheets
         }
     }
 
