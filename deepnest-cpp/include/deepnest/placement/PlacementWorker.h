@@ -156,12 +156,16 @@ private:
      * @brief Extract all points from final NFP polygons
      *
      * Flattens the NFP result polygons into a list of candidate positions.
+     * Each NFP point is adjusted by subtracting the part's reference point (part[0])
+     * to get the actual translation position for the part.
      *
      * @param finalNfp NFP polygons after difference operation
+     * @param part The part being placed (needed to subtract reference point)
      * @return List of candidate placement positions
      */
     std::vector<Point> extractCandidatePositions(
-        const std::vector<Polygon>& finalNfp
+        const std::vector<Polygon>& finalNfp,
+        const Polygon& part
     ) const;
 
     /**

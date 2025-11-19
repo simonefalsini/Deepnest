@@ -308,7 +308,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             //               }
             //             }
             // Extract candidate positions and find best one
-            std::vector<Point> candidatePositions = extractCandidatePositions(finalNfp);
+            // CRITICAL FIX: Pass part to subtract reference point from NFP points
+            std::vector<Point> candidatePositions = extractCandidatePositions(finalNfp, part);
 
             if (candidatePositions.empty()) {
                 i++;
@@ -371,7 +372,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 }
 
 std::vector<Point> PlacementWorker::extractCandidatePositions(
-    const std::vector<Polygon>& finalNfp
+    const std::vector<Polygon>& finalNfp,
+    const Polygon& part
 ) const {
     // JavaScript: for(j=0; j<finalNfp.length; j++) {
     //               nf = finalNfp[j];
@@ -382,6 +384,13 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
     //             }
     std::vector<Point> positions;
 
+    // Get the part's reference point (first point)
+    if (part.points.empty()) {
+        return positions;
+    }
+
+    const Point& referencePoint = part.points[0];
+
     for (const auto& nfp : finalNfp) {
         // Skip very small NFPs
         if (std::abs(GeometryUtil::polygonArea(nfp.points)) < 2.0) {
@@ -389,7 +398,13 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
         }
 
         for (const auto& point : nfp.points) {
-            positions.push_back(point);
+            // Subtract part's reference point to get actual placement position
+            // This is the critical fix: NFP points must be adjusted by the part's origin
+            Point candidatePos(
+                point.x - referencePoint.x,
+                point.y - referencePoint.y
+            );
+            positions.push_back(candidatePos);
         }
     }
 
