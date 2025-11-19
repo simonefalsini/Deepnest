@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "../include/deepnest/DeepNestSolver.h"
+#include "ConfigDialog.h"
 
 /**
  * @brief Test application for DeepNest C++ library
@@ -213,6 +214,7 @@ private:
     std::vector<deepnest::Polygon> sheets_; ///< Loaded sheets
 
     // Configuration
+    ConfigDialog::Config config_;    ///< Current configuration
     int maxGenerations_;             ///< Maximum generations to run
     int stepTimerInterval_;          ///< Timer interval in milliseconds
 };

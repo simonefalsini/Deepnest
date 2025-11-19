@@ -377,25 +377,16 @@ void TestApplication::reset() {
 void TestApplication::testRandomRectangles() {
     reset();
 
-    // Ask user how many rectangles to create
-    bool ok;
-    int numRects = QInputDialog::getInt(this, "Number of Rectangles",
-                                        "How many rectangle types to create?\n(Each type will have 2 copies)",
-                                        10, 1, 50, 1, &ok);
-    if (!ok) {
-        return;
-    }
-
     log(QString("Generating %1 random rectangle types (%2 total parts)...")
-        .arg(numRects).arg(numRects * 2));
+        .arg(config_.numPartTypes).arg(config_.numPartTypes * config_.quantityPerPart));
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<> widthDist(50.0, 150.0);
-    std::uniform_real_distribution<> heightDist(30.0, 100.0);
+    std::uniform_real_distribution<> widthDist(config_.minPartWidth, config_.maxPartWidth);
+    std::uniform_real_distribution<> heightDist(config_.minPartHeight, config_.maxPartHeight);
 
     // Create N random rectangles
-    for (int i = 0; i < numRects; ++i) {
+    for (int i = 0; i < config_.numPartTypes; ++i) {
         double w = widthDist(gen);
         double h = heightDist(gen);
 
@@ -425,15 +416,15 @@ void TestApplication::testRandomRectangles() {
             .arg(rect.isCounterClockwise() ? "yes" : "no"));
 
         parts_.push_back(rect);  // Save for visualization
-        solver_->addPart(rect, 2, QString("Rect_%1").arg(i).toStdString());
+        solver_->addPart(rect, config_.quantityPerPart, QString("Rect_%1").arg(i).toStdString());
     }
 
-    // Create sheet (500x400) - counter-clockwise
+    // Create sheet with configured dimensions - counter-clockwise
     std::vector<deepnest::Point> sheetPoints;
     sheetPoints.push_back(deepnest::Point(0, 0));
-    sheetPoints.push_back(deepnest::Point(0, 400));    // Up
-    sheetPoints.push_back(deepnest::Point(500, 400));  // Right
-    sheetPoints.push_back(deepnest::Point(500, 0));    // Down
+    sheetPoints.push_back(deepnest::Point(0, config_.sheetHeight));    // Up
+    sheetPoints.push_back(deepnest::Point(config_.sheetWidth, config_.sheetHeight));  // Right
+    sheetPoints.push_back(deepnest::Point(config_.sheetWidth, 0));    // Down
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
 
@@ -446,15 +437,22 @@ void TestApplication::testRandomRectangles() {
         sheet.reverse();
     }
 
-    log(QString("Created sheet: 500x400, area=%1, CCW=%2")
+    log(QString("Created sheet: %1x%2, area=%3, CCW=%4")
+        .arg(config_.sheetWidth, 0, 'f', 0)
+        .arg(config_.sheetHeight, 0, 'f', 0)
         .arg(std::abs(sheet.area()), 0, 'f', 1)
         .arg(sheet.isCounterClockwise() ? "yes" : "no"));
 
     sheets_.push_back(sheet);  // Save for visualization
-    solver_->addSheet(sheet, 3, "Sheet_500x400");
+    solver_->addSheet(sheet, config_.quantityPerSheet,
+                      QString("Sheet_%1x%2").arg(config_.sheetWidth, 0, 'f', 0)
+                                            .arg(config_.sheetHeight, 0, 'f', 0)
+                                            .toStdString());
 
-    log(QString("Created %1 part types (20 total parts) and 1 sheet type (3 sheets)")
-        .arg(solver_->getPartCount()));
+    log(QString("Created %1 part types (%2 total parts) and 1 sheet type (%3 sheets)")
+        .arg(config_.numPartTypes)
+        .arg(config_.numPartTypes * config_.quantityPerPart)
+        .arg(config_.quantityPerSheet));
 
     // Visualize the parts BEFORE nesting - arranged side by side
     clearScene();
@@ -508,15 +506,20 @@ void TestApplication::testRandomRectangles() {
 void TestApplication::testRandomPolygons() {
     reset();
 
-    log("Generating random polygons test...");
+    log(QString("Generating %1 random polygon types (%2 total parts)...")
+        .arg(config_.numPartTypes).arg(config_.numPartTypes * config_.quantityPerPart));
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<> sizeDist(30.0, 80.0);
-    std::uniform_int_distribution<> sidesDist(5, 8);
+
+    // Calculate radius from configured part dimensions
+    double minRadius = std::min(config_.minPartWidth, config_.minPartHeight) / 2.0;
+    double maxRadius = std::min(config_.maxPartWidth, config_.maxPartHeight) / 2.0;
+    std::uniform_real_distribution<> sizeDist(minRadius, maxRadius);
+    std::uniform_int_distribution<> sidesDist(config_.minPolySides, config_.maxPolySides);
 
     // Create random polygons
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < config_.numPartTypes; ++i) {
         int sides = sidesDist(gen);
         double radius = sizeDist(gen);
 
@@ -530,15 +533,15 @@ void TestApplication::testRandomPolygons() {
 
         deepnest::Polygon poly(points, i);  // Assign id
         parts_.push_back(poly);  // Save for visualization
-        solver_->addPart(poly, 2, QString("Poly_%1").arg(i).toStdString());
+        solver_->addPart(poly, config_.quantityPerPart, QString("Poly_%1").arg(i).toStdString());
     }
 
-    // Create sheet - counter-clockwise
+    // Create sheet with configured dimensions - counter-clockwise
     std::vector<deepnest::Point> sheetPoints;
     sheetPoints.push_back(deepnest::Point(0, 0));
-    sheetPoints.push_back(deepnest::Point(0, 400));    // Up
-    sheetPoints.push_back(deepnest::Point(600, 400));  // Right
-    sheetPoints.push_back(deepnest::Point(600, 0));    // Down
+    sheetPoints.push_back(deepnest::Point(0, config_.sheetHeight));    // Up
+    sheetPoints.push_back(deepnest::Point(config_.sheetWidth, config_.sheetHeight));  // Right
+    sheetPoints.push_back(deepnest::Point(config_.sheetWidth, 0));    // Down
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
 
@@ -551,15 +554,22 @@ void TestApplication::testRandomPolygons() {
         sheet.reverse();
     }
 
-    log(QString("Created sheet: 600x400, area=%1, CCW=%2")
+    log(QString("Created sheet: %1x%2, area=%3, CCW=%4")
+        .arg(config_.sheetWidth, 0, 'f', 0)
+        .arg(config_.sheetHeight, 0, 'f', 0)
         .arg(std::abs(sheet.area()), 0, 'f', 1)
         .arg(sheet.isCounterClockwise() ? "yes" : "no"));
 
     sheets_.push_back(sheet);  // Save for visualization
-    solver_->addSheet(sheet, 2, "Sheet_600x400");
+    solver_->addSheet(sheet, config_.quantityPerSheet,
+                      QString("Sheet_%1x%2").arg(config_.sheetWidth, 0, 'f', 0)
+                                            .arg(config_.sheetHeight, 0, 'f', 0)
+                                            .toStdString());
 
-    log(QString("Created %1 part types (16 total parts) and 1 sheet type (2 sheets)")
-        .arg(solver_->getPartCount()));
+    log(QString("Created %1 part types (%2 total parts) and 1 sheet type (%3 sheets)")
+        .arg(config_.numPartTypes)
+        .arg(config_.numPartTypes * config_.quantityPerPart)
+        .arg(config_.quantityPerSheet));
 
     // Visualize the parts BEFORE nesting - arranged side by side
     clearScene();
@@ -611,29 +621,35 @@ void TestApplication::testRandomPolygons() {
 }
 
 void TestApplication::openConfigDialog() {
-    // For now, use simple dialogs for each parameter
-    // A full QDialog-based config widget would be better
+    // Open unified configuration dialog
+    ConfigDialog dialog(config_, this);
 
-    bool ok;
-    double spacing = QInputDialog::getDouble(this, "Spacing",
-                                             "Enter spacing between parts:",
-                                             solver_->getConfig().spacing,
-                                             0, 100, 1, &ok);
-    if (ok) solver_->setSpacing(spacing);
+    if (dialog.exec() == QDialog::Accepted) {
+        // Update configuration
+        config_ = dialog.getConfig();
 
-    int rotations = QInputDialog::getInt(this, "Rotations",
-                                        "Enter number of rotations (0=none, 4=90° increments):",
-                                        solver_->getConfig().rotations,
-                                        0, 16, 1, &ok);
-    if (ok) solver_->setRotations(rotations);
+        // Apply nesting parameters to solver
+        solver_->setSpacing(config_.spacing);
+        solver_->setRotations(config_.rotations);
+        solver_->setPopulationSize(config_.populationSize);
+        solver_->setMutationRate(config_.mutationRate);
+        solver_->setThreads(config_.threads);
 
-    int popSize = QInputDialog::getInt(this, "Population Size",
-                                      "Enter GA population size:",
-                                      solver_->getConfig().populationSize,
-                                      2, 100, 1, &ok);
-    if (ok) solver_->setPopulationSize(popSize);
+        // Update max generations
+        maxGenerations_ = config_.maxGenerations;
 
-    log("Configuration updated");
+        log(QString("Configuration updated: spacing=%1, rotations=%2, popSize=%3, threads=%4")
+            .arg(config_.spacing, 0, 'f', 1)
+            .arg(config_.rotations)
+            .arg(config_.populationSize)
+            .arg(config_.threads));
+
+        log(QString("Generation settings: %1 part types × %2 qty, %3 sheet types × %4 qty")
+            .arg(config_.numPartTypes)
+            .arg(config_.quantityPerPart)
+            .arg(config_.numSheetTypes)
+            .arg(config_.quantityPerSheet));
+    }
 }
 
 void TestApplication::onProgress(const deepnest::NestProgress& progress) {

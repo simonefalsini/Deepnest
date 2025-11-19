@@ -23,11 +23,13 @@ INCLUDEPATH += $$PWD/../../Clipper2Lib/include
 SOURCES += \
     main.cpp \
     TestApplication.cpp \
+    ConfigDialog.cpp \
     SVGLoader.cpp \
     RandomShapeGenerator.cpp
 
 HEADERS += \
     TestApplication.h \
+    ConfigDialog.h \
     SVGLoader.h \
     RandomShapeGenerator.h
 
