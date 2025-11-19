@@ -24,6 +24,38 @@ struct PlacedPart {
 };
 
 /**
+ * @brief Placement metrics structure
+ *
+ * Contains detailed metrics about a placement position including
+ * the position itself, the metric value, and bounding box dimensions.
+ *
+ * This is used to track minwidth and minarea for fitness calculation.
+ *
+ * References:
+ * - background.js lines 997-1106: minwidth, minarea tracking
+ */
+struct PlacementMetrics {
+    Point position;      // Best position found
+    double metric;       // Objective metric value (lower is better)
+    double width;        // Bounding box width at this position
+    double area;         // Metric area (depends on strategy)
+    bool valid;          // Whether a valid position was found
+
+    PlacementMetrics()
+        : metric(std::numeric_limits<double>::max())
+        , width(0.0)
+        , area(0.0)
+        , valid(false) {}
+
+    PlacementMetrics(const Point& pos, double m, double w, double a)
+        : position(pos)
+        , metric(m)
+        , width(w)
+        , area(a)
+        , valid(true) {}
+};
+
+/**
  * @brief Abstract base class for placement strategies
  *
  * Different strategies optimize for different objectives when placing parts:
@@ -65,6 +97,26 @@ public:
     ) const = 0;
 
     /**
+     * @brief Find best position with detailed metrics
+     *
+     * Extended version that returns not just the position but also
+     * the width, area, and metric value. This is used for fitness calculation.
+     *
+     * @param part Part to be placed
+     * @param placed Previously placed parts with positions
+     * @param candidatePositions List of valid positions (from NFP)
+     * @return PlacementMetrics with position, width, area, and metric
+     *
+     * References:
+     * - background.js lines 997-1119: minwidth, minarea tracking in placement loop
+     */
+    virtual PlacementMetrics findBestPositionWithMetrics(
+        const Polygon& part,
+        const std::vector<PlacedPart>& placed,
+        const std::vector<Point>& candidatePositions
+    ) const = 0;
+
+    /**
      * @brief Get strategy type
      */
     virtual Type getType() const = 0;
@@ -100,6 +152,26 @@ protected:
         const Point& position,
         const std::vector<PlacedPart>& placed
     ) const = 0;
+
+    /**
+     * @brief Calculate metric with detailed dimensions
+     *
+     * Extended version that returns metric, width, and area.
+     *
+     * @param part Part being placed
+     * @param position Candidate position for part
+     * @param placed Previously placed parts
+     * @param[out] outWidth Width of bounding box/hull
+     * @param[out] outArea Area metric value
+     * @return Metric value (lower is better)
+     */
+    virtual double calculateMetricWithDetails(
+        const Polygon& part,
+        const Point& position,
+        const std::vector<PlacedPart>& placed,
+        double& outWidth,
+        double& outArea
+    ) const = 0;
 };
 
 /**
@@ -119,6 +191,12 @@ public:
         const std::vector<Point>& candidatePositions
     ) const override;
 
+    PlacementMetrics findBestPositionWithMetrics(
+        const Polygon& part,
+        const std::vector<PlacedPart>& placed,
+        const std::vector<Point>& candidatePositions
+    ) const override;
+
     Type getType() const override { return Type::GRAVITY; }
     std::string getName() const override { return "gravity"; }
 
@@ -127,6 +205,14 @@ protected:
         const Polygon& part,
         const Point& position,
         const std::vector<PlacedPart>& placed
+    ) const override;
+
+    double calculateMetricWithDetails(
+        const Polygon& part,
+        const Point& position,
+        const std::vector<PlacedPart>& placed,
+        double& outWidth,
+        double& outArea
     ) const override;
 };
 
@@ -146,6 +232,12 @@ public:
         const std::vector<Point>& candidatePositions
     ) const override;
 
+    PlacementMetrics findBestPositionWithMetrics(
+        const Polygon& part,
+        const std::vector<PlacedPart>& placed,
+        const std::vector<Point>& candidatePositions
+    ) const override;
+
     Type getType() const override { return Type::BOUNDING_BOX; }
     std::string getName() const override { return "box"; }
 
@@ -154,6 +246,14 @@ protected:
         const Polygon& part,
         const Point& position,
         const std::vector<PlacedPart>& placed
+    ) const override;
+
+    double calculateMetricWithDetails(
+        const Polygon& part,
+        const Point& position,
+        const std::vector<PlacedPart>& placed,
+        double& outWidth,
+        double& outArea
     ) const override;
 };
 
@@ -173,6 +273,12 @@ public:
         const std::vector<Point>& candidatePositions
     ) const override;
 
+    PlacementMetrics findBestPositionWithMetrics(
+        const Polygon& part,
+        const std::vector<PlacedPart>& placed,
+        const std::vector<Point>& candidatePositions
+    ) const override;
+
     Type getType() const override { return Type::CONVEX_HULL; }
     std::string getName() const override { return "convexhull"; }
 
@@ -181,6 +287,14 @@ protected:
         const Polygon& part,
         const Point& position,
         const std::vector<PlacedPart>& placed
+    ) const override;
+
+    double calculateMetricWithDetails(
+        const Polygon& part,
+        const Point& position,
+        const std::vector<PlacedPart>& placed,
+        double& outWidth,
+        double& outArea
     ) const override;
 };
 

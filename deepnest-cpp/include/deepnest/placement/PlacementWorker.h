@@ -156,12 +156,18 @@ private:
      * @brief Extract all points from final NFP polygons
      *
      * Flattens the NFP result polygons into a list of candidate positions.
+     * Subtracts part[0] from each NFP point to get the actual placement position.
      *
      * @param finalNfp NFP polygons after difference operation
+     * @param part Part being placed (needed to subtract part[0])
      * @return List of candidate placement positions
+     *
+     * References:
+     * - placementworker.js line 235: shiftvector = {x: nf[k].x-part[0].x, y: nf[k].y-part[0].y}
      */
     std::vector<Point> extractCandidatePositions(
-        const std::vector<Polygon>& finalNfp
+        const std::vector<Polygon>& finalNfp,
+        const Polygon& part
     ) const;
 
     /**

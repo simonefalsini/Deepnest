@@ -76,6 +76,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         totalSheetArea += sheetArea;
         fitness += sheetArea;
 
+        // CRITICAL FIX: Track minwidth and minarea for fitness calculation
+        // JavaScript: var minwidth = null; var minarea = null; (lines 997-998)
+        double minwidth = 0.0;
+        double minarea = std::numeric_limits<double>::max();
+
         // JavaScript: for(i=0; i<parts.length; i++)
         for (size_t i = 0; i < parts.size(); ) {
             Polygon& part = parts[i];
@@ -308,7 +313,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             //               }
             //             }
             // Extract candidate positions and find best one
-            std::vector<Point> candidatePositions = extractCandidatePositions(finalNfp);
+            // CRITICAL FIX: Pass part to extract positions correctly
+            std::vector<Point> candidatePositions = extractCandidatePositions(finalNfp, part);
 
             if (candidatePositions.empty()) {
                 i++;
@@ -321,18 +327,30 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 placedForStrategy.push_back(toPlacedPart(placed[j], placements[j]));
             }
 
-            // Use strategy to find best position
-            Point bestPosition = strategy_->findBestPosition(
+            // CRITICAL FIX: Use findBestPositionWithMetrics to get width and area
+            // JavaScript: lines 1099-1119 track minwidth and minarea
+            PlacementMetrics metrics = strategy_->findBestPositionWithMetrics(
                 part,
                 placedForStrategy,
                 candidatePositions
             );
 
             // JavaScript: if(position) { placed.push(path); placements.push(position); }
-            if (bestPosition.x != 0.0 || bestPosition.y != 0.0 || candidatePositions.size() == 1) {
-                position = Placement(bestPosition, part.id, part.source, part.rotation);
+            if (metrics.valid) {
+                position = Placement(metrics.position, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
+
+                // CRITICAL FIX: Track minwidth and minarea
+                // JavaScript: lines 1105-1108
+                // if(minarea === null || area < minarea || ...) {
+                //     minarea = area;
+                //     minwidth = rectbounds.width;
+                // }
+                if (metrics.area < minarea) {
+                    minarea = metrics.area;
+                    minwidth = metrics.width;
+                }
 
                 // Remove from parts list
                 parts.erase(parts.begin() + i);
@@ -341,6 +359,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             else {
                 i++;
             }
+        }
+
+        // CRITICAL FIX: Add minwidth and minarea to fitness
+        // JavaScript: line 1142: fitness += (minwidth/sheetarea) + minarea;
+        if (minwidth > 0.0 && sheetArea > 0.0 && minarea < std::numeric_limits<double>::max()) {
+            fitness += (minwidth / sheetArea) + minarea;
         }
 
         // JavaScript: if(placements && placements.length > 0) {
@@ -354,8 +378,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         }
     }
 
-    // JavaScript: fitness += 2*parts.length;
-    fitness += 2.0 * parts.size(); // Penalty for unplaced parts
+    // CRITICAL FIX: Correct penalty for unplaced parts
+    // JavaScript: line 1167: fitness += 100000000*(Math.abs(GeometryUtil.polygonArea(parts[i]))/totalsheetarea);
+    for (const auto& unplacedPart : parts) {
+        double partArea = std::abs(GeometryUtil::polygonArea(unplacedPart.points));
+        if (totalSheetArea > 0.0) {
+            fitness += 100000000.0 * (partArea / totalSheetArea);
+        }
+    }
 
     // Calculate total merged length
     // JavaScript: totalMerged = ... (calculated in separate loop)
@@ -371,7 +401,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 }
 
 std::vector<Point> PlacementWorker::extractCandidatePositions(
-    const std::vector<Polygon>& finalNfp
+    const std::vector<Polygon>& finalNfp,
+    const Polygon& part
 ) const {
     // JavaScript: for(j=0; j<finalNfp.length; j++) {
     //               nf = finalNfp[j];
@@ -382,14 +413,27 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
     //             }
     std::vector<Point> positions;
 
+    // Need part[0] to calculate position offset
+    if (part.points.empty()) {
+        return positions; // Empty result
+    }
+
+    const Point& partOrigin = part.points[0];
+
     for (const auto& nfp : finalNfp) {
         // Skip very small NFPs
         if (std::abs(GeometryUtil::polygonArea(nfp.points)) < 2.0) {
             continue;
         }
 
-        for (const auto& point : nfp.points) {
-            positions.push_back(point);
+        // CRITICAL FIX: Subtract part[0] from each NFP point
+        // JavaScript: shiftvector = {x: nf[k].x - part[0].x, y: nf[k].y - part[0].y}
+        for (const auto& nfpPoint : nfp.points) {
+            Point position(
+                nfpPoint.x - partOrigin.x,
+                nfpPoint.y - partOrigin.y
+            );
+            positions.push_back(position);
         }
     }
 
