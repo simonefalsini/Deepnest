@@ -18,6 +18,7 @@
 #include <QDateTime>
 #include <QSvgGenerator>
 #include <QPainter>
+#include <QGraphicsTextItem>
 #include <random>
 
 TestApplication::TestApplication(QWidget* parent)
@@ -463,7 +464,7 @@ void TestApplication::testRandomRectangles() {
 
     for (size_t i = 0; i < parts_.size(); ++i) {
         // Get bounding box
-        auto bbox = deepnest::GeometryUtil::boundingBox(parts_[i].points);
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(parts_[i].points);
         double width = bbox.maxX - bbox.minX;
         double height = bbox.maxY - bbox.minY;
 
@@ -747,7 +748,7 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                 drawPolygon(transformed, color, 0.5);
 
                 // Add ID label on the part
-                auto bbox = deepnest::GeometryUtil::boundingBox(transformed.points);
+                auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
                 double centerX = (bbox.minX + bbox.maxX) / 2;
                 double centerY = (bbox.minY + bbox.maxY) / 2;
 
@@ -761,7 +762,7 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
         // Offset for next sheet (if multiple sheets)
         if (sheetIdx < sheets_.size()) {
-            auto bbox = deepnest::GeometryUtil::boundingBox(sheets_[sheetIdx].points);
+            auto bbox = deepnest::GeometryUtil::getPolygonBounds(sheets_[sheetIdx].points);
             sheetOffsetX += (bbox.maxX - bbox.minX) + 50;  // 50 units spacing between sheets
         }
     }
