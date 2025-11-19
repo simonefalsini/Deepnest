@@ -247,28 +247,30 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     // Calculate scale factor
     double scale = calculateScale(A, B);
 
-    // For inner NFP, we need to compute Minkowski difference: A ⊖ B = A ⊕ (-B)
-    // This means negating all coordinates of B before the Minkowski sum
+    // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
+    // This applies to BOTH:
+    // - Inner NFP (sheet boundary): sheet ⊖ part
+    // - Outer NFP (part-to-part no-overlap): placedPart ⊖ newPart
+    // The 'inner' parameter is only used for caching/semantics, not for computation.
     Polygon B_to_use = B;
-    if (inner) {
-        // Negate all points of B to get -B
-        for (auto& point : B_to_use.points) {
+
+    // ALWAYS negate all points of B to get -B for Minkowski difference
+    for (auto& point : B_to_use.points) {
+        point.x = -point.x;
+        point.y = -point.y;
+    }
+    // CRITICAL: Negating coordinates inverts the winding order!
+    // CCW becomes CW. We must reverse the point order to restore CCW winding.
+    std::reverse(B_to_use.points.begin(), B_to_use.points.end());
+
+    // Also negate children (holes)
+    for (auto& child : B_to_use.children) {
+        for (auto& point : child.points) {
             point.x = -point.x;
             point.y = -point.y;
         }
-        // CRITICAL: Negating coordinates inverts the winding order!
-        // CCW becomes CW. We must reverse the point order to restore CCW winding.
-        std::reverse(B_to_use.points.begin(), B_to_use.points.end());
-
-        // Also negate children (holes)
-        for (auto& child : B_to_use.children) {
-            for (auto& point : child.points) {
-                point.x = -point.x;
-                point.y = -point.y;
-            }
-            // Reverse child points to restore CCW winding after negation
-            std::reverse(child.points.begin(), child.points.end());
-        }
+        // Reverse child points to restore CCW winding after negation
+        std::reverse(child.points.begin(), child.points.end());
     }
 
     // Convert to Boost integer polygons
