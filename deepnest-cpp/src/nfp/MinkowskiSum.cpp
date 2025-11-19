@@ -2,6 +2,8 @@
 #include <boost/polygon/polygon.hpp>
 #include <limits>
 #include <algorithm>
+#include <cmath>
+#include <iostream>
 
 #undef min
 #undef max
@@ -157,20 +159,55 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // Convert outer boundary
+    // CRITICAL FIX: Clean and validate integer points to prevent "invalid comparator" errors
+    // in Boost.Polygon scanline algorithm when processing many objects
+
+    // Convert outer boundary with rounding
     std::vector<IntPoint> points;
     points.reserve(poly.points.size());
 
     for (const auto& p : poly.points) {
-        int x = static_cast<int>(scale * p.x);
-        int y = static_cast<int>(scale * p.y);
+        // Use proper rounding instead of truncation to reduce quantization errors
+        int x = static_cast<int>(std::round(scale * p.x));
+        int y = static_cast<int>(std::round(scale * p.y));
         points.push_back(IntPoint(x, y));
+    }
+
+    // CRITICAL: Remove duplicate consecutive points to prevent degenerate edges
+    // Boost.Polygon scanline algorithm fails with "invalid comparator" when
+    // there are zero-length edges or duplicate points
+    auto cleanPoints = [](std::vector<IntPoint>& pts) {
+        if (pts.size() < 3) return;  // Need at least 3 points for a polygon
+
+        std::vector<IntPoint> cleaned;
+        cleaned.reserve(pts.size());
+
+        for (size_t i = 0; i < pts.size(); ++i) {
+            size_t next = (i + 1) % pts.size();
+            // Only add point if it's different from the next point
+            if (pts[i].x() != pts[next].x() || pts[i].y() != pts[next].y()) {
+                cleaned.push_back(pts[i]);
+            }
+        }
+
+        // Need at least 3 points for valid polygon
+        if (cleaned.size() >= 3) {
+            pts = std::move(cleaned);
+        }
+    };
+
+    cleanPoints(points);
+
+    // Validate we still have a valid polygon after cleaning
+    if (points.size() < 3) {
+        // Return empty polygon if degenerate
+        return IntPolygonWithHoles();
     }
 
     IntPolygonWithHoles result;
     set_points(result, points.begin(), points.end());
 
-    // Convert holes
+    // Convert holes with same cleaning process
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -180,17 +217,25 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             holePoints.reserve(hole.points.size());
 
             for (const auto& p : hole.points) {
-                int x = static_cast<int>(scale * p.x);
-                int y = static_cast<int>(scale * p.y);
+                int x = static_cast<int>(std::round(scale * p.x));
+                int y = static_cast<int>(std::round(scale * p.y));
                 holePoints.push_back(IntPoint(x, y));
             }
 
-            IntPolygon holePoly;
-            set_points(holePoly, holePoints.begin(), holePoints.end());
-            holes.push_back(holePoly);
+            // Clean hole points
+            cleanPoints(holePoints);
+
+            // Only add hole if it's still valid after cleaning
+            if (holePoints.size() >= 3) {
+                IntPolygon holePoly;
+                set_points(holePoly, holePoints.begin(), holePoints.end());
+                holes.push_back(holePoly);
+            }
         }
 
-        set_holes(result, holes.begin(), holes.end());
+        if (!holes.empty()) {
+            set_holes(result, holes.begin(), holes.end());
+        }
     }
 
     return result;
@@ -251,7 +296,25 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     // CRITICAL FIX: Ensure complete copy of data from Boost internal structures
     // before any processing to avoid dangling references after polySet destruction
     std::vector<IntPolygonWithHoles> boostPolygons;
-    polySet.get(boostPolygons);  // This should copy, but let's ensure data is extracted immediately
+
+    // CRITICAL: Wrap get() in try-catch to handle "invalid comparator" errors
+    // that can occur in Boost.Polygon scanline algorithm with degenerate geometries
+    try {
+        polySet.get(boostPolygons);  // This triggers clean() which uses scanline algorithm
+    }
+    catch (const std::exception& e) {
+        // If Boost.Polygon scanline fails (invalid comparator, etc.), return empty
+        // This can happen with degenerate geometries even after cleaning
+        std::cerr << "WARNING: Boost.Polygon get() failed: " << e.what()
+                  << " - returning empty NFP (degenerate geometry)" << std::endl;
+        return std::vector<Polygon>();
+    }
+    catch (...) {
+        // Catch any other exceptions from Boost.Polygon
+        std::cerr << "WARNING: Boost.Polygon get() failed with unknown exception"
+                  << " - returning empty NFP (degenerate geometry)" << std::endl;
+        return std::vector<Polygon>();
+    }
 
     std::vector<Polygon> result;
     result.reserve(boostPolygons.size());
@@ -259,7 +322,11 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     // Process all polygons immediately while boostPolygons is still valid
     // fromBoostIntPolygon now does complete data extraction before conversion
     for (const auto& boostPoly : boostPolygons) {
-        result.push_back(fromBoostIntPolygon(boostPoly, scale));
+        Polygon converted = fromBoostIntPolygon(boostPoly, scale);
+        // Only add non-empty polygons
+        if (!converted.points.empty()) {
+            result.push_back(std::move(converted));
+        }
     }
 
     // Explicitly clear boost containers to ensure no dangling references
