@@ -18,7 +18,59 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
     auto nfps = MinkowskiSum::calculateNFP(A, B, inside);
 
     if (nfps.empty()) {
-        return Polygon(); // Return empty polygon
+        // FALLBACK: If Minkowski sum fails, use bounding box approximation
+        // This provides a conservative NFP that prevents overlap but may not be optimal
+        // Full orbital tracing would be more accurate but is complex to implement
+
+        // Get bounding boxes
+        BoundingBox bboxA = A.bounds();
+        BoundingBox bboxB = B.bounds();
+
+        // For outer NFP: create a polygon representing valid positions
+        // The reference point of B can be placed anywhere B doesn't overlap A
+        Polygon fallbackNFP;
+
+        if (!inside) {
+            // Outer NFP: B orbits outside A
+            // Conservative approach: use dilated bounding box of A
+            double padding = std::max(bboxB.width, bboxB.height);
+
+            // Create rectangle around A with padding for B
+            fallbackNFP.points.push_back(Point(bboxA.x - padding, bboxA.y - padding));
+            fallbackNFP.points.push_back(Point(bboxA.x + bboxA.width + padding, bboxA.y - padding));
+            fallbackNFP.points.push_back(Point(bboxA.x + bboxA.width + padding, bboxA.y + bboxA.height + padding));
+            fallbackNFP.points.push_back(Point(bboxA.x - padding, bboxA.y + bboxA.height + padding));
+
+            // Add A's bounding box as a hole (forbidden region)
+            Polygon hole;
+            hole.points.push_back(Point(bboxA.x, bboxA.y));
+            hole.points.push_back(Point(bboxA.x + bboxA.width, bboxA.y));
+            hole.points.push_back(Point(bboxA.x + bboxA.width, bboxA.y + bboxA.height));
+            hole.points.push_back(Point(bboxA.x, bboxA.y + bboxA.height));
+            fallbackNFP.children.push_back(hole);
+        } else {
+            // Inner NFP: B must fit inside A
+            // Conservative approach: shrink A's bounding box by B's dimensions
+            double innerWidth = std::max(0.0, bboxA.width - bboxB.width);
+            double innerHeight = std::max(0.0, bboxA.height - bboxB.height);
+
+            if (innerWidth > 0 && innerHeight > 0) {
+                fallbackNFP.points.push_back(Point(bboxA.x, bboxA.y));
+                fallbackNFP.points.push_back(Point(bboxA.x + innerWidth, bboxA.y));
+                fallbackNFP.points.push_back(Point(bboxA.x + innerWidth, bboxA.y + innerHeight));
+                fallbackNFP.points.push_back(Point(bboxA.x, bboxA.y + innerHeight));
+            }
+            // If B doesn't fit, return empty (fallbackNFP.points stays empty)
+        }
+
+        if (!fallbackNFP.points.empty()) {
+            std::cerr << "WARNING: Minkowski sum failed for polygons A(id=" << A.id
+                     << ") and B(id=" << B.id << "), using bounding box fallback NFP" << std::endl;
+            return fallbackNFP;
+        }
+
+        // If even fallback fails, return empty polygon
+        return Polygon();
     }
 
     // DEBUG LOGGING - DISABLED for cleaner output
