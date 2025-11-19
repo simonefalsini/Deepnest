@@ -46,12 +46,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     for (auto& part : parts) {
         Polygon rotated = part.rotate(part.rotation);
 
-        // CRITICAL FIX: After rotation, normalize polygon to (0,0)
-        // Rotation around origin can produce negative coordinates!
-        // Example: rect (0,0,100,100) rotated 180° → (0,0), (0,-100), (-100,-100), (-100,0)
-        // We need to translate back to positive coordinates
-        auto bbox = GeometryUtil::getPolygonBounds(rotated.points);
-        rotated = rotated.translate(-bbox.x, -bbox.y);
+        // CRITICAL FIX: DO NOT NORMALIZE after rotation!
+        // The JavaScript code does NOT normalize - it keeps negative coordinates
+        // NFP calculation DEPENDS on parts[0] being at the rotated position
+        // Normalization breaks the coordinate system contract
+        // Negative coordinates after rotation are PERFECTLY FINE!
 
         rotated.rotation = part.rotation;
         rotated.source = part.source;
@@ -122,9 +121,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                     double rotationStep = 360.0 / config_.rotations;
                     Polygon rotated = part.rotate(rotationStep);
 
-                    // CRITICAL FIX: Normalize after rotation to avoid negative coordinates
-                    auto bbox = GeometryUtil::getPolygonBounds(rotated.points);
-                    rotated = rotated.translate(-bbox.x, -bbox.y);
+                    // CRITICAL FIX: DO NOT NORMALIZE - see above explanation
+                    // Negative coordinates are expected and correct!
 
                     rotated.rotation = part.rotation + rotationStep;
                     rotated.source = part.source;
