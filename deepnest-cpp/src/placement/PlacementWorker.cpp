@@ -448,8 +448,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 // Transform each point by the placement position
                 for (const auto& point : placedPart.points) {
                     allPlacedPoints.push_back(Point(
-                        point.x + placement.x,
-                        point.y + placement.y
+                        point.x + placement.position.x,
+                        point.y + placement.position.y
                     ));
                 }
             }

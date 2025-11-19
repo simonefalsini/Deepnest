@@ -50,7 +50,7 @@ void ParallelProcessor::stop() {
     // Give threads a chance to complete pending tasks
     // This prevents tasks from remaining in queue when engine is destroyed
     boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
-
+    
     // Poll remaining handlers to drain the queue (don't wait for completion)
     // This ensures no tasks remain that capture references to destroyed objects
     while (ioContext_.poll() > 0) {
