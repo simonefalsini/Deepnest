@@ -247,11 +247,29 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     // Calculate scale factor
     double scale = calculateScale(A, B);
 
+    // For inner NFP, we need to compute Minkowski difference: A ⊖ B = A ⊕ (-B)
+    // This means negating all coordinates of B before the Minkowski sum
+    Polygon B_to_use = B;
+    if (inner) {
+        // Negate all points of B to get -B
+        for (auto& point : B_to_use.points) {
+            point.x = -point.x;
+            point.y = -point.y;
+        }
+        // Also negate children (holes)
+        for (auto& child : B_to_use.children) {
+            for (auto& point : child.points) {
+                point.x = -point.x;
+                point.y = -point.y;
+            }
+        }
+    }
+
     // Convert to Boost integer polygons
     IntPolygonSet polySetA, polySetB, result;
 
     IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-    IntPolygonWithHoles boostB = toBoostIntPolygon(B, scale);
+    IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
 
     polySetA.insert(boostA);
     polySetB.insert(boostB);
@@ -261,15 +279,6 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
 
     // Convert back to our Polygon type
     std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
-
-    // If inner NFP is requested, we need to invert the result
-    // This is a simplification - the full implementation would handle this more carefully
-    if (inner && !nfps.empty()) {
-        // For inner NFP, reverse winding order
-        for (auto& nfp : nfps) {
-            nfp.reverse();
-        }
-    }
 
     return nfps;
 }
