@@ -674,22 +674,25 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
             if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
                 deepnest::Polygon part = parts_[sourceId];
 
-                // Apply spacing to match what the nesting algorithm sees
-                // Parts are expanded by +0.5 * spacing before nesting
+                // IMPORTANT: Apply rotation FIRST (around origin), THEN offset, THEN translate
+                // This matches how PlacementWorker expects the parts
+
+                // Step 1: Rotate around origin
+                deepnest::Polygon rotated = part.rotate(placement.rotation);
+
+                // Step 2: Apply spacing offset (same as NestingEngine does before nesting)
                 double spacing = solver_->getConfig().spacing;
                 if (spacing > 0) {
-                    // Use PolygonOperations to apply offset (same as NestingEngine)
                     std::vector<std::vector<deepnest::Point>> offsetResults =
-                        deepnest::PolygonOperations::offset(part.points, 0.5 * spacing, 4.0, 0.25);
+                        deepnest::PolygonOperations::offset(rotated.points, 0.5 * spacing, 4.0, 0.25);
 
                     if (!offsetResults.empty()) {
-                        part.points = offsetResults[0];
+                        rotated.points = offsetResults[0];
                     }
                 }
 
-                // Apply rotation and translation
-                deepnest::Polygon transformed = part.rotate(placement.rotation);
-                transformed = transformed.translate(placement.position.x, placement.position.y);
+                // Step 3: Translate to final position
+                deepnest::Polygon transformed = rotated.translate(placement.position.x, placement.position.y);
 
                 QColor color(colorDist(gen), colorDist(gen), colorDist(gen));
                 drawPolygon(transformed, color, 0.5);
