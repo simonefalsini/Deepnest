@@ -45,6 +45,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     std::vector<Polygon> rotatedParts;
     for (auto& part : parts) {
         Polygon rotated = part.rotate(part.rotation);
+
+        // CRITICAL FIX: After rotation, normalize polygon to (0,0)
+        // Rotation around origin can produce negative coordinates!
+        // Example: rect (0,0,100,100) rotated 180° → (0,0), (0,-100), (-100,-100), (-100,0)
+        // We need to translate back to positive coordinates
+        auto bbox = GeometryUtil::getPolygonBounds(rotated.points);
+        rotated = rotated.translate(-bbox.x, -bbox.y);
+
         rotated.rotation = part.rotation;
         rotated.source = part.source;
         rotated.id = part.id;
@@ -113,6 +121,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 if (rotAttempt < maxRotationAttempts - 1) {
                     double rotationStep = 360.0 / config_.rotations;
                     Polygon rotated = part.rotate(rotationStep);
+
+                    // CRITICAL FIX: Normalize after rotation to avoid negative coordinates
+                    auto bbox = GeometryUtil::getPolygonBounds(rotated.points);
+                    rotated = rotated.translate(-bbox.x, -bbox.y);
+
                     rotated.rotation = part.rotation + rotationStep;
                     rotated.source = part.source;
                     rotated.id = part.id;
@@ -387,12 +400,16 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
     //             }
     std::vector<Point> positions;
 
-    // Get the part's reference point (first point)
+    // Get the part's reference point (bounding box min, not first point!)
+    // After rotation normalization, part.points[0] might not be at bbox min
+    // Example: rotated 180° rect has first point at (100,100) after normalization
     if (part.points.empty()) {
         return positions;
     }
 
-    const Point& referencePoint = part.points[0];
+    // Use bounding box min as reference point (should be 0,0 after normalization)
+    auto bbox = GeometryUtil::getPolygonBounds(part.points);
+    Point referencePoint(bbox.x, bbox.y);
 
     for (const auto& nfp : finalNfp) {
         // Skip very small NFPs
@@ -401,8 +418,8 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
         }
 
         for (const auto& point : nfp.points) {
-            // Subtract part's reference point to get actual placement position
-            // This is the critical fix: NFP points must be adjusted by the part's origin
+            // Subtract part's reference point (bbox min) to get actual placement position
+            // After normalization, bbox min is (0,0), so this just returns point
             Point candidatePos(
                 point.x - referencePoint.x,
                 point.y - referencePoint.y
