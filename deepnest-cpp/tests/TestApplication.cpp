@@ -748,13 +748,13 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                 QColor color = partColors[sourceId % 10];
                 drawPolygon(transformed, color, 0.5);
 
-                // Add ID label on the part
+                // Add PLACEMENT INDEX label on the part (for debugging positions)
                 auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
                 double centerX = bbox.x + bbox.width / 2.0;
                 double centerY = bbox.y + bbox.height / 2.0;
 
                 QGraphicsTextItem* idLabel = scene_->addText(
-                    QString::number(sourceId),
+                    QString::number(placementCount - 1),  // Show placement index (0-based)
                     QFont("Arial", 12, QFont::Bold));
                 idLabel->setDefaultTextColor(Qt::black);
                 idLabel->setPos(centerX - 8, centerY - 10);
