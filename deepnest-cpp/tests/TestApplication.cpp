@@ -635,11 +635,6 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
         .arg(totalPlacements)
         .arg(result.placements.size()));
 
-    double spacing = solver_->getConfig().spacing;
-    log(QString("Applying spacing offset: %1 (parts expanded by %2)")
-        .arg(spacing, 0, 'f', 1)
-        .arg(0.5 * spacing, 0, 'f', 2));
-
     clearScene();
 
     // Draw each sheet with placements
@@ -674,24 +669,14 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
             if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
                 deepnest::Polygon part = parts_[sourceId];
 
-                // IMPORTANT: Apply rotation FIRST (around origin), THEN offset, THEN translate
-                // This matches how PlacementWorker expects the parts
+                // Apply transformation: rotate FIRST, then translate
+                // DO NOT apply spacing offset here - placement.position already accounts for it!
+                // The spacing is "virtual" - used only for NFP calculations during placement
 
                 // Step 1: Rotate around origin
                 deepnest::Polygon rotated = part.rotate(placement.rotation);
 
-                // Step 2: Apply spacing offset (same as NestingEngine does before nesting)
-                double spacing = solver_->getConfig().spacing;
-                if (spacing > 0) {
-                    std::vector<std::vector<deepnest::Point>> offsetResults =
-                        deepnest::PolygonOperations::offset(rotated.points, 0.5 * spacing, 4.0, 0.25);
-
-                    if (!offsetResults.empty()) {
-                        rotated.points = offsetResults[0];
-                    }
-                }
-
-                // Step 3: Translate to final position
+                // Step 2: Translate to final position (position already includes spacing compensation)
                 deepnest::Polygon transformed = rotated.translate(placement.position.x, placement.position.y);
 
                 QColor color(colorDist(gen), colorDist(gen), colorDist(gen));
