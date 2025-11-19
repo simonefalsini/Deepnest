@@ -16,7 +16,8 @@
 #include <QInputDialog>
 #include <QApplication>
 #include <QDateTime>
-#include <QSvgGenerator>
+// SVG export disabled - Qt SVG module not available
+// #include <QSvgGenerator>
 #include <QPainter>
 #include <QGraphicsTextItem>
 #include <random>
@@ -728,20 +729,11 @@ void TestApplication::exportSVG() {
         return;
     }
 
-    log("Exporting result to: " + filename);
-
-    // Export using QSvgGenerator
-    QSvgGenerator generator;
-    generator.setFileName(filename);
-    generator.setSize(QSize(800, 600));
-    generator.setViewBox(QRect(0, 0, 800, 600));
-    generator.setTitle("DeepNest Result");
-    generator.setDescription("Nesting result from DeepNest C++");
-
-    QPainter painter(&generator);
-    scene_->render(&painter);
-
-    log("Export complete");
+    // SVG export disabled - Qt SVG module not available in this environment
+    QMessageBox::warning(this, "SVG Export Disabled",
+        "SVG export is not available - Qt SVG module not installed.\n"
+        "Use screenshot functionality instead.");
+    log("SVG export not available");
 }
 
 void TestApplication::updateVisualization(const deepnest::NestResult& result) {

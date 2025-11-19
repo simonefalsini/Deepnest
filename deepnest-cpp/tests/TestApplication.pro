@@ -2,7 +2,9 @@
 # DeepNest C++ Qt Test Application
 ##############################################
 
-QT += core gui widgets xml svg
+QT += core gui widgets xml
+# svg module commented out - not available in this environment
+# QT += svg
 
 CONFIG += c++17
 CONFIG += console
@@ -38,7 +40,7 @@ LIBS += -L$$PWD/../lib -ldeepnest
 
 # Boost libraries
 unix {
-    LIBS += -lboost_thread -lboost_system -lpthread
+    LIBS += -lboost_thread -lboost_system -lboost_chrono -lpthread
 }
 
 win32 {

@@ -49,8 +49,9 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-    // Convert mutation rate from percentage to probability (0-1)
-    double mutationProb = mutationRate * 0.01;
+    // CRITICAL FIX: mutationRate is already a probability (0.0-1.0), not a percentage
+    // No conversion needed - use it directly
+    double mutationProb = mutationRate;
 
     // GA DEBUG: Track mutations
     int swapCount = 0;
@@ -86,7 +87,7 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
     if (first_mutation) {
         std::cout << "  Mutation: swaps=" << swapCount
                   << ", rotation changes=" << rotationChangeCount
-                  << " (rate=" << mutationRate << "%, prob=" << mutationProb << ")" << std::endl;
+                  << " (probability=" << mutationProb << ")" << std::endl;
         first_mutation = false;
     }
 
