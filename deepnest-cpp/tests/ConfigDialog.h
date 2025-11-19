@@ -32,7 +32,7 @@ public:
         double curveTolerance;       // Tolerance for curve approximation
         int rotations;               // Number of rotation steps (0=no rotation, 4=90° increments)
         int populationSize;          // Genetic algorithm population size
-        double mutationRate;         // Mutation probability (0.0-1.0)
+        int mutationRate;            // Mutation rate percentage (0-100, typically 50)
         int threads;                 // Number of parallel worker threads
         QString placementType;       // "gravity", "boundingbox", or "convexhull"
         bool mergeLines;             // Enable line merge detection
@@ -65,7 +65,7 @@ public:
             , curveTolerance(0.3)
             , rotations(4)
             , populationSize(10)
-            , mutationRate(0.5)
+            , mutationRate(50)
             , threads(4)
             , placementType("gravity")
             , mergeLines(false)
@@ -117,7 +117,7 @@ private:
     QDoubleSpinBox* curveToleranceSpinBox_;
     QSpinBox* rotationsSpinBox_;
     QSpinBox* populationSizeSpinBox_;
-    QDoubleSpinBox* mutationRateSpinBox_;
+    QSpinBox* mutationRateSpinBox_;
     QSpinBox* threadsSpinBox_;
     QComboBox* placementTypeCombo_;
     QCheckBox* mergeLinesCheckBox_;

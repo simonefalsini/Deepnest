@@ -49,9 +49,9 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-    // CRITICAL FIX: mutationRate is already a probability (0.0-1.0), not a percentage
-    // No conversion needed - use it directly
-    double mutationProb = mutationRate;
+    // Convert mutation rate from percentage (0-100) to probability (0.0-1.0)
+    // DeepNestConfig passes int percentage, we need to convert to probability
+    double mutationProb = mutationRate * 0.01;
 
     // GA DEBUG: Track mutations
     int swapCount = 0;

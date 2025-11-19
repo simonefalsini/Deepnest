@@ -87,11 +87,10 @@ void ConfigDialog::createNestingTab() {
     populationSizeSpinBox_->setToolTip("Size of GA population (larger = more diversity, slower)");
     gaForm->addRow("Population Size:", populationSizeSpinBox_);
 
-    mutationRateSpinBox_ = new QDoubleSpinBox();
-    mutationRateSpinBox_->setRange(0.0, 1.0);
-    mutationRateSpinBox_->setDecimals(2);
-    mutationRateSpinBox_->setSingleStep(0.05);
-    mutationRateSpinBox_->setToolTip("Mutation probability (0.0-1.0, typically 0.5)");
+    mutationRateSpinBox_ = new QSpinBox();
+    mutationRateSpinBox_->setRange(0, 100);
+    mutationRateSpinBox_->setSuffix("%");
+    mutationRateSpinBox_->setToolTip("Mutation rate percentage (0-100, typically 50%)");
     gaForm->addRow("Mutation Rate:", mutationRateSpinBox_);
 
     threadsSpinBox_ = new QSpinBox();
