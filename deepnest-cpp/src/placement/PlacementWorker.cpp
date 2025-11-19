@@ -161,11 +161,17 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 double minX = std::numeric_limits<double>::max();
                 double minY = std::numeric_limits<double>::max();
 
+                // CRITICAL FIX: Use bbox min as reference, not points[0]!
+                // After normalization, points[0] may not be at (0,0)
+                // This MUST match extractCandidatePositions() logic
+                auto partBbox = GeometryUtil::getPolygonBounds(part.points);
+                Point partRef(partBbox.x, partBbox.y);  // Should be (0,0) after normalization
+
                 // innerNfp may have children, check main polygon
                 for (const auto& nfpPoint : innerNfp.points) {
                     Point candidatePos(
-                        nfpPoint.x - part.points[0].x,
-                        nfpPoint.y - part.points[0].y
+                        nfpPoint.x - partRef.x,
+                        nfpPoint.y - partRef.y
                     );
 
                     if (!foundPosition ||
