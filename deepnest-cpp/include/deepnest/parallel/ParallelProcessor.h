@@ -167,7 +167,15 @@ auto ParallelProcessor::enqueue(Func&& f) -> std::future<typename std::result_of
             // Return an immediately ready future with default value
             // This prevents crashes when trying to enqueue after stop()
             std::promise<return_type> promise;
-            promise.set_value(return_type());
+
+            // MSVC FIX: std::promise<void>::set_value() takes NO arguments!
+            // Use if constexpr to handle void vs non-void return types
+            if constexpr (std::is_void<return_type>::value) {
+                promise.set_value();  // void - no argument
+            } else {
+                promise.set_value(return_type());  // non-void - default constructed value
+            }
+
             return promise.get_future();
         }
     }
