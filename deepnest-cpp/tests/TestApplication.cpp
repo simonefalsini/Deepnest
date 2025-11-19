@@ -377,15 +377,25 @@ void TestApplication::reset() {
 void TestApplication::testRandomRectangles() {
     reset();
 
-    log("Generating random rectangles test...");
+    // Ask user how many rectangles to create
+    bool ok;
+    int numRects = QInputDialog::getInt(this, "Number of Rectangles",
+                                        "How many rectangle types to create?\n(Each type will have 2 copies)",
+                                        10, 1, 50, 1, &ok);
+    if (!ok) {
+        return;
+    }
+
+    log(QString("Generating %1 random rectangle types (%2 total parts)...")
+        .arg(numRects).arg(numRects * 2));
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> widthDist(50.0, 150.0);
     std::uniform_real_distribution<> heightDist(30.0, 100.0);
 
-    // Create 10 random rectangles
-    for (int i = 0; i < 10; ++i) {
+    // Create N random rectangles
+    for (int i = 0; i < numRects; ++i) {
         double w = widthDist(gen);
         double h = heightDist(gen);
 
@@ -735,14 +745,63 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
             if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
                 deepnest::Polygon part = parts_[sourceId];
 
+                // DETAILED LOGGING for first 3 placements
+                if (placementCount <= 3) {
+                    log(QString("=== VISUALIZATION DEBUG Placement %1 ===").arg(placementCount - 1));
+                    log(QString("  Source ID: %1, Rotation: %2°, Position: (%3, %4)")
+                        .arg(sourceId)
+                        .arg(placement.rotation)
+                        .arg(placement.position.x, 0, 'f', 2)
+                        .arg(placement.position.y, 0, 'f', 2));
+
+                    // Log original part (first 4 points)
+                    QString origPoints;
+                    for (size_t i = 0; i < std::min(size_t(4), part.points.size()); ++i) {
+                        origPoints += QString("(%1,%2) ")
+                            .arg(part.points[i].x, 0, 'f', 1)
+                            .arg(part.points[i].y, 0, 'f', 1);
+                    }
+                    log(QString("  Original part points: %1").arg(origPoints));
+                }
+
                 // Apply transformation: rotate FIRST, then translate
                 // Step 1: Rotate around origin
                 deepnest::Polygon rotated = part.rotate(placement.rotation);
+
+                if (placementCount <= 3) {
+                    // Log rotated part (first 4 points)
+                    QString rotPoints;
+                    for (size_t i = 0; i < std::min(size_t(4), rotated.points.size()); ++i) {
+                        rotPoints += QString("(%1,%2) ")
+                            .arg(rotated.points[i].x, 0, 'f', 1)
+                            .arg(rotated.points[i].y, 0, 'f', 1);
+                    }
+                    log(QString("  After rotation points: %1").arg(rotPoints));
+                }
 
                 // Step 2: Translate to final position + sheet offset
                 deepnest::Polygon transformed = rotated.translate(
                     placement.position.x + sheetOffsetX,
                     placement.position.y);
+
+                if (placementCount <= 3) {
+                    // Log transformed part (first 4 points)
+                    QString transPoints;
+                    for (size_t i = 0; i < std::min(size_t(4), transformed.points.size()); ++i) {
+                        transPoints += QString("(%1,%2) ")
+                            .arg(transformed.points[i].x, 0, 'f', 1)
+                            .arg(transformed.points[i].y, 0, 'f', 1);
+                    }
+                    log(QString("  Final transformed points: %1").arg(transPoints));
+
+                    // Log bounding box
+                    auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
+                    log(QString("  Final bbox: (%1,%2) to (%3,%4)")
+                        .arg(bbox.x, 0, 'f', 1)
+                        .arg(bbox.y, 0, 'f', 1)
+                        .arg(bbox.x + bbox.width, 0, 'f', 1)
+                        .arg(bbox.y + bbox.height, 0, 'f', 1));
+                }
 
                 // Draw with color based on source ID
                 QColor color = partColors[sourceId % 10];

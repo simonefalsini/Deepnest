@@ -117,7 +117,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 }
 
                 // Try next rotation
-                if (rotAttempt < maxRotationAttempts - 1) {
+                if (rotAttempt < maxRotationAttempts - 1 && config_.rotations > 0) {
                     double rotationStep = 360.0 / config_.rotations;
                     Polygon rotated = part.rotate(rotationStep);
 
@@ -165,6 +165,27 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 // Using bbox.min (0,0) doesn't cancel the points[0] offset!
                 Point partRef(part.points[0].x, part.points[0].y);
 
+                // DEBUG LOGGING for first placement
+                if (placements.empty()) {
+                    fprintf(stderr, "\n=== PLACEMENT DEBUG: First placement ===\n");
+                    fprintf(stderr, "  Part ID: %d, Source: %d, Rotation: %.1f\n",
+                            part.id, part.source, part.rotation);
+                    fprintf(stderr, "  Part.points[0]: (%.2f, %.2f)\n", partRef.x, partRef.y);
+                    fprintf(stderr, "  Part first 4 points: ");
+                    for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
+                        fprintf(stderr, "(%.1f,%.1f) ", part.points[p].x, part.points[p].y);
+                    }
+                    fprintf(stderr, "\n");
+                    fprintf(stderr, "  InnerNFP has %zu points\n", innerNfp.points.size());
+                    if (!innerNfp.points.empty()) {
+                        fprintf(stderr, "  InnerNFP first 4 points: ");
+                        for (size_t p = 0; p < std::min(size_t(4), innerNfp.points.size()); ++p) {
+                            fprintf(stderr, "(%.1f,%.1f) ", innerNfp.points[p].x, innerNfp.points[p].y);
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                }
+
                 // innerNfp may have children, check main polygon
                 for (const auto& nfpPoint : innerNfp.points) {
                     Point candidatePos(
@@ -183,6 +204,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 }
 
                 if (foundPosition) {
+                    // DEBUG LOGGING for calculated position
+                    if (placements.empty()) {
+                        fprintf(stderr, "  Calculated position: (%.2f, %.2f)\n", bestPos.x, bestPos.y);
+                        fprintf(stderr, "  (nfpMin - partRef = (%.2f,%.2f) - (%.2f,%.2f) = (%.2f,%.2f))\n",
+                                minX + partRef.x, minY + partRef.y,
+                                partRef.x, partRef.y, minX, minY);
+                    }
+
                     position = Placement(bestPos, part.id, part.source, part.rotation);
                     placements.push_back(position);
                     placed.push_back(part);
