@@ -308,6 +308,17 @@ private:
      * @brief NFP cache for all NFP operations
      */
     NFPCache nfpCache_;
+
+    /**
+     * @brief Parallel processor for concurrent evaluations
+     *
+     * CRITICAL: Must be declared BEFORE placementWorker_ and nfpCalculator_
+     * because it's used by them and must be destroyed LAST (C++ destroys in
+     * reverse order of declaration). This ensures threads are stopped and
+     * joined BEFORE the resources they use are destroyed.
+     */
+    std::unique_ptr<ParallelProcessor> parallelProcessor_;
+
     /**
      * @brief NFP calculator for all NFP operations
      */
@@ -317,11 +328,6 @@ private:
      * @brief Placement worker for fitness evaluation
      */
     std::unique_ptr<PlacementWorker> placementWorker_;
-
-    /**
-     * @brief Parallel processor for concurrent evaluations
-     */
-    std::unique_ptr<ParallelProcessor> parallelProcessor_;
 
     /**
      * @brief Genetic algorithm

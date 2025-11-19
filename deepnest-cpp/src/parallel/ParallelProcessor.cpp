@@ -34,34 +34,33 @@ ParallelProcessor::~ParallelProcessor() {
 }
 
 void ParallelProcessor::stop() {
-    boost::lock_guard<boost::mutex> lock(mutex_);
+    // CRITICAL FIX: Proper shutdown sequence to prevent use-after-free
+    // 1. Set stopped flag and remove work guard (allow threads to finish)
+    // 2. Stop io_context to signal threads to exit after current tasks
+    // 3. Join all threads to ensure they are COMPLETELY finished
+    // 4. Only then is it safe to destroy resources captured by task lambdas
 
-    if (stopped_) {
-        return;
-    }
+    {
+        boost::lock_guard<boost::mutex> lock(mutex_);
+        if (stopped_) {
+            return;
+        }
+        stopped_ = true;
 
-    stopped_ = true;
+        // Remove work guard to allow io_context to finish naturally
+        workGuard_.reset();
+    }  // Release lock before joining threads to avoid potential deadlock
 
-    // CRITICAL FIX: Drain task queue BEFORE stopping threads
-    // Otherwise unexecuted lambda tasks with dangling references cause segfault on next run
-    // Remove work guard to allow io_context to finish
-    workGuard_.reset();
-
-    // Give threads a chance to complete pending tasks
-    // This prevents tasks from remaining in queue when engine is destroyed
-    boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
-    
-    // Poll remaining handlers to drain the queue (don't wait for completion)
-    // This ensures no tasks remain that capture references to destroyed objects
-    while (ioContext_.poll() > 0) {
-        // Keep polling until queue is empty
-    }
-
-    // Now safe to stop io_context and join threads
+    // Stop io_context - this will cause threads to exit when they finish current tasks
+    // Do NOT call poll() - that drains unexecuted tasks but doesn't wait for running tasks
     ioContext_.stop();
 
-    // Wait for all threads to complete
+    // CRITICAL: Wait for ALL threads to COMPLETELY finish their current tasks
+    // This ensures no thread is still executing code that references PlacementWorker, etc.
     threads_.join_all();
+
+    // Now all threads are stopped and it's safe for NestingEngine destructor
+    // to destroy placementWorker_, nfpCalculator_, etc.
 }
 
 void ParallelProcessor::waitAll() {
