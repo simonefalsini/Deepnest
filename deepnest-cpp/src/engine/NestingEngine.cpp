@@ -204,6 +204,12 @@ bool NestingEngine::step() {
 
     // Launch parallel evaluations for unevaluated individuals
     // Note: ParallelProcessor::processPopulation handles the parallel execution
+    // CRITICAL FIX: Check if parallelProcessor_ exists (may be nullptr after stop())
+    if (!parallelProcessor_) {
+        running_ = false;
+        return false;
+    }
+
     parallelProcessor_->processPopulation(
         geneticAlgorithm_->getPopulationObject(), // Access population object through GA
         sheets_,

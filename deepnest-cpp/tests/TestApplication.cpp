@@ -541,11 +541,72 @@ void TestApplication::testRandomPolygons() {
     sheetPoints.push_back(deepnest::Point(600, 0));    // Down
 
     deepnest::Polygon sheet(sheetPoints, 0);  // Assign id
+
+    // Validate sheet
+    if (!sheet.isValid()) {
+        log("ERROR: Sheet is invalid!");
+    }
+    if (!sheet.isCounterClockwise()) {
+        log("WARNING: Sheet is clockwise, reversing");
+        sheet.reverse();
+    }
+
+    log(QString("Created sheet: 600x400, area=%1, CCW=%2")
+        .arg(std::abs(sheet.area()), 0, 'f', 1)
+        .arg(sheet.isCounterClockwise() ? "yes" : "no"));
+
     sheets_.push_back(sheet);  // Save for visualization
     solver_->addSheet(sheet, 2, "Sheet_600x400");
 
     log(QString("Created %1 part types (16 total parts) and 1 sheet type (2 sheets)")
         .arg(solver_->getPartCount()));
+
+    // Visualize the parts BEFORE nesting - arranged side by side
+    clearScene();
+
+    // Draw sheet boundary first (green outline, no fill)
+    QPainterPath sheetPath = sheet.toQPainterPath();
+    scene_->addPath(sheetPath, QPen(Qt::green, 3), QBrush(Qt::NoBrush));
+
+    // Add sheet label
+    QGraphicsTextItem* sheetLabel = scene_->addText("SHEET 600x400", QFont("Arial", 12));
+    sheetLabel->setDefaultTextColor(Qt::darkGreen);
+    sheetLabel->setPos(10, -30);
+
+    // Draw parts arranged in a grid OUTSIDE the sheet area
+    double xOffset = 650;  // Start after sheet (600 + 50 margin)
+    double yOffset = 50;
+    double maxHeight = 0;
+
+    for (size_t i = 0; i < parts_.size(); ++i) {
+        // Get bounding box
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(parts_[i].points);
+        double width = bbox.width;
+        double height = bbox.height;
+
+        // Check if we need to wrap to next row
+        if (xOffset + width > 1400) {
+            xOffset = 650;
+            yOffset += maxHeight + 20;
+            maxHeight = 0;
+        }
+
+        // Translate part to current position
+        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.x, yOffset - bbox.y);
+
+        // Draw part (blue with transparency)
+        drawPolygon(translated, QColor(100, 150, 200), 0.3);
+
+        // Add ID label on the part
+        QGraphicsTextItem* idLabel = scene_->addText(QString::number(i), QFont("Arial", 10, QFont::Bold));
+        idLabel->setDefaultTextColor(Qt::darkBlue);
+        idLabel->setPos(xOffset + width/2 - 10, yOffset + height/2 - 10);
+
+        xOffset += width + 20;
+        maxHeight = std::max(maxHeight, height);
+    }
+
+    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
     log("Ready to start nesting - click 'Start' button");
 }
 
