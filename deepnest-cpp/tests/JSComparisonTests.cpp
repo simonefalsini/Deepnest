@@ -313,22 +313,20 @@ void test_MinkowskiScaleCalculation() {
     EXPECT_NEAR(scale, scale2, 0.1, "Scale calculation is deterministic");
 }
 
-// ========== Test 8: NFP Reference Point Shift ==========
+// ========== Test 8: NFP Calculation Correctness ==========
 void test_NFPReferencePointShift() {
-    TEST_CASE("NFP Reference Point Shift");
+    TEST_CASE("NFP Calculation Correctness");
 
-    // Test that NFP is shifted by B's reference point (FASE 3.1)
-    // This matches JavaScript behavior
+    // NOTE: FASE 3.1 reference point shift was REMOVED because it caused
+    // incorrect placement behavior (parts overlapping and outside bin).
+    // The NFP is calculated correctly WITHOUT the shift.
+    // The shift, if needed, should be handled at a higher level (PlacementWorker).
 
     std::vector<Point> polyA = {{0, 0}, {100, 0}, {100, 100}, {0, 100}};
     std::vector<Point> polyB = {{10, 20}, {60, 20}, {60, 70}, {10, 70}};
 
     Polygon A(polyA);
     Polygon B(polyB);
-
-    // B's reference point (first point)
-    Point refPoint = B.points[0];
-    std::cout << "  B reference point: (" << refPoint.x << ", " << refPoint.y << ")" << std::endl;
 
     auto nfps = MinkowskiSum::calculateNFP(A, B, false);
 
@@ -337,24 +335,14 @@ void test_NFPReferencePointShift() {
     if (!nfps.empty()) {
         const auto& nfp = nfps[0];
 
-        // The NFP should be shifted by B's reference point
-        // We can't test exact coordinates without knowing the Minkowski result,
-        // but we can verify the shift was applied by checking the NFP is not centered at origin
-
-        bool hasShift = false;
-        for (const auto& point : nfp.points) {
-            // If any point is near B's reference, the shift was likely applied
-            if (std::abs(point.x - refPoint.x) < 100 || std::abs(point.y - refPoint.y) < 100) {
-                hasShift = true;
-                break;
-            }
+        std::cout << "  NFP has " << nfp.points.size() << " points" << std::endl;
+        if (!nfp.points.empty()) {
+            std::cout << "  First NFP point: (" << nfp.points[0].x << ", " << nfp.points[0].y << ")" << std::endl;
         }
 
-        std::cout << "  NFP has " << nfp.points.size() << " points" << std::endl;
-        std::cout << "  First NFP point: (" << nfp.points[0].x << ", " << nfp.points[0].y << ")" << std::endl;
-
-        // At minimum, verify NFP was generated
+        // Verify NFP was generated with valid geometry
         EXPECT_TRUE(nfp.points.size() >= 3, "NFP has at least 3 points");
+        EXPECT_TRUE(nfp.isValid(), "NFP has valid geometry");
     }
 }
 
