@@ -448,6 +448,20 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     // JavaScript: totalMerged = ... (calculated in separate loop)
     totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
 
+    // GA DEBUG: Log fitness calculation
+    static int placementCount = 0;
+    if (placementCount < 3) {  // Log first 3 placements only
+        std::cout << "\n=== PLACEMENT RESULT #" << placementCount << " ===" << std::endl;
+        std::cout << "  Sheets used: " << allPlacements.size() << std::endl;
+        std::cout << "  Total sheet area: " << totalSheetArea << std::endl;
+        std::cout << "  Unplaced parts: " << parts.size() << std::endl;
+        std::cout << "  Unplaced penalty: " << (2.0 * parts.size()) << std::endl;
+        std::cout << "  FINAL FITNESS: " << fitness
+                  << " (area=" << totalSheetArea << " + penalty=" << (2.0 * parts.size()) << ")" << std::endl;
+        std::cout.flush();
+        placementCount++;
+    }
+
     result.placements = allPlacements;
     result.fitness = fitness;
     result.area = totalSheetArea;
