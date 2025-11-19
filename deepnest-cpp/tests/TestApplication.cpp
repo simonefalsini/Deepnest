@@ -644,8 +644,23 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
     for (size_t sheetIdx = 0; sheetIdx < result.placements.size(); ++sheetIdx) {
         const auto& sheetPlacements = result.placements[sheetIdx];
 
+        log(QString("--- Sheet %1 ---").arg(sheetIdx));
+
         // Draw each placed part with random color
+        int placementCount = 0;
         for (const auto& placement : sheetPlacements) {
+            // Log first 5 placements for diagnostics
+            if (placementCount < 5) {
+                log(QString("  Placement %1: id=%2, source=%3, pos=(%4, %5), rot=%6")
+                    .arg(placementCount)
+                    .arg(placement.id)
+                    .arg(placement.source)
+                    .arg(placement.position.x, 0, 'f', 1)
+                    .arg(placement.position.y, 0, 'f', 1)
+                    .arg(placement.rotation, 0, 'f', 1));
+            }
+            placementCount++;
+
             // Use source ID to find the original polygon type
             // source contains the ID of the original part before quantity expansion
             int sourceId = (placement.source >= 0) ? placement.source : placement.id;
