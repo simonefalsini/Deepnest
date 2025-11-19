@@ -159,8 +159,8 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // CRITICAL FIX: Clean and validate integer points to prevent "invalid comparator" errors
-    // in Boost.Polygon scanline algorithm when processing many objects
+    // CRITICAL FIX: Aggressive cleaning to prevent "invalid comparator" errors
+    // in Boost.Polygon scanline algorithm
 
     // Convert outer boundary with rounding
     std::vector<IntPoint> points;
@@ -173,41 +173,82 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         points.push_back(IntPoint(x, y));
     }
 
-    // CRITICAL: Remove duplicate consecutive points to prevent degenerate edges
-    // Boost.Polygon scanline algorithm fails with "invalid comparator" when
-    // there are zero-length edges or duplicate points
-    auto cleanPoints = [](std::vector<IntPoint>& pts) {
-        if (pts.size() < 3) return;  // Need at least 3 points for a polygon
+    // CRITICAL: Aggressive cleaning function
+    // Removes: duplicates, near-duplicates, and collinear points
+    auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
+        if (pts.size() < 3) return false;
 
         std::vector<IntPoint> cleaned;
         cleaned.reserve(pts.size());
 
+        // STEP 1: Remove exact duplicates and very close points
         for (size_t i = 0; i < pts.size(); ++i) {
             size_t next = (i + 1) % pts.size();
-            // Only add point if it's different from the next point
-            if (pts[i].x() != pts[next].x() || pts[i].y() != pts[next].y()) {
+
+            // Calculate distance squared to next point
+            int dx = pts[next].x() - pts[i].x();
+            int dy = pts[next].y() - pts[i].y();
+            int distSq = dx * dx + dy * dy;
+
+            // Only keep if distance > 1 (prevents zero-length and near-zero edges)
+            if (distSq > 1) {
                 cleaned.push_back(pts[i]);
             }
         }
 
-        // Need at least 3 points for valid polygon
-        if (cleaned.size() >= 3) {
-            pts = std::move(cleaned);
+        if (cleaned.size() < 3) return false;
+
+        // STEP 2: Remove collinear points (aggressive simplification)
+        std::vector<IntPoint> final;
+        final.reserve(cleaned.size());
+
+        for (size_t i = 0; i < cleaned.size(); ++i) {
+            size_t prev = (i == 0) ? cleaned.size() - 1 : i - 1;
+            size_t next = (i + 1) % cleaned.size();
+
+            // Vectors
+            int dx1 = cleaned[i].x() - cleaned[prev].x();
+            int dy1 = cleaned[i].y() - cleaned[prev].y();
+            int dx2 = cleaned[next].x() - cleaned[i].x();
+            int dy2 = cleaned[next].y() - cleaned[i].y();
+
+            // Cross product to detect collinearity
+            // If cross product is 0, points are collinear
+            long long cross = static_cast<long long>(dx1) * dy2 -
+                             static_cast<long long>(dy1) * dx2;
+
+            // Keep point if NOT collinear (cross != 0)
+            // Use small threshold to be more aggressive
+            if (std::abs(cross) > 2) {
+                final.push_back(cleaned[i]);
+            }
         }
+
+        if (final.size() >= 3) {
+            pts = std::move(final);
+            return true;
+        }
+
+        return false;
     };
 
-    cleanPoints(points);
-
-    // Validate we still have a valid polygon after cleaning
-    if (points.size() < 3) {
-        // Return empty polygon if degenerate
+    // Clean and validate
+    if (!cleanPoints(points)) {
+        // Return empty polygon if cleaning failed
         return IntPolygonWithHoles();
     }
 
     IntPolygonWithHoles result;
-    set_points(result, points.begin(), points.end());
 
-    // Convert holes with same cleaning process
+    try {
+        set_points(result, points.begin(), points.end());
+    }
+    catch (...) {
+        // If set_points fails, return empty
+        return IntPolygonWithHoles();
+    }
+
+    // Convert holes with same aggressive cleaning
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -222,19 +263,27 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
                 holePoints.push_back(IntPoint(x, y));
             }
 
-            // Clean hole points
-            cleanPoints(holePoints);
-
-            // Only add hole if it's still valid after cleaning
-            if (holePoints.size() >= 3) {
-                IntPolygon holePoly;
-                set_points(holePoly, holePoints.begin(), holePoints.end());
-                holes.push_back(holePoly);
+            // Aggressive cleaning for holes
+            if (cleanPoints(holePoints)) {
+                try {
+                    IntPolygon holePoly;
+                    set_points(holePoly, holePoints.begin(), holePoints.end());
+                    holes.push_back(holePoly);
+                }
+                catch (...) {
+                    // Skip this hole if it fails
+                    continue;
+                }
             }
         }
 
         if (!holes.empty()) {
-            set_holes(result, holes.begin(), holes.end());
+            try {
+                set_holes(result, holes.begin(), holes.end());
+            }
+            catch (...) {
+                // Continue without holes if set_holes fails
+            }
         }
     }
 
@@ -384,20 +433,38 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
         IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
 
-        polySetA.insert(boostA);
-        polySetB.insert(boostB);
+        // Check if conversion produced valid polygons
+        if (boostA.begin() == boostA.end() || boostB.begin() == boostB.end()) {
+            // Empty polygon after cleaning - return empty NFP
+            return std::vector<Polygon>();
+        }
 
-        // Compute Minkowski sum
-        convolve_two_polygon_sets(result, polySetA, polySetB);
+        try {
+            polySetA.insert(boostA);
+            polySetB.insert(boostB);
 
-        // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
-        // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
-        nfps = fromBoostPolygonSet(result, scale);
+            // Compute Minkowski sum - this can fail with invalid comparator
+            convolve_two_polygon_sets(result, polySetA, polySetB);
 
-        // Explicitly clear Boost containers to release any internal memory
-        result.clear();
-        polySetA.clear();
-        polySetB.clear();
+            // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
+            // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
+            nfps = fromBoostPolygonSet(result, scale);
+
+            // Explicitly clear Boost containers to release any internal memory
+            result.clear();
+            polySetA.clear();
+            polySetB.clear();
+        }
+        catch (const std::exception& e) {
+            std::cerr << "WARNING: Boost.Polygon Minkowski convolution failed: " << e.what()
+                      << " - returning empty NFP (geometry too complex/degenerate)" << std::endl;
+            return std::vector<Polygon>();
+        }
+        catch (...) {
+            std::cerr << "WARNING: Boost.Polygon Minkowski convolution failed with unknown error"
+                      << " - returning empty NFP (geometry too complex/degenerate)" << std::endl;
+            return std::vector<Polygon>();
+        }
     }
     // All Boost objects destroyed here - nfps contains completely independent data
 
