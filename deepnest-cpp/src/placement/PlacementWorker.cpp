@@ -413,7 +413,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             }
 
             // CRITICAL FIX 1.3: Use strategy to find best position and get area metric
-            PlacementResult placementResult = strategy_->findBestPosition(
+            BestPositionResult positionResult = strategy_->findBestPosition(
                 part,
                 placedForStrategy,
                 candidatePositions
@@ -423,12 +423,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             // CRITICAL FIX: Accept ANY valid position, including (0,0)!
             // The old condition rejected (0,0) which is a perfectly valid placement
             if (!candidatePositions.empty()) {
-                position = Placement(placementResult.position, part.id, part.source, part.rotation);
+                position = Placement(positionResult.position, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
 
                 // CRITICAL FIX 1.3: Accumulate minarea for fitness calculation
-                minarea_accumulator += placementResult.area;
+                minarea_accumulator += positionResult.area;
 
                 // Remove from parts list
                 parts.erase(parts.begin() + i);
