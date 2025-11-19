@@ -42,8 +42,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     //               rotated.push(r);
     //             }
     //             parts = rotated;
+    std::cout << "\n=== PLACEMENT START ===" << std::endl;
+    std::cout << "Number of parts to place: " << parts.size() << std::endl;
+    std::cout << "Number of sheets: " << sheets.size() << std::endl;
+    std::cout.flush();
+
     std::vector<Polygon> rotatedParts;
-    for (auto& part : parts) {
+    for (size_t idx = 0; idx < parts.size(); ++idx) {
+        auto& part = parts[idx];
         Polygon rotated = part.rotate(part.rotation);
 
         // CRITICAL FIX: DO NOT NORMALIZE after rotation!
@@ -55,6 +61,16 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         rotated.rotation = part.rotation;
         rotated.source = part.source;
         rotated.id = part.id;
+
+        // Debug log for first part
+        if (idx == 0) {
+            std::cout << "\n=== ROTATION DEBUG: First part ===" << std::endl;
+            std::cout << "  Original rotation: " << part.rotation << std::endl;
+            std::cout << "  Original points[0]: (" << part.points[0].x << ", " << part.points[0].y << ")" << std::endl;
+            std::cout << "  Rotated points[0]: (" << rotated.points[0].x << ", " << rotated.points[0].y << ")" << std::endl;
+            std::cout.flush();
+        }
+
         rotatedParts.push_back(rotated);
     }
     parts = rotatedParts;
@@ -106,6 +122,22 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 : 1;
 
             for (int rotAttempt = 0; rotAttempt < maxRotationAttempts; rotAttempt++) {
+                // Debug logging for first part's first rotation attempt
+                if (placements.empty() && rotAttempt == 0) {
+                    std::cout << "\n=== NFP CALCULATION DEBUG ===" << std::endl;
+                    std::cout << "  Sheet first 4 points: ";
+                    for (size_t p = 0; p < std::min(size_t(4), sheet.points.size()); ++p) {
+                        std::cout << "(" << sheet.points[p].x << "," << sheet.points[p].y << ") ";
+                    }
+                    std::cout << std::endl;
+                    std::cout << "  Part first 4 points: ";
+                    for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
+                        std::cout << "(" << part.points[p].x << "," << part.points[p].y << ") ";
+                    }
+                    std::cout << std::endl;
+                    std::cout.flush();
+                }
+
                 auto innerNfps = nfpCalculator_.getInnerNFP(sheet, part);
                 if (!innerNfps.empty()) {
                     innerNfp = innerNfps[0]; // Use first NFP polygon
@@ -167,23 +199,24 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
                 // DEBUG LOGGING for first placement
                 if (placements.empty()) {
-                    fprintf(stderr, "\n=== PLACEMENT DEBUG: First placement ===\n");
-                    fprintf(stderr, "  Part ID: %d, Source: %d, Rotation: %.1f\n",
-                            part.id, part.source, part.rotation);
-                    fprintf(stderr, "  Part.points[0]: (%.2f, %.2f)\n", partRef.x, partRef.y);
-                    fprintf(stderr, "  Part first 4 points: ");
+                    std::cout << "\n=== PLACEMENT DEBUG: First placement ===" << std::endl;
+                    std::cout << "  Part ID: " << part.id << ", Source: " << part.source
+                              << ", Rotation: " << part.rotation << std::endl;
+                    std::cout << "  Part.points[0]: (" << partRef.x << ", " << partRef.y << ")" << std::endl;
+                    std::cout << "  Part first 4 points: ";
                     for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
-                        fprintf(stderr, "(%.1f,%.1f) ", part.points[p].x, part.points[p].y);
+                        std::cout << "(" << part.points[p].x << "," << part.points[p].y << ") ";
                     }
-                    fprintf(stderr, "\n");
-                    fprintf(stderr, "  InnerNFP has %zu points\n", innerNfp.points.size());
+                    std::cout << std::endl;
+                    std::cout << "  InnerNFP has " << innerNfp.points.size() << " points" << std::endl;
                     if (!innerNfp.points.empty()) {
-                        fprintf(stderr, "  InnerNFP first 4 points: ");
+                        std::cout << "  InnerNFP first 4 points: ";
                         for (size_t p = 0; p < std::min(size_t(4), innerNfp.points.size()); ++p) {
-                            fprintf(stderr, "(%.1f,%.1f) ", innerNfp.points[p].x, innerNfp.points[p].y);
+                            std::cout << "(" << innerNfp.points[p].x << "," << innerNfp.points[p].y << ") ";
                         }
-                        fprintf(stderr, "\n");
+                        std::cout << std::endl;
                     }
+                    std::cout.flush();
                 }
 
                 // innerNfp may have children, check main polygon
@@ -206,10 +239,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 if (foundPosition) {
                     // DEBUG LOGGING for calculated position
                     if (placements.empty()) {
-                        fprintf(stderr, "  Calculated position: (%.2f, %.2f)\n", bestPos.x, bestPos.y);
-                        fprintf(stderr, "  (nfpMin - partRef = (%.2f,%.2f) - (%.2f,%.2f) = (%.2f,%.2f))\n",
-                                minX + partRef.x, minY + partRef.y,
-                                partRef.x, partRef.y, minX, minY);
+                        std::cout << "  Selected innerNFP point (minX,minY): ("
+                                  << (minX + partRef.x) << ", " << (minY + partRef.y) << ")" << std::endl;
+                        std::cout << "  Calculated position: (" << bestPos.x << ", " << bestPos.y << ")" << std::endl;
+                        std::cout << "  Formula: nfpPoint - partRef = ("
+                                  << (minX + partRef.x) << "," << (minY + partRef.y) << ") - ("
+                                  << partRef.x << "," << partRef.y << ") = ("
+                                  << minX << "," << minY << ")" << std::endl;
+                        std::cout.flush();
                     }
 
                     position = Placement(bestPos, part.id, part.source, part.rotation);
