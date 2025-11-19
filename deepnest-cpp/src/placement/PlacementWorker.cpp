@@ -330,7 +330,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             );
 
             // JavaScript: if(position) { placed.push(path); placements.push(position); }
-            if (bestPosition.x != 0.0 || bestPosition.y != 0.0 || candidatePositions.size() == 1) {
+            // CRITICAL FIX: Accept ANY valid position, including (0,0)!
+            // The old condition rejected (0,0) which is a perfectly valid placement
+            if (!candidatePositions.empty()) {
                 position = Placement(bestPosition, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
@@ -340,6 +342,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 // Don't increment i
             }
             else {
+                // No valid positions found, skip this part
                 i++;
             }
         }

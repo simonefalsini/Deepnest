@@ -106,8 +106,12 @@ void ParallelProcessor::processPopulation(
             std::vector<Polygon> sheetsCopy = sheets;
             Individual individualCopy = individual.clone();
 
+            // CRITICAL FIX: Capture index instead of reference to avoid use-after-free
+            // The old code captured &individual which could become invalid when the lambda executes
+            size_t index = i;
+
             // Enqueue placement task
-            enqueue([&individual, sheetsCopy, &worker, individualCopy]() mutable {
+            enqueue([&population, index, sheetsCopy, &worker, individualCopy, this]() mutable {
                 // Prepare parts with rotations
                 // JavaScript: var ids = []; var sources = []; var children = [];
                 //             for(j=0; j<GA.population[i].placement.length; j++) {
@@ -127,14 +131,20 @@ void ParallelProcessor::processPopulation(
                 // In background process: placeParts(sheets, parts, config, nestindex)
                 PlacementWorker::PlacementResult result = worker.placeParts(sheetsCopy, parts);
 
-                // Update individual with result
+                // Update individual with result - THREAD SAFE ACCESS
                 // JavaScript: GA.population[payload.index].processing = false;
                 //             GA.population[payload.index].fitness = payload.fitness;
-                individual.fitness = result.fitness;
-                individual.area = result.area;
-                individual.mergedLength = result.mergedLength;
-                individual.placements = result.placements;  // Store actual placements!
-                individual.processing = false;
+                {
+                    boost::lock_guard<boost::mutex> lock(this->mutex_);
+                    auto& individuals = population.getIndividuals();
+                    if (index < individuals.size()) {
+                        individuals[index].fitness = result.fitness;
+                        individuals[index].area = result.area;
+                        individuals[index].mergedLength = result.mergedLength;
+                        individuals[index].placements = result.placements;  // Store actual placements!
+                        individuals[index].processing = false;
+                    }
+                }
             });
         }
     }
