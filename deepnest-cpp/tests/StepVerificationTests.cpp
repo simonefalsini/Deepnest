@@ -738,7 +738,7 @@ void testStep26_PlacementTransformation() {
         NFPCalculator calculator(cache);
         DeepNestConfig& config = DeepNestConfig::getInstance();
         config.setSpacing(2.0);
-        config.setPlacementType("gravity");
+        config.placementType = "gravity";  // Public member, no setter
 
         PlacementWorker worker(config, calculator);
 
