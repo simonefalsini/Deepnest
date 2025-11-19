@@ -49,6 +49,13 @@ std::pair<Individual, Individual> Population::crossover(
     double randomVal = dist(rng_);
     size_t cutpoint = static_cast<size_t>(std::round(randomVal * (parent1.placement.size() - 1)));
 
+    // GA DEBUG: Log crossover cutpoint
+    static bool first_crossover = true;
+    if (first_crossover) {
+        std::cout << "  Crossover cutpoint: " << cutpoint << " out of " << parent1.placement.size() << " parts" << std::endl;
+        first_crossover = false;
+    }
+
     // Create children
     Individual child1, child2;
 
@@ -140,9 +147,22 @@ void Population::nextGeneration() {
         throw std::runtime_error("Cannot create next generation from empty population");
     }
 
+    // GA DEBUG: Log population fitness BEFORE sorting
+    std::cout << "\n=== GA: nextGeneration() START ===" << std::endl;
+    std::cout << "Population fitness values BEFORE sort: ";
+    for (size_t i = 0; i < std::min(size_t(5), individuals_.size()); ++i) {
+        std::cout << individuals_[i].fitness << " ";
+    }
+    if (individuals_.size() > 5) std::cout << "...";
+    std::cout << std::endl;
+
     // Sort by fitness (lower is better)
     // JavaScript: this.population.sort(function(a, b){ return a.fitness - b.fitness; });
     sortByFitness();
+
+    // GA DEBUG: Log best fitness after sort
+    std::cout << "AFTER sort - Best fitness: " << individuals_[0].fitness
+              << ", Worst fitness: " << individuals_[individuals_.size()-1].fitness << std::endl;
 
     // Create new population starting with best individual (elitism)
     // JavaScript: var newpopulation = [this.population[0]];
@@ -152,10 +172,17 @@ void Population::nextGeneration() {
     // Fill rest of population with children from crossover + mutation
     // JavaScript: while(newpopulation.length < this.population.length)
     size_t targetSize = individuals_.size();
+    int childCount = 0;
     while (newPopulation.size() < targetSize) {
         // Select two parents using weighted random selection
         Individual male = selectWeightedRandom(nullptr);
         Individual female = selectWeightedRandom(&male);
+
+        // GA DEBUG: Log selected parents (only for first child)
+        if (childCount == 0) {
+            std::cout << "First crossover: Male fitness=" << male.fitness
+                      << ", Female fitness=" << female.fitness << std::endl;
+        }
 
         // Crossover to produce two children
         // JavaScript: var children = this.mate(male, female);
@@ -165,14 +192,20 @@ void Population::nextGeneration() {
         // JavaScript: newpopulation.push(this.mutate(children[0]));
         children.first.mutate(config_.mutationRate, config_.rotations, rng_());
         newPopulation.push_back(children.first);
+        childCount++;
 
         // Mutate and add second child if there's room
         // JavaScript: if(newpopulation.length < this.population.length)
         if (newPopulation.size() < targetSize) {
             children.second.mutate(config_.mutationRate, config_.rotations, rng_());
             newPopulation.push_back(children.second);
+            childCount++;
         }
     }
+
+    std::cout << "Created " << childCount << " new children (+ 1 elite = " << newPopulation.size() << " total)" << std::endl;
+    std::cout << "=== GA: nextGeneration() END ===" << std::endl;
+    std::cout.flush();
 
     // Replace old population with new one
     individuals_ = newPopulation;

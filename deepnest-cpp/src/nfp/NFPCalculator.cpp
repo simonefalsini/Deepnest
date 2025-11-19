@@ -21,21 +21,21 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
         return Polygon(); // Return empty polygon
     }
 
-    // DEBUG LOGGING
-    static bool first_nfp_call = true;
-    if (first_nfp_call && inside) {
-        std::cout << "\n=== NFPCalculator::computeNFP DEBUG (inside=" << inside << ") ===" << std::endl;
-        std::cout << "MinkowskiSum returned " << nfps.size() << " NFP(s)" << std::endl;
-        if (!nfps.empty()) {
-            std::cout << "NFP[0] first 4 points BEFORE translation: ";
-            for (size_t i = 0; i < std::min(size_t(4), nfps[0].points.size()); ++i) {
-                std::cout << "(" << nfps[0].points[i].x << "," << nfps[0].points[i].y << ") ";
-            }
-            std::cout << std::endl;
-            std::cout << "B.points[0] (translation): (" << B.points[0].x << "," << B.points[0].y << ")" << std::endl;
-        }
-        std::cout.flush();
-    }
+    // DEBUG LOGGING - DISABLED for cleaner output
+    // static bool first_nfp_call = true;
+    // if (first_nfp_call && inside) {
+    //     std::cout << "\n=== NFPCalculator::computeNFP DEBUG (inside=" << inside << ") ===" << std::endl;
+    //     std::cout << "MinkowskiSum returned " << nfps.size() << " NFP(s)" << std::endl;
+    //     if (!nfps.empty()) {
+    //         std::cout << "NFP[0] first 4 points BEFORE translation: ";
+    //         for (size_t i = 0; i < std::min(size_t(4), nfps[0].points.size()); ++i) {
+    //             std::cout << "(" << nfps[0].points[i].x << "," << nfps[0].points[i].y << ") ";
+    //         }
+    //         std::cout << std::endl;
+    //         std::cout << "B.points[0] (translation): (" << B.points[0].x << "," << B.points[0].y << ")" << std::endl;
+    //     }
+    //     std::cout.flush();
+    // }
 
     // If only one result, return it
     if (nfps.size() == 1) {
@@ -47,24 +47,24 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
             result = result.translate(B.points[0].x, B.points[0].y);
         }
 
-        // DEBUG LOGGING
-        if (first_nfp_call && inside) {
-            std::cout << "NFP[0] first 4 points AFTER translation: ";
-            for (size_t i = 0; i < std::min(size_t(4), result.points.size()); ++i) {
-                std::cout << "(" << result.points[i].x << "," << result.points[i].y << ") ";
-            }
-            std::cout << std::endl;
-            std::cout << "NFP[0] children count: " << result.children.size() << std::endl;
-            if (!result.children.empty()) {
-                std::cout << "NFP[0].children[0] first 4 points: ";
-                for (size_t i = 0; i < std::min(size_t(4), result.children[0].points.size()); ++i) {
-                    std::cout << "(" << result.children[0].points[i].x << "," << result.children[0].points[i].y << ") ";
-                }
-                std::cout << std::endl;
-            }
-            std::cout.flush();
-            first_nfp_call = false;
-        }
+        // DEBUG LOGGING - DISABLED for cleaner output
+        // if (first_nfp_call && inside) {
+        //     std::cout << "NFP[0] first 4 points AFTER translation: ";
+        //     for (size_t i = 0; i < std::min(size_t(4), result.points.size()); ++i) {
+        //         std::cout << "(" << result.points[i].x << "," << result.points[i].y << ") ";
+        //     }
+        //     std::cout << std::endl;
+        //     std::cout << "NFP[0] children count: " << result.children.size() << std::endl;
+        //     if (!result.children.empty()) {
+        //         std::cout << "NFP[0].children[0] first 4 points: ";
+        //         for (size_t i = 0; i < std::min(size_t(4), result.children[0].points.size()); ++i) {
+        //             std::cout << "(" << result.children[0].points[i].x << "," << result.children[0].points[i].y << ") ";
+        //         }
+        //         std::cout << std::endl;
+        //     }
+        //     std::cout.flush();
+        //     first_nfp_call = false;
+        // }
 
         return result;
     }
@@ -159,40 +159,40 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
         return cached;
     }
 
-    // DEBUG LOGGING
-    static bool first_call = true;
-    if (first_call) {
-        std::cout << "\n=== NFPCalculator::getInnerNFP DEBUG ===" << std::endl;
-        std::cout << "Sheet (A) first 4 points: ";
-        for (size_t i = 0; i < std::min(size_t(4), A.points.size()); ++i) {
-            std::cout << "(" << A.points[i].x << "," << A.points[i].y << ") ";
-        }
-        std::cout << std::endl;
-        std::cout << "Part (B) first 4 points: ";
-        for (size_t i = 0; i < std::min(size_t(4), B.points.size()); ++i) {
-            std::cout << "(" << B.points[i].x << "," << B.points[i].y << ") ";
-        }
-        std::cout << std::endl;
-        std::cout << "Part (B) rotation: " << B.rotation << std::endl;
-        std::cout.flush();
-        first_call = false;
-    }
+    // DEBUG LOGGING - DISABLED for cleaner output
+    // static bool first_call = true;
+    // if (first_call) {
+    //     std::cout << "\n=== NFPCalculator::getInnerNFP DEBUG ===" << std::endl;
+    //     std::cout << "Sheet (A) first 4 points: ";
+    //     for (size_t i = 0; i < std::min(size_t(4), A.points.size()); ++i) {
+    //         std::cout << "(" << A.points[i].x << "," << A.points[i].y << ") ";
+    //     }
+    //     std::cout << std::endl;
+    //     std::cout << "Part (B) first 4 points: ";
+    //     for (size_t i = 0; i < std::min(size_t(4), B.points.size()); ++i) {
+    //         std::cout << "(" << B.points[i].x << "," << B.points[i].y << ") ";
+    //     }
+    //     std::cout << std::endl;
+    //     std::cout << "Part (B) rotation: " << B.rotation << std::endl;
+    //     std::cout.flush();
+    //     first_call = false;
+    // }
 
     // Create frame around A (background.js line 744)
     Polygon frame = createFrame(A);
 
-    // DEBUG LOGGING
-    static bool first_frame = true;
-    if (first_frame) {
-        std::cout << "Frame first 4 points: ";
-        for (size_t i = 0; i < std::min(size_t(4), frame.points.size()); ++i) {
-            std::cout << "(" << frame.points[i].x << "," << frame.points[i].y << ") ";
-        }
-        std::cout << std::endl;
-        std::cout << "Frame children count: " << frame.children.size() << std::endl;
-        std::cout.flush();
-        first_frame = false;
-    }
+    // DEBUG LOGGING - DISABLED for cleaner output
+    // static bool first_frame = true;
+    // if (first_frame) {
+    //     std::cout << "Frame first 4 points: ";
+    //     for (size_t i = 0; i < std::min(size_t(4), frame.points.size()); ++i) {
+    //         std::cout << "(" << frame.points[i].x << "," << frame.points[i].y << ") ";
+    //     }
+    //     std::cout << std::endl;
+    //     std::cout << "Frame children count: " << frame.children.size() << std::endl;
+    //     std::cout.flush();
+    //     first_frame = false;
+    // }
 
     // Compute outer NFP between frame and B with inside=true (background.js line 746)
     Polygon frameNfp = getOuterNFP(frame, B, true);
@@ -208,21 +208,21 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
     // In JavaScript, nfp.children contains the valid placement regions
     result = frameNfp.children;
 
-    // DEBUG LOGGING
-    static bool first_result = true;
-    if (first_result) {
-        std::cout << "FrameNFP points count: " << frameNfp.points.size() << std::endl;
-        std::cout << "FrameNFP children count: " << frameNfp.children.size() << std::endl;
-        if (!result.empty()) {
-            std::cout << "Result[0] (innerNFP) first 4 points: ";
-            for (size_t i = 0; i < std::min(size_t(4), result[0].points.size()); ++i) {
-                std::cout << "(" << result[0].points[i].x << "," << result[0].points[i].y << ") ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout.flush();
-        first_result = false;
-    }
+    // DEBUG LOGGING - DISABLED for cleaner output
+    // static bool first_result = true;
+    // if (first_result) {
+    //     std::cout << "FrameNFP points count: " << frameNfp.points.size() << std::endl;
+    //     std::cout << "FrameNFP children count: " << frameNfp.children.size() << std::endl;
+    //     if (!result.empty()) {
+    //         std::cout << "Result[0] (innerNFP) first 4 points: ";
+    //         for (size_t i = 0; i < std::min(size_t(4), result[0].points.size()); ++i) {
+    //             std::cout << "(" << result[0].points[i].x << "," << result[0].points[i].y << ") ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     std::cout.flush();
+    //     first_result = false;
+    // }
 
     // Handle holes in A (background.js line 753-754)
     if (!A.children.empty()) {

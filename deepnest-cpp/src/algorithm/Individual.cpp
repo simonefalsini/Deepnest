@@ -52,6 +52,10 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
     // Convert mutation rate from percentage to probability (0-1)
     double mutationProb = mutationRate * 0.01;
 
+    // GA DEBUG: Track mutations
+    int swapCount = 0;
+    int rotationChangeCount = 0;
+
     // Mutate placement order (swap adjacent parts)
     // JavaScript: if(rand < 0.01*this.config.mutationRate) { swap }
     for (size_t i = 0; i < placement.size(); ++i) {
@@ -62,6 +66,7 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
 
             if (j < placement.size()) {
                 std::swap(placement[i], placement[j]);
+                swapCount++;
             }
         }
     }
@@ -72,7 +77,17 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
         double rand = dist(rng);
         if (rand < mutationProb) {
             rotation[i] = generateRandomRotation(numRotations, rng);
+            rotationChangeCount++;
         }
+    }
+
+    // GA DEBUG: Log mutations (only for first call)
+    static bool first_mutation = true;
+    if (first_mutation) {
+        std::cout << "  Mutation: swaps=" << swapCount
+                  << ", rotation changes=" << rotationChangeCount
+                  << " (rate=" << mutationRate << "%, prob=" << mutationProb << ")" << std::endl;
+        first_mutation = false;
     }
 
     // Reset fitness since individual has changed
