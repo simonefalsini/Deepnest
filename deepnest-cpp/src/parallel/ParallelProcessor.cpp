@@ -42,14 +42,26 @@ void ParallelProcessor::stop() {
 
     stopped_ = true;
 
-    // Destroy work guard to allow io_context to finish
+    // CRITICAL FIX: Drain task queue BEFORE stopping threads
+    // Otherwise unexecuted lambda tasks with dangling references cause segfault on next run
+    // Remove work guard to allow io_context to finish
     workGuard_.reset();
+
+    // Give threads a chance to complete pending tasks
+    // This prevents tasks from remaining in queue when engine is destroyed
+    boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
+
+    // Poll remaining handlers to drain the queue (don't wait for completion)
+    // This ensures no tasks remain that capture references to destroyed objects
+    while (ioContext_.poll() > 0) {
+        // Keep polling until queue is empty
+    }
+
+    // Now safe to stop io_context and join threads
+    ioContext_.stop();
 
     // Wait for all threads to complete
     threads_.join_all();
-
-    // Stop io_context
-    ioContext_.stop();
 }
 
 void ParallelProcessor::waitAll() {

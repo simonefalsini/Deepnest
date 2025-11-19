@@ -133,6 +133,13 @@ void NestingEngine::start(
         throw std::runtime_error("Must call initialize() before start()");
     }
 
+    // CRITICAL FIX: Recreate ParallelProcessor if it was previously stopped
+    // A stopped processor cannot be reused (stopped_=true prevents new tasks)
+    // This fixes the segfault when running nesting a second time
+    if (!parallelProcessor_) {
+        parallelProcessor_ = std::make_unique<ParallelProcessor>(config_.threads);
+    }
+
     progressCallback_ = progressCallback;
     resultCallback_ = resultCallback;
     maxGenerations_ = maxGenerations;
@@ -146,6 +153,9 @@ void NestingEngine::stop() {
     running_ = false;
     if (parallelProcessor_) {
         parallelProcessor_->stop();
+        // CRITICAL FIX: Destroy the processor to force recreation on next start()
+        // A stopped processor cannot be reused, so we must create a fresh one
+        parallelProcessor_.reset();
     }
 }
 

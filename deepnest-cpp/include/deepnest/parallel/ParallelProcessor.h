@@ -159,6 +159,19 @@ template<typename Func>
 auto ParallelProcessor::enqueue(Func&& f) -> std::future<typename std::result_of<Func()>::type> {
     using return_type = typename std::result_of<Func()>::type;
 
+    // CRITICAL FIX: Don't enqueue tasks if processor is stopped
+    // This prevents adding tasks that will never execute and may hold dangling references
+    {
+        boost::lock_guard<boost::mutex> lock(mutex_);
+        if (stopped_) {
+            // Return an immediately ready future with default value
+            // This prevents crashes when trying to enqueue after stop()
+            std::promise<return_type> promise;
+            promise.set_value(return_type());
+            return promise.get_future();
+        }
+    }
+
     // Create a packaged_task wrapping the function
     auto task = std::make_shared<std::packaged_task<return_type()>>(
         std::forward<Func>(f)
