@@ -1,40 +1,44 @@
 TEMPLATE = app
 CONFIG += console c++17
 CONFIG -= app_bundle
-CONFIG -= qt
+QT += core
 
 TARGET = GeneticAlgorithmTests
 
 # Include paths
 INCLUDEPATH += ..
+INCLUDEPATH += ../../Clipper2Lib/include
+INCLUDEPATH += ../../Clipper2Lib/include/clipper2
 
 # Source files
 SOURCES += GeneticAlgorithmTests.cpp \
     ../src/core/Point.cpp \
-    ../src/core/BoundingBox.cpp \
     ../src/core/Polygon.cpp \
+    ../src/core/Types.cpp \
     ../src/config/DeepNestConfig.cpp \
     ../src/geometry/GeometryUtil.cpp \
+    ../src/geometry/GeometryUtilAdvanced.cpp \
     ../src/geometry/PolygonOperations.cpp \
     ../src/geometry/ConvexHull.cpp \
     ../src/geometry/Transformation.cpp \
-    ../src/geometry/MergeDetection.cpp \
     ../src/nfp/NFPCache.cpp \
     ../src/nfp/NFPCalculator.cpp \
     ../src/nfp/MinkowskiSum.cpp \
     ../src/placement/PlacementStrategy.cpp \
     ../src/placement/PlacementWorker.cpp \
+    ../src/placement/MergeDetection.cpp \
     ../src/algorithm/Individual.cpp \
     ../src/algorithm/Population.cpp \
     ../src/algorithm/GeneticAlgorithm.cpp \
+    ../src/parallel/ParallelProcessor.cpp \
     ../src/engine/NestingEngine.cpp \
-    ../src/DeepNestSolver.cpp
-
-# Clipper2 library
-LIBS += -L../lib/Clipper2/CPP/Clipper2Lib -lClipper2
+    ../src/DeepNestSolver.cpp \
+    ../../Clipper2Lib/src/clipper.engine.cpp \
+    ../../Clipper2Lib/src/clipper.offset.cpp \
+    ../../Clipper2Lib/src/clipper.rectclip.cpp
 
 # Boost libraries
-LIBS += -lboost_system -lboost_thread -lpthread
+LIBS += -lboost_system -lboost_thread -lboost_chrono -lpthread
 
 # Enable optimizations
 QMAKE_CXXFLAGS += -O2
