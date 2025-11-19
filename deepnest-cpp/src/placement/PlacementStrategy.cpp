@@ -131,14 +131,43 @@ double GravityPlacement::calculateMetric(
     const std::vector<PlacedPart>& placed
 ) const {
 
+    // Handle edge case: no placed parts yet (placing first part)
+    if (placed.empty()) {
+        // Only the new part contributes to bounds
+        BoundingBox partBounds = part.bounds();
+        double metric = (partBounds.width + position.x) * 2.0 + (partBounds.height + position.y);
+        return metric;
+    }
+
     // Collect all points from placed parts
     // JavaScript: for(m=0; m<placed.length; m++) { for(n=0; n<placed[m].length; n++)
     std::vector<Point> allPoints;
+
+    // Pre-allocate space to avoid reallocations (prevents memory fragmentation)
+    size_t totalPoints = 0;
     for (const auto& placedPart : placed) {
+        totalPoints += placedPart.polygon.points.size();
+    }
+    allPoints.reserve(totalPoints);
+
+    // Collect translated points
+    for (const auto& placedPart : placed) {
+        // Validate polygon before accessing points
+        if (placedPart.polygon.points.empty()) {
+            continue; // Skip invalid polygons
+        }
+
         for (const auto& pt : placedPart.polygon.points) {
             allPoints.push_back(Point(pt.x + placedPart.position.x,
                                      pt.y + placedPart.position.y));
         }
+    }
+
+    // Safety check: if all polygons were invalid, treat as empty
+    if (allPoints.empty()) {
+        BoundingBox partBounds = part.bounds();
+        double metric = (partBounds.width + position.x) * 2.0 + (partBounds.height + position.y);
+        return metric;
     }
 
     // Get bounds of all placed parts
@@ -257,13 +286,41 @@ double BoundingBoxPlacement::calculateMetric(
     const std::vector<PlacedPart>& placed
 ) const {
 
+    // Handle edge case: no placed parts yet (placing first part)
+    if (placed.empty()) {
+        BoundingBox partBounds = part.bounds();
+        double metric = (partBounds.width + position.x) * (partBounds.height + position.y);
+        return metric;
+    }
+
     // Same as gravity, but use normal bounding box area
     std::vector<Point> allPoints;
+
+    // Pre-allocate space to avoid reallocations
+    size_t totalPoints = 0;
     for (const auto& placedPart : placed) {
+        totalPoints += placedPart.polygon.points.size();
+    }
+    allPoints.reserve(totalPoints);
+
+    // Collect translated points
+    for (const auto& placedPart : placed) {
+        // Validate polygon before accessing points
+        if (placedPart.polygon.points.empty()) {
+            continue; // Skip invalid polygons
+        }
+
         for (const auto& pt : placedPart.polygon.points) {
             allPoints.push_back(Point(pt.x + placedPart.position.x,
                                      pt.y + placedPart.position.y));
         }
+    }
+
+    // Safety check: if all polygons were invalid, treat as empty
+    if (allPoints.empty()) {
+        BoundingBox partBounds = part.bounds();
+        double metric = (partBounds.width + position.x) * (partBounds.height + position.y);
+        return metric;
     }
 
     BoundingBox allBounds = BoundingBox::fromPoints(allPoints);
@@ -373,14 +430,41 @@ double ConvexHullPlacement::calculateMetric(
     const std::vector<PlacedPart>& placed
 ) const {
 
+    // Handle edge case: no placed parts yet (placing first part)
+    if (placed.empty()) {
+        // Only the new part contributes to area
+        double area = std::abs(GeometryUtil::polygonArea(part.points));
+        return area;
+    }
+
     // Collect all points from placed parts
     // JavaScript: allpoints = getHull(allpoints);
     std::vector<Point> allPoints;
+
+    // Pre-allocate space to avoid reallocations
+    size_t totalPoints = 0;
     for (const auto& placedPart : placed) {
+        totalPoints += placedPart.polygon.points.size();
+    }
+    allPoints.reserve(totalPoints);
+
+    // Collect translated points
+    for (const auto& placedPart : placed) {
+        // Validate polygon before accessing points
+        if (placedPart.polygon.points.empty()) {
+            continue; // Skip invalid polygons
+        }
+
         for (const auto& pt : placedPart.polygon.points) {
             allPoints.push_back(Point(pt.x + placedPart.position.x,
                                      pt.y + placedPart.position.y));
         }
+    }
+
+    // Safety check: if all polygons were invalid, treat as empty
+    if (allPoints.empty()) {
+        double area = std::abs(GeometryUtil::polygonArea(part.points));
+        return area;
     }
 
     // Calculate convex hull of placed parts
