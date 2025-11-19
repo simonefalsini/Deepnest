@@ -97,7 +97,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
         totalSheetArea += sheetArea;
-        fitness += sheetArea;
+        // JavaScript: fitness += 1 for each bin opened (NOT the sheet area!)
+        fitness += 1.0;
 
         // JavaScript: for(i=0; i<parts.length; i++)
         for (size_t i = 0; i < parts.size(); ) {
@@ -434,6 +435,32 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         //               allplacements.push(placements);
         //             }
         if (!placements.empty()) {
+            // Calculate bounds fitness (minwidth/binarea)
+            // JavaScript: if(minwidth) { fitness += minwidth/binarea; }
+            // This is CRITICAL for GA evolution - rewards compact placements
+            std::vector<Point> allPlacedPoints;
+
+            // Collect all points from placed parts with their placements applied
+            for (size_t i = 0; i < placed.size(); i++) {
+                const Polygon& placedPart = placed[i];
+                const Placement& placement = placements[i];
+
+                // Transform each point by the placement position
+                for (const auto& point : placedPart.points) {
+                    allPlacedPoints.push_back(Point(
+                        point.x + placement.x,
+                        point.y + placement.y
+                    ));
+                }
+            }
+
+            // Calculate bounding box and add width/area to fitness
+            if (!allPlacedPoints.empty()) {
+                BoundingBox bounds = BoundingBox::fromPoints(allPlacedPoints);
+                double boundsWidth = bounds.width;
+                fitness += boundsWidth / sheetArea;
+            }
+
             allPlacements.push_back(placements);
         }
         else {
@@ -456,8 +483,15 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         std::cout << "  Total sheet area: " << totalSheetArea << std::endl;
         std::cout << "  Unplaced parts: " << parts.size() << std::endl;
         std::cout << "  Unplaced penalty: " << (2.0 * parts.size()) << std::endl;
-        std::cout << "  FINAL FITNESS: " << fitness
-                  << " (area=" << totalSheetArea << " + penalty=" << (2.0 * parts.size()) << ")" << std::endl;
+
+        // Calculate fitness breakdown
+        double sheetCountFitness = static_cast<double>(allPlacements.size());
+        double boundsFitness = fitness - sheetCountFitness - (2.0 * parts.size());
+
+        std::cout << "  FINAL FITNESS: " << fitness << std::endl;
+        std::cout << "    = sheet count (" << sheetCountFitness << ")"
+                  << " + bounds fitness (" << boundsFitness << ")"
+                  << " + unplaced penalty (" << (2.0 * parts.size()) << ")" << std::endl;
         std::cout.flush();
         placementCount++;
     }
