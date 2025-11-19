@@ -53,11 +53,12 @@ TestApplication::TestApplication(QWidget* parent)
     solver_ = std::make_unique<deepnest::DeepNestSolver>();
 
     // Configure solver with sensible defaults
-    solver_->setSpacing(2.0);           // 2 units spacing between parts
+    // TEMPORARY DEBUG: spacing=0 to test algorithm without spacing mismatch
+    solver_->setSpacing(0.0);           // 0 units spacing (DEBUG: will fix visualization later)
     solver_->setRotations(4);           // Allow 0°, 90°, 180°, 270°
     solver_->setPopulationSize(10);     // GA population size
     solver_->setMutationRate(10);       // 10% mutation rate
-    log(QString("Solver configured: spacing=2.0, rotations=4, pop=10"));
+    log(QString("Solver configured: spacing=0.0 (DEBUG), rotations=4, pop=10"));
 
     // Setup callbacks
     solver_->setProgressCallback([this](const deepnest::NestProgress& progress) {
