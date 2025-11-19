@@ -413,10 +413,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             }
 
             // CRITICAL FIX 1.3: Use strategy to find best position and get area metric
+            // LINE MERGE INTEGRATION: Pass config to enable line merge bonus calculation
             BestPositionResult positionResult = strategy_->findBestPosition(
                 part,
                 placedForStrategy,
-                candidatePositions
+                candidatePositions,
+                config_
             );
 
             // JavaScript: if(position) { placed.push(path); placements.push(position); }

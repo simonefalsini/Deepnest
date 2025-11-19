@@ -460,12 +460,15 @@ void testStep15_PlacementStrategies() {
 
     bool stratValid = true;
 
+    // Get config instance for testing
+    DeepNestConfig& config = DeepNestConfig::getInstance();
+
     // Test GravityPlacement (updated for BestPositionResult)
     {
         GravityPlacement gravity;
         std::vector<PlacedPart> placed;
         deepnest::Polygon partPoly(part);
-        BestPositionResult result = gravity.findBestPosition(partPoly, placed, candidatePos);
+        BestPositionResult result = gravity.findBestPosition(partPoly, placed, candidatePos, config);
         stratValid &= (result.position.x >= 0 || result.position.y >= 0);
         stratValid &= (result.area >= 0); // Also verify area metric is present
     }
@@ -475,7 +478,7 @@ void testStep15_PlacementStrategies() {
         BoundingBoxPlacement bbox;
         std::vector<PlacedPart> placed;
         deepnest::Polygon partPoly(part);
-        BestPositionResult result = bbox.findBestPosition(partPoly, placed, candidatePos);
+        BestPositionResult result = bbox.findBestPosition(partPoly, placed, candidatePos, config);
         stratValid &= (result.position.x >= 0 || result.position.y >= 0);
         stratValid &= (result.area >= 0); // Also verify area metric is present
     }
@@ -485,7 +488,7 @@ void testStep15_PlacementStrategies() {
         ConvexHullPlacement convex;
         std::vector<PlacedPart> placed;
         deepnest::Polygon partPoly(part);
-        BestPositionResult result = convex.findBestPosition(partPoly, placed, candidatePos);
+        BestPositionResult result = convex.findBestPosition(partPoly, placed, candidatePos, config);
         stratValid &= (result.position.x >= 0 || result.position.y >= 0);
         stratValid &= (result.area >= 0); // Also verify area metric is present
     }

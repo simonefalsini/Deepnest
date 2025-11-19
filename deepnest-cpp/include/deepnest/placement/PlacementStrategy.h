@@ -10,6 +10,9 @@
 
 namespace deepnest {
 
+// Forward declaration
+class DeepNestConfig;
+
 /**
  * @brief Structure representing a positioned part
  */
@@ -74,15 +77,20 @@ public:
      * CRITICAL FIX 1.3: Changed return type from Point to BestPositionResult
      * to support minarea component in fitness calculation.
      *
+     * LINE MERGE INTEGRATION: Added config parameter to enable line merge bonus
+     * calculation during position selection.
+     *
      * @param part Part to be placed
      * @param placed Previously placed parts with positions
      * @param candidatePositions List of valid positions (from NFP)
-     * @return BestPositionResult with best position and area metric
+     * @param config Configuration including mergeLines and timeRatio
+     * @return BestPositionResult with best position, area metric, and merged length
      */
     virtual BestPositionResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
-        const std::vector<Point>& candidatePositions
+        const std::vector<Point>& candidatePositions,
+        const DeepNestConfig& config
     ) const = 0;
 
     /**
@@ -137,7 +145,8 @@ public:
     BestPositionResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
-        const std::vector<Point>& candidatePositions
+        const std::vector<Point>& candidatePositions,
+        const DeepNestConfig& config
     ) const override;
 
     Type getType() const override { return Type::GRAVITY; }
@@ -164,7 +173,8 @@ public:
     BestPositionResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
-        const std::vector<Point>& candidatePositions
+        const std::vector<Point>& candidatePositions,
+        const DeepNestConfig& config
     ) const override;
 
     Type getType() const override { return Type::BOUNDING_BOX; }
@@ -191,7 +201,8 @@ public:
     BestPositionResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
-        const std::vector<Point>& candidatePositions
+        const std::vector<Point>& candidatePositions,
+        const DeepNestConfig& config
     ) const override;
 
     Type getType() const override { return Type::CONVEX_HULL; }

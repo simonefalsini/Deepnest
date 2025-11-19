@@ -1,4 +1,4 @@
-#include "..\include\deepnest\core\Types.h"
+#include "../include/deepnest/core/Types.h"
 #include "SVGLoader.h"
 #include <QFile>
 #include <QXmlStreamReader>

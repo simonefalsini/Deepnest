@@ -44,6 +44,9 @@ set(DEEPNEST_SOURCES
     # Config
     src/config/DeepNestConfig.cpp
 
+    # Converters
+    src/converters/QtBoostConverter.cpp
+
     # Algorithm
     src/algorithm/Individual.cpp
     src/algorithm/Population.cpp
@@ -90,6 +93,9 @@ set(DEEPNEST_HEADERS
 
     # Config
     include/deepnest/config/DeepNestConfig.h
+
+    # Converters
+    include/deepnest/converters/QtBoostConverter.h
 
     # Algorithm
     include/deepnest/algorithm/Individual.h
@@ -144,6 +150,7 @@ target_compile_options(deepnest PRIVATE
 
 # Install rules
 install(TARGETS deepnest
+    EXPORT DeepNestTargets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include/deepnest

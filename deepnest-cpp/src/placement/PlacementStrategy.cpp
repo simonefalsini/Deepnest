@@ -1,4 +1,6 @@
 #include "../../include/deepnest/placement/PlacementStrategy.h"
+#include "../../include/deepnest/config/DeepNestConfig.h"
+#include "../../include/deepnest/placement/MergeDetection.h"
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/ConvexHull.h"
 #include <limits>
@@ -38,7 +40,8 @@ std::unique_ptr<PlacementStrategy> PlacementStrategy::create(const std::string& 
 BestPositionResult GravityPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
-    const std::vector<Point>& candidatePositions
+    const std::vector<Point>& candidatePositions,
+    const DeepNestConfig& config
 ) const {
 
     if (candidatePositions.empty()) {
@@ -47,24 +50,76 @@ BestPositionResult GravityPlacement::findBestPosition(
 
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
+    double bestMergedLength = 0.0;
     bool foundValid = false;
 
     // Evaluate each candidate position
     // JavaScript: for(j=0; j<finalNfp.length; j++) { for(k=0; k<nf.length; k++)
     for (const auto& position : candidatePositions) {
+        // Calculate base area metric
         double metric = calculateMetric(part, position, placed);
+
+        // LINE MERGE INTEGRATION: Calculate merged line bonus
+        // JavaScript background.js:1094: area -= merged.totalLength * config.timeRatio
+        double mergedLength = 0.0;
+        if (config.mergeLines) {
+            // Create test part at this position
+            Polygon testPart = part;
+            for (auto& p : testPart.points) {
+                p.x += position.x;
+                p.y += position.y;
+            }
+            // Also translate children (holes)
+            for (auto& child : testPart.children) {
+                for (auto& p : child.points) {
+                    p.x += position.x;
+                    p.y += position.y;
+                }
+            }
+
+            // Convert PlacedPart vector to Polygon vector for MergeDetection
+            std::vector<Polygon> placedPolygons;
+            for (const auto& placedPart : placed) {
+                Polygon poly = placedPart.polygon;
+                // Apply placement transformation
+                for (auto& p : poly.points) {
+                    p.x += placedPart.position.x;
+                    p.y += placedPart.position.y;
+                }
+                for (auto& child : poly.children) {
+                    for (auto& p : child.points) {
+                        p.x += placedPart.position.x;
+                        p.y += placedPart.position.y;
+                    }
+                }
+                placedPolygons.push_back(poly);
+            }
+
+            // Calculate merged lines
+            double minLength = 0.1; // Minimum edge length to consider
+            double tolerance = 0.1 * config.curveTolerance;
+            auto mergeResult = MergeDetection::calculateMergedLength(
+                placedPolygons, testPart, minLength, tolerance
+            );
+            mergedLength = mergeResult.totalLength;
+
+            // Apply line merge bonus (subtract from metric - lower is better)
+            metric -= mergedLength * config.timeRatio;
+        }
 
         if (metric < minMetric) {
             minMetric = metric;
             bestPosition = position;
+            bestMergedLength = mergedLength;
             foundValid = true;
         }
     }
 
     // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
     // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
+    // LINE MERGE: Also return merged length for logging/debugging
     if (foundValid) {
-        return BestPositionResult(bestPosition, minMetric, 0.0);
+        return BestPositionResult(bestPosition, minMetric, bestMergedLength);
     } else {
         return BestPositionResult();
     }
@@ -124,7 +179,8 @@ double GravityPlacement::calculateMetric(
 BestPositionResult BoundingBoxPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
-    const std::vector<Point>& candidatePositions
+    const std::vector<Point>& candidatePositions,
+    const DeepNestConfig& config
 ) const {
 
     if (candidatePositions.empty()) {
@@ -133,21 +189,63 @@ BestPositionResult BoundingBoxPlacement::findBestPosition(
 
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
+    double bestMergedLength = 0.0;
     bool foundValid = false;
 
     for (const auto& position : candidatePositions) {
         double metric = calculateMetric(part, position, placed);
 
+        // LINE MERGE: Same as GravityPlacement
+        double mergedLength = 0.0;
+        if (config.mergeLines) {
+            Polygon testPart = part;
+            for (auto& p : testPart.points) {
+                p.x += position.x;
+                p.y += position.y;
+            }
+            for (auto& child : testPart.children) {
+                for (auto& p : child.points) {
+                    p.x += position.x;
+                    p.y += position.y;
+                }
+            }
+
+            std::vector<Polygon> placedPolygons;
+            for (const auto& placedPart : placed) {
+                Polygon poly = placedPart.polygon;
+                for (auto& p : poly.points) {
+                    p.x += placedPart.position.x;
+                    p.y += placedPart.position.y;
+                }
+                for (auto& child : poly.children) {
+                    for (auto& p : child.points) {
+                        p.x += placedPart.position.x;
+                        p.y += placedPart.position.y;
+                    }
+                }
+                placedPolygons.push_back(poly);
+            }
+
+            double minLength = 0.1;
+            double tolerance = 0.1 * config.curveTolerance;
+            auto mergeResult = MergeDetection::calculateMergedLength(
+                placedPolygons, testPart, minLength, tolerance
+            );
+            mergedLength = mergeResult.totalLength;
+            metric -= mergedLength * config.timeRatio;
+        }
+
         if (metric < minMetric) {
             minMetric = metric;
             bestPosition = position;
+            bestMergedLength = mergedLength;
             foundValid = true;
         }
     }
 
     // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
     if (foundValid) {
-        return BestPositionResult(bestPosition, minMetric, 0.0);
+        return BestPositionResult(bestPosition, minMetric, bestMergedLength);
     } else {
         return BestPositionResult();
     }
@@ -197,7 +295,8 @@ double BoundingBoxPlacement::calculateMetric(
 BestPositionResult ConvexHullPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
-    const std::vector<Point>& candidatePositions
+    const std::vector<Point>& candidatePositions,
+    const DeepNestConfig& config
 ) const {
 
     if (candidatePositions.empty()) {
@@ -206,21 +305,63 @@ BestPositionResult ConvexHullPlacement::findBestPosition(
 
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
+    double bestMergedLength = 0.0;
     bool foundValid = false;
 
     for (const auto& position : candidatePositions) {
         double metric = calculateMetric(part, position, placed);
 
+        // LINE MERGE: Same as GravityPlacement
+        double mergedLength = 0.0;
+        if (config.mergeLines) {
+            Polygon testPart = part;
+            for (auto& p : testPart.points) {
+                p.x += position.x;
+                p.y += position.y;
+            }
+            for (auto& child : testPart.children) {
+                for (auto& p : child.points) {
+                    p.x += position.x;
+                    p.y += position.y;
+                }
+            }
+
+            std::vector<Polygon> placedPolygons;
+            for (const auto& placedPart : placed) {
+                Polygon poly = placedPart.polygon;
+                for (auto& p : poly.points) {
+                    p.x += placedPart.position.x;
+                    p.y += placedPart.position.y;
+                }
+                for (auto& child : poly.children) {
+                    for (auto& p : child.points) {
+                        p.x += placedPart.position.x;
+                        p.y += placedPart.position.y;
+                    }
+                }
+                placedPolygons.push_back(poly);
+            }
+
+            double minLength = 0.1;
+            double tolerance = 0.1 * config.curveTolerance;
+            auto mergeResult = MergeDetection::calculateMergedLength(
+                placedPolygons, testPart, minLength, tolerance
+            );
+            mergedLength = mergeResult.totalLength;
+            metric -= mergedLength * config.timeRatio;
+        }
+
         if (metric < minMetric) {
             minMetric = metric;
             bestPosition = position;
+            bestMergedLength = mergedLength;
             foundValid = true;
         }
     }
 
     // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
     if (foundValid) {
-        return BestPositionResult(bestPosition, minMetric, 0.0);
+        return BestPositionResult(bestPosition, minMetric, bestMergedLength);
     } else {
         return BestPositionResult();
     }
