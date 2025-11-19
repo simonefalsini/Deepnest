@@ -24,7 +24,31 @@ NestingEngine::NestingEngine(const DeepNestConfig& config)
 }
 
 NestingEngine::~NestingEngine() {
+    // CRITICAL FIX: Ensure clean shutdown to prevent crash and memory corruption
     stop();
+
+    // Explicitly clear NFP cache to release all cached polygons
+    // This prevents potential crashes from destructing cached Polygon objects
+    // that may contain Boost.Polygon data
+    nfpCache_.clear();
+
+    // Explicitly destroy components in correct order
+    // ParallelProcessor must be destroyed first to stop all threads
+    if (parallelProcessor_) {
+        parallelProcessor_.reset();
+    }
+
+    // Then destroy placement worker
+    if (placementWorker_) {
+        placementWorker_.reset();
+    }
+
+    // Then destroy NFP calculator
+    if (nfpCalculator_) {
+        nfpCalculator_.reset();
+    }
+
+    // Genetic algorithm and population destroyed automatically
 }
 
 void NestingEngine::initialize(

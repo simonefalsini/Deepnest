@@ -30,7 +30,15 @@ DeepNestSolver::DeepNestSolver(const DeepNestConfig& config)
 }
 
 DeepNestSolver::~DeepNestSolver() {
-    stop();
+    // CRITICAL FIX: Ensure clean shutdown to prevent crash on exit
+    if (running_) {
+        stop();
+    }
+    // Explicitly destroy engine and release all resources before destructor completes
+    if (engine_) {
+        engine_->stop();  // Ensure threads are stopped
+        engine_.reset();  // Trigger destructor and cleanup
+    }
 }
 
 void DeepNestSolver::setSpacing(double spacing) {
@@ -134,7 +142,16 @@ void DeepNestSolver::start(int maxGenerations) {
         throw std::runtime_error("No sheets added. Use addSheet() to add sheets.");
     }
 
-    // Create nesting engine
+    // CRITICAL FIX: Explicitly destroy old engine and release all resources
+    // before creating a new one to prevent memory corruption and dangling references
+    if (engine_) {
+        // Stop if still running (defensive)
+        engine_->stop();
+        // Explicitly reset to trigger destructor and cleanup
+        engine_.reset();
+    }
+
+    // Create new nesting engine with clean state
     engine_ = std::make_unique<NestingEngine>(config_);
 
     // Convert PartSpec to Polygon vectors

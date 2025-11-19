@@ -200,24 +200,46 @@ Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, 
     Polygon result;
     double invScale = 1.0 / scale;
 
-    // Extract outer boundary
+    // CRITICAL FIX: Extract points to temporary containers first to avoid
+    // dangling iterators and ensure complete data copy before Boost objects are destroyed
+
+    // Extract outer boundary to temporary container
+    std::vector<IntPoint> outerPoints;
     for (auto it = begin_points(boostPoly); it != end_points(boostPoly); ++it) {
+        outerPoints.push_back(*it);  // Complete copy of point data
+    }
+
+    // Convert outer points
+    result.points.reserve(outerPoints.size());
+    for (const auto& pt : outerPoints) {
         result.points.emplace_back(
-            static_cast<double>(it->x()) * invScale,
-            static_cast<double>(it->y()) * invScale
+            static_cast<double>(pt.x()) * invScale,
+            static_cast<double>(pt.y()) * invScale
         );
     }
 
-    // Extract holes
+    // Extract holes - copy data completely before conversion
+    std::vector<std::vector<IntPoint>> holePointsList;
     for (auto holeIt = begin_holes(boostPoly); holeIt != end_holes(boostPoly); ++holeIt) {
-        Polygon hole;
+        std::vector<IntPoint> holePoints;
         for (auto pointIt = begin_points(*holeIt); pointIt != end_points(*holeIt); ++pointIt) {
+            holePoints.push_back(*pointIt);  // Complete copy
+        }
+        holePointsList.push_back(holePoints);
+    }
+
+    // Convert holes
+    result.children.reserve(holePointsList.size());
+    for (const auto& holePoints : holePointsList) {
+        Polygon hole;
+        hole.points.reserve(holePoints.size());
+        for (const auto& pt : holePoints) {
             hole.points.emplace_back(
-                static_cast<double>(pointIt->x()) * invScale,
-                static_cast<double>(pointIt->y()) * invScale
+                static_cast<double>(pt.x()) * invScale,
+                static_cast<double>(pt.y()) * invScale
             );
         }
-        result.children.push_back(hole);
+        result.children.push_back(std::move(hole));  // Move instead of copy
     }
 
     return result;
@@ -226,15 +248,22 @@ Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, 
 std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     const IntPolygonSet& polySet, double scale) {
 
+    // CRITICAL FIX: Ensure complete copy of data from Boost internal structures
+    // before any processing to avoid dangling references after polySet destruction
     std::vector<IntPolygonWithHoles> boostPolygons;
-    polySet.get(boostPolygons);
+    polySet.get(boostPolygons);  // This should copy, but let's ensure data is extracted immediately
 
     std::vector<Polygon> result;
     result.reserve(boostPolygons.size());
 
+    // Process all polygons immediately while boostPolygons is still valid
+    // fromBoostIntPolygon now does complete data extraction before conversion
     for (const auto& boostPoly : boostPolygons) {
         result.push_back(fromBoostIntPolygon(boostPoly, scale));
     }
+
+    // Explicitly clear boost containers to ensure no dangling references
+    boostPolygons.clear();
 
     return result;
 }
@@ -243,6 +272,11 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     const Polygon& A,
     const Polygon& B,
     bool inner) {
+
+    // Validate input
+    if (A.points.empty() || B.points.empty()) {
+        return std::vector<Polygon>();
+    }
 
     // Calculate scale factor
     double scale = calculateScale(A, B);
@@ -273,20 +307,32 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         std::reverse(child.points.begin(), child.points.end());
     }
 
-    // Convert to Boost integer polygons
-    IntPolygonSet polySetA, polySetB, result;
+    // CRITICAL FIX: All Boost.Polygon operations are scoped to ensure proper cleanup
+    // and immediate data extraction before any Boost objects are destroyed
+    std::vector<Polygon> nfps;
+    {
+        // Convert to Boost integer polygons - scoped lifetime
+        IntPolygonSet polySetA, polySetB, result;
 
-    IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-    IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
+        IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
+        IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
 
-    polySetA.insert(boostA);
-    polySetB.insert(boostB);
+        polySetA.insert(boostA);
+        polySetB.insert(boostB);
 
-    // Compute Minkowski sum
-    convolve_two_polygon_sets(result, polySetA, polySetB);
+        // Compute Minkowski sum
+        convolve_two_polygon_sets(result, polySetA, polySetB);
 
-    // Convert back to our Polygon type
-    std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
+        // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
+        // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
+        nfps = fromBoostPolygonSet(result, scale);
+
+        // Explicitly clear Boost containers to release any internal memory
+        result.clear();
+        polySetA.clear();
+        polySetB.clear();
+    }
+    // All Boost objects destroyed here - nfps contains completely independent data
 
     return nfps;
 }
