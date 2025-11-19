@@ -1,6 +1,7 @@
 #include "TestApplication.h"
 #include "SVGLoader.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
+#include "../include/deepnest/geometry/PolygonOperations.h"
 
 #include <QMenuBar>
 #include <QToolBar>
@@ -634,6 +635,11 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
         .arg(totalPlacements)
         .arg(result.placements.size()));
 
+    double spacing = solver_->getConfig().spacing;
+    log(QString("Applying spacing offset: %1 (parts expanded by %2)")
+        .arg(spacing, 0, 'f', 1)
+        .arg(0.5 * spacing, 0, 'f', 2));
+
     clearScene();
 
     // Draw each sheet with placements
@@ -667,6 +673,19 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
 
             if (sourceId >= 0 && sourceId < static_cast<int>(parts_.size())) {
                 deepnest::Polygon part = parts_[sourceId];
+
+                // Apply spacing to match what the nesting algorithm sees
+                // Parts are expanded by +0.5 * spacing before nesting
+                double spacing = solver_->getConfig().spacing;
+                if (spacing > 0) {
+                    // Use PolygonOperations to apply offset (same as NestingEngine)
+                    std::vector<std::vector<deepnest::Point>> offsetResults =
+                        deepnest::PolygonOperations::offset(part.points, 0.5 * spacing, 4.0, 0.25);
+
+                    if (!offsetResults.empty()) {
+                        part.points = offsetResults[0];
+                    }
+                }
 
                 // Apply rotation and translation
                 deepnest::Polygon transformed = part.rotate(placement.rotation);
