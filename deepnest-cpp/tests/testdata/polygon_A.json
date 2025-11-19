@@ -1,0 +1,11 @@
+{
+  "comment": "Simple square polygon for NFP testing",
+  "points": [
+    {"x": 0, "y": 0},
+    {"x": 100, "y": 0},
+    {"x": 100, "y": 100},
+    {"x": 0, "y": 100}
+  ],
+  "id": 1,
+  "rotation": 0
+}
