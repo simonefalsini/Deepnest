@@ -35,14 +35,14 @@ std::unique_ptr<PlacementStrategy> PlacementStrategy::create(const std::string& 
 
 // ==================== GravityPlacement ====================
 
-Point GravityPlacement::findBestPosition(
+PlacementResult GravityPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
     const std::vector<Point>& candidatePositions
 ) const {
 
     if (candidatePositions.empty()) {
-        return Point(); // No valid positions
+        return PlacementResult(); // No valid positions
     }
 
     double minMetric = std::numeric_limits<double>::max();
@@ -61,7 +61,13 @@ Point GravityPlacement::findBestPosition(
         }
     }
 
-    return foundValid ? bestPosition : Point();
+    // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
+    // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
+    if (foundValid) {
+        return PlacementResult(bestPosition, minMetric, 0.0);
+    } else {
+        return PlacementResult();
+    }
 }
 
 double GravityPlacement::calculateMetric(
@@ -115,14 +121,14 @@ double GravityPlacement::calculateMetric(
 
 // ==================== BoundingBoxPlacement ====================
 
-Point BoundingBoxPlacement::findBestPosition(
+PlacementResult BoundingBoxPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
     const std::vector<Point>& candidatePositions
 ) const {
 
     if (candidatePositions.empty()) {
-        return Point();
+        return PlacementResult();
     }
 
     double minMetric = std::numeric_limits<double>::max();
@@ -139,7 +145,12 @@ Point BoundingBoxPlacement::findBestPosition(
         }
     }
 
-    return foundValid ? bestPosition : Point();
+    // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
+    if (foundValid) {
+        return PlacementResult(bestPosition, minMetric, 0.0);
+    } else {
+        return PlacementResult();
+    }
 }
 
 double BoundingBoxPlacement::calculateMetric(
@@ -183,14 +194,14 @@ double BoundingBoxPlacement::calculateMetric(
 
 // ==================== ConvexHullPlacement ====================
 
-Point ConvexHullPlacement::findBestPosition(
+PlacementResult ConvexHullPlacement::findBestPosition(
     const Polygon& part,
     const std::vector<PlacedPart>& placed,
     const std::vector<Point>& candidatePositions
 ) const {
 
     if (candidatePositions.empty()) {
-        return Point();
+        return PlacementResult();
     }
 
     double minMetric = std::numeric_limits<double>::max();
@@ -207,7 +218,12 @@ Point ConvexHullPlacement::findBestPosition(
         }
     }
 
-    return foundValid ? bestPosition : Point();
+    // CRITICAL FIX 1.3: Return area metric (minarea component for fitness)
+    if (foundValid) {
+        return PlacementResult(bestPosition, minMetric, 0.0);
+    } else {
+        return PlacementResult();
+    }
 }
 
 double ConvexHullPlacement::calculateMetric(

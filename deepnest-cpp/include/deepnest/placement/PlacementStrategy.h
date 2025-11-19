@@ -24,6 +24,22 @@ struct PlacedPart {
 };
 
 /**
+ * @brief Structure representing the result of placement selection
+ *
+ * CRITICAL FIX 1.3: Added to support minarea component in fitness calculation
+ * (matches JavaScript background.js:1142)
+ */
+struct PlacementResult {
+    Point position;         // Best position found
+    double area;           // Area metric used for selection (minarea component)
+    double mergedLength;   // Merged line length (for future line merge bonus)
+
+    PlacementResult() : area(0.0), mergedLength(0.0) {}
+    PlacementResult(const Point& pos, double a, double ml = 0.0)
+        : position(pos), area(a), mergedLength(ml) {}
+};
+
+/**
  * @brief Abstract base class for placement strategies
  *
  * Different strategies optimize for different objectives when placing parts:
@@ -53,12 +69,15 @@ public:
      * Evaluates all candidate positions and returns the one that minimizes
      * the objective function (area, depending on strategy type).
      *
+     * CRITICAL FIX 1.3: Changed return type from Point to PlacementResult
+     * to support minarea component in fitness calculation.
+     *
      * @param part Part to be placed
      * @param placed Previously placed parts with positions
      * @param candidatePositions List of valid positions (from NFP)
-     * @return Best position, or null Point if no valid position found
+     * @return PlacementResult with best position and area metric
      */
-    virtual Point findBestPosition(
+    virtual PlacementResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
         const std::vector<Point>& candidatePositions
@@ -113,7 +132,7 @@ protected:
  */
 class GravityPlacement : public PlacementStrategy {
 public:
-    Point findBestPosition(
+    PlacementResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
         const std::vector<Point>& candidatePositions
@@ -140,7 +159,7 @@ protected:
  */
 class BoundingBoxPlacement : public PlacementStrategy {
 public:
-    Point findBestPosition(
+    PlacementResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
         const std::vector<Point>& candidatePositions
@@ -167,7 +186,7 @@ protected:
  */
 class ConvexHullPlacement : public PlacementStrategy {
 public:
-    Point findBestPosition(
+    PlacementResult findBestPosition(
         const Polygon& part,
         const std::vector<PlacedPart>& placed,
         const std::vector<Point>& candidatePositions

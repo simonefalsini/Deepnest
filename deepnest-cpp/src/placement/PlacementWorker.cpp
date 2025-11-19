@@ -88,6 +88,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         std::vector<Polygon> placed;
         std::vector<Placement> placements;
 
+        // CRITICAL FIX 1.3: Accumulator for minarea component of fitness
+        // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
+        double minarea_accumulator = 0.0;
+
         // JavaScript: var sheet = sheets.shift();
         //             var sheetarea = Math.abs(GeometryUtil.polygonArea(sheet));
         //             totalsheetarea += sheetarea;
@@ -97,8 +101,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
         totalSheetArea += sheetArea;
-        // JavaScript: fitness += 1 for each bin opened (NOT the sheet area!)
-        fitness += 1.0;
+        // CRITICAL FIX 1.1: Add full sheet area as penalty (matches JavaScript background.js:848)
+        // JavaScript: fitness += sheetarea;
+        // This is the primary differentiator between solutions - heavily penalizes opening new sheets
+        fitness += sheetArea;
 
         // JavaScript: for(i=0; i<parts.length; i++)
         for (size_t i = 0; i < parts.size(); ) {
@@ -406,8 +412,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 placedForStrategy.push_back(toPlacedPart(placed[j], placements[j]));
             }
 
-            // Use strategy to find best position
-            Point bestPosition = strategy_->findBestPosition(
+            // CRITICAL FIX 1.3: Use strategy to find best position and get area metric
+            PlacementResult placementResult = strategy_->findBestPosition(
                 part,
                 placedForStrategy,
                 candidatePositions
@@ -417,9 +423,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             // CRITICAL FIX: Accept ANY valid position, including (0,0)!
             // The old condition rejected (0,0) which is a perfectly valid placement
             if (!candidatePositions.empty()) {
-                position = Placement(bestPosition, part.id, part.source, part.rotation);
+                position = Placement(placementResult.position, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
+
+                // CRITICAL FIX 1.3: Accumulate minarea for fitness calculation
+                minarea_accumulator += placementResult.area;
 
                 // Remove from parts list
                 parts.erase(parts.begin() + i);
@@ -458,7 +467,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             if (!allPlacedPoints.empty()) {
                 BoundingBox bounds = BoundingBox::fromPoints(allPlacedPoints);
                 double boundsWidth = bounds.width;
-                fitness += boundsWidth / sheetArea;
+
+                // CRITICAL FIX 1.3: Add both components of fitness formula
+                // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
+                // This is CRITICAL for GA - minarea is the primary placement quality metric
+                fitness += (boundsWidth / sheetArea) + minarea_accumulator;
             }
 
             allPlacements.push_back(placements);
@@ -468,30 +481,48 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         }
     }
 
-    // JavaScript: fitness += 2*parts.length;
-    fitness += 2.0 * parts.size(); // Penalty for unplaced parts
+    // CRITICAL FIX 1.2: Apply massive penalty for unplaced parts (matches JavaScript background.js:1167)
+    // JavaScript: fitness += 100000000*(Math.abs(GeometryUtil.polygonArea(parts[i]))/totalsheetarea);
+    // This heavily penalizes solutions that don't place all parts
+    double totalSheetAreaSafe = std::max(totalSheetArea, 1.0); // Avoid division by zero
+    for (const auto& part : parts) {
+        double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+        fitness += 100000000.0 * (partArea / totalSheetAreaSafe);
+    }
 
     // Calculate total merged length
     // JavaScript: totalMerged = ... (calculated in separate loop)
     totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
 
-    // GA DEBUG: Log fitness calculation
+    // GA DEBUG: Log fitness calculation with CORRECTED formulas (FIX 1.1, 1.2, 1.3)
     static int placementCount = 0;
     if (placementCount < 3) {  // Log first 3 placements only
-        std::cout << "\n=== PLACEMENT RESULT #" << placementCount << " ===" << std::endl;
+        std::cout << "\n=== PLACEMENT RESULT #" << placementCount << " (CORRECTED FITNESS) ===" << std::endl;
         std::cout << "  Sheets used: " << allPlacements.size() << std::endl;
         std::cout << "  Total sheet area: " << totalSheetArea << std::endl;
         std::cout << "  Unplaced parts: " << parts.size() << std::endl;
-        std::cout << "  Unplaced penalty: " << (2.0 * parts.size()) << std::endl;
 
-        // Calculate fitness breakdown
-        double sheetCountFitness = static_cast<double>(allPlacements.size());
-        double boundsFitness = fitness - sheetCountFitness - (2.0 * parts.size());
+        // Calculate fitness breakdown with CORRECTED formulas
+        double sheetAreaPenalty = 0.0;
+        for (const auto& placements : allPlacements) {
+            // Each sheet contributes its full area (FIX 1.1)
+            sheetAreaPenalty += totalSheetArea / allPlacements.size(); // Approximate
+        }
+
+        double unplacedPenalty = 0.0;
+        for (const auto& part : parts) {
+            double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+            unplacedPenalty += 100000000.0 * (partArea / totalSheetAreaSafe);
+        }
+
+        // Remaining is bounds+minarea component
+        double boundsAndMinarea = fitness - sheetAreaPenalty - unplacedPenalty;
 
         std::cout << "  FINAL FITNESS: " << fitness << std::endl;
-        std::cout << "    = sheet count (" << sheetCountFitness << ")"
-                  << " + bounds fitness (" << boundsFitness << ")"
-                  << " + unplaced penalty (" << (2.0 * parts.size()) << ")" << std::endl;
+        std::cout << "    = sheet area penalty (" << sheetAreaPenalty << ")"
+                  << " + bounds+minarea (" << boundsAndMinarea << ")"
+                  << " + unplaced penalty (" << unplacedPenalty << ")" << std::endl;
+        std::cout << "  [NOTE: Should be >> 1.0 if fixes working. Typical range: 100k-10M]" << std::endl;
         std::cout.flush();
         placementCount++;
     }
