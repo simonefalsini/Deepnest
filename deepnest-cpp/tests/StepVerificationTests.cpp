@@ -692,6 +692,205 @@ void testStep25_BuildSystem() {
     TEST_END(25_BuildSystem, buildValid, "Build system (qmake/CMake)");
 }
 
+// ========== Step 26: Placement and Transformation Verification ==========
+void testStep26_PlacementTransformation() {
+    TEST_START(26_PlacementTransformation);
+
+    std::cout << "  Testing placement and transformation:" << std::endl;
+
+    // Test 1: Simple rectangle transformation
+    std::cout << "    - Rectangle transformation (rotate + translate)..." << std::endl;
+    {
+        // Create a simple 10x20 rectangle at origin (CCW)
+        std::vector<deepnest::Point> points;
+        points.push_back(deepnest::Point(0, 0));
+        points.push_back(deepnest::Point(0, 20));   // Up
+        points.push_back(deepnest::Point(10, 20));  // Right
+        points.push_back(deepnest::Point(10, 0));   // Down
+
+        deepnest::Polygon rect(points, 0);
+
+        // Apply 90° rotation
+        deepnest::Polygon rotated = rect.rotate(90.0);
+
+        // After 90° CCW rotation around origin:
+        // (0,0) → (0,0)
+        // (0,20) → (-20,0)
+        // (10,20) → (-20,10)
+        // (10,0) → (0,10)
+
+        std::cout << "      Original: (" << rect.points[0].x << "," << rect.points[0].y << ") to "
+                  << "(" << rect.points[2].x << "," << rect.points[2].y << ")" << std::endl;
+        std::cout << "      After 90° rotation: (" << rotated.points[0].x << "," << rotated.points[0].y << ") to "
+                  << "(" << rotated.points[2].x << "," << rotated.points[2].y << ")" << std::endl;
+
+        // Now translate
+        deepnest::Polygon transformed = rotated.translate(100.0, 50.0);
+
+        std::cout << "      After translation (+100,+50): (" << transformed.points[0].x << "," << transformed.points[0].y << ") to "
+                  << "(" << transformed.points[2].x << "," << transformed.points[2].y << ")" << std::endl;
+    }
+
+    // Test 2: PlacementWorker with simple rectangles
+    std::cout << "    - PlacementWorker with rectangles..." << std::endl;
+    {
+        NFPCache cache;
+        NFPCalculator calculator(cache);
+        DeepNestConfig& config = DeepNestConfig::getInstance();
+        config.spacing = 2.0;
+        config.placementType = "gravity";
+
+        PlacementWorker worker(config, calculator);
+
+        // Create 3 simple rectangles (CCW, 30x20 each)
+        std::vector<deepnest::Polygon> parts;
+        for (int i = 0; i < 3; ++i) {
+            std::vector<deepnest::Point> points;
+            points.push_back(deepnest::Point(0, 0));
+            points.push_back(deepnest::Point(0, 20));   // Up
+            points.push_back(deepnest::Point(30, 20));  // Right
+            points.push_back(deepnest::Point(30, 0));   // Down
+
+            deepnest::Polygon rect(points, i);
+
+            // Apply spacing offset like NestingEngine does
+            std::vector<std::vector<deepnest::Point>> offsetResults =
+                deepnest::PolygonOperations::offset(rect.points, 0.5 * config.spacing, 4.0, 0.25);
+
+            if (!offsetResults.empty()) {
+                rect.points = offsetResults[0];
+            }
+
+            parts.push_back(rect);
+        }
+
+        // Create a sheet (200x100, CCW)
+        std::vector<deepnest::Point> sheetPoints;
+        sheetPoints.push_back(deepnest::Point(0, 0));
+        sheetPoints.push_back(deepnest::Point(0, 100));   // Up
+        sheetPoints.push_back(deepnest::Point(200, 100)); // Right
+        sheetPoints.push_back(deepnest::Point(200, 0));   // Down
+
+        deepnest::Polygon sheet(sheetPoints, 100);
+
+        // Apply negative spacing offset to sheet like NestingEngine does
+        std::vector<std::vector<deepnest::Point>> sheetOffsetResults =
+            deepnest::PolygonOperations::offset(sheet.points, -0.5 * config.spacing, 4.0, 0.25);
+
+        if (!sheetOffsetResults.empty()) {
+            sheet.points = sheetOffsetResults[0];
+        }
+
+        std::vector<deepnest::Polygon> sheets = { sheet };
+
+        auto result = worker.placeParts(sheets, parts);
+
+        std::cout << "      Fitness: " << result.fitness << std::endl;
+        std::cout << "      Sheets used: " << result.placements.size() << std::endl;
+
+        if (!result.placements.empty()) {
+            std::cout << "      Placements on sheet 0: " << result.placements[0].size() << std::endl;
+
+            // Log first 3 placements
+            for (size_t i = 0; i < std::min(size_t(3), result.placements[0].size()); ++i) {
+                const auto& p = result.placements[0][i];
+                std::cout << "        Placement " << i << ": id=" << p.id
+                          << ", pos=(" << p.position.x << "," << p.position.y << ")"
+                          << ", rot=" << p.rotation << std::endl;
+            }
+        }
+
+        bool placementValid = !result.placements.empty() && result.placements[0].size() > 0;
+
+        if (!placementValid) {
+            std::cout << "      WARNING: No placements generated!" << std::endl;
+        }
+    }
+
+    // Test 3: Full nesting with DeepNestSolver
+    std::cout << "    - Full nesting with DeepNestSolver..." << std::endl;
+    {
+        DeepNestSolver solver;
+        solver.setSpacing(2.0);
+        solver.setRotations(2);  // 0° and 180°
+        solver.setPopulationSize(5);
+
+        // Create 2 simple rectangles (CCW, original coordinates without spacing)
+        for (int i = 0; i < 2; ++i) {
+            std::vector<deepnest::Point> points;
+            points.push_back(deepnest::Point(0, 0));
+            points.push_back(deepnest::Point(0, 30));   // Up
+            points.push_back(deepnest::Point(40, 30));  // Right
+            points.push_back(deepnest::Point(40, 0));   // Down
+
+            deepnest::Polygon rect(points, i);
+            solver.addPart(rect, 1, "Rect_" + std::to_string(i));
+        }
+
+        // Create sheet (CCW, original coordinates without spacing)
+        std::vector<deepnest::Point> sheetPoints;
+        sheetPoints.push_back(deepnest::Point(0, 0));
+        sheetPoints.push_back(deepnest::Point(0, 100));   // Up
+        sheetPoints.push_back(deepnest::Point(150, 100)); // Right
+        sheetPoints.push_back(deepnest::Point(150, 0));   // Down
+
+        deepnest::Polygon sheet(sheetPoints, 100);
+        solver.addSheet(sheet, 1, "Sheet");
+
+        std::cout << "      Running nesting (5 generations max)..." << std::endl;
+
+        bool resultReceived = false;
+        solver.setResultCallback([&resultReceived](const deepnest::NestResult& result) {
+            std::cout << "      Result callback: fitness=" << result.fitness
+                      << ", sheets=" << result.placements.size() << std::endl;
+
+            if (!result.placements.empty()) {
+                std::cout << "      Placements on sheet 0: " << result.placements[0].size() << std::endl;
+
+                for (size_t i = 0; i < result.placements[0].size(); ++i) {
+                    const auto& p = result.placements[0][i];
+                    std::cout << "        Part " << i << ": id=" << p.id
+                              << ", source=" << p.source
+                              << ", pos=(" << p.position.x << "," << p.position.y << ")"
+                              << ", rot=" << p.rotation << std::endl;
+                }
+            }
+
+            resultReceived = true;
+        });
+
+        solver.start(5);  // 5 generations max
+
+        // Run for a few steps
+        int steps = 0;
+        while (solver.isRunning() && steps < 20) {
+            solver.step();
+            steps++;
+        }
+
+        solver.stop();
+
+        const deepnest::NestResult* bestResult = solver.getBestResult();
+
+        bool nestingValid = (bestResult != nullptr);
+
+        if (bestResult) {
+            std::cout << "      Best fitness: " << bestResult->fitness << std::endl;
+            std::cout << "      Best result has " << bestResult->placements.size() << " sheets" << std::endl;
+
+            if (!bestResult->placements.empty()) {
+                std::cout << "      Best result sheet 0 has " << bestResult->placements[0].size() << " placements" << std::endl;
+            } else {
+                std::cout << "      WARNING: Best result has empty placements!" << std::endl;
+            }
+        } else {
+            std::cout << "      WARNING: No best result!" << std::endl;
+        }
+    }
+
+    TEST_END(26_PlacementTransformation, true, "Placement and transformation verification");
+}
+
 // ========== Main Test Runner ==========
 int main() {
     std::cout << "========================================" << std::endl;
@@ -728,6 +927,7 @@ int main() {
     testStep23_SVGLoader();
     testStep24_RandomShapeGenerator();
     testStep25_BuildSystem();
+    testStep26_PlacementTransformation();
 
     auto overallEnd = std::chrono::high_resolution_clock::now();
     double totalTime = std::chrono::duration<double, std::milli>(overallEnd - overallStart).count();
