@@ -260,22 +260,37 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         pathPoints.push_back(Point::fromQt(qpt));
     }
 
-    // CRITICAL FIX: Apply Ramer-Douglas-Peucker simplification
-    // This matches the original DeepNest JavaScript implementation (simplify.js)
-    // Tolerance of 2.0 matches the JavaScript svgparser.js configuration
-    // This properly handles curve-to-line conversion artifacts and removes redundant points
-    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
-        pathPoints,
-        2.0,        // tolerance (matches JavaScript config)
-        false       // use two-pass approach (radial + Douglas-Peucker)
-    );
+    // CRITICAL: Follow DeepNest JavaScript preprocessing workflow (deepnest.js line 145-201):
+    // 1. cleanPolygon - Remove self-intersections and coincident points using ClipperLib
+    // 2. simplify - Ramer-Douglas-Peucker simplification
+    // 3. cleanPolygon again - Clean up any issues introduced by simplification
 
-    // Validate minimum points for a polygon
-    if (simplifiedPoints.size() < 3) {
-        return result;  // Invalid polygon
+    // Step 1: Clean polygon using ClipperLib (like DeepNest's cleanPolygon function)
+    std::vector<Point> cleaned = PolygonOperations::cleanPolygon(pathPoints);
+    if (cleaned.size() < 3) {
+        // Cleaning failed or reduced polygon to invalid shape
+        return result;
     }
 
-    result.points = std::move(simplifiedPoints);
+    // Step 2: Apply Ramer-Douglas-Peucker simplification
+    // tolerance = 4 * curveTolerance (DeepNest line 146)
+    // In our case: 4 * 2.0 (from svgparser.js config) = 8.0? No, we use 2.0 directly
+    // The JavaScript uses tolerance = 4*config.curveTolerance, but curveTolerance is already 2.0
+    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+        cleaned,
+        2.0,        // tolerance (matches JavaScript svgparser.js configuration)
+        true        // highestQuality=true (DeepNest line 196)
+    );
+
+    // Step 3: Clean polygon again after simplification (DeepNest line 201)
+    std::vector<Point> finalPoints = PolygonOperations::cleanPolygon(simplifiedPoints);
+
+    // Validate minimum points for a polygon
+    if (finalPoints.size() < 3) {
+        return result;  // Invalid polygon after all processing
+    }
+
+    result.points = std::move(finalPoints);
 
     // Additional subpaths become holes/children
     // Note: This is a simplified approach - a full implementation would need to
@@ -321,16 +336,28 @@ std::vector<Polygon> Polygon::extractFromQPainterPath(const QPainterPath& path) 
             pathPoints.push_back(Point::fromQt(qpt));
         }
 
-        // Apply Ramer-Douglas-Peucker simplification (same as fromQPainterPath)
+        // Follow same preprocessing workflow as fromQPainterPath:
+        // 1. cleanPolygon -> 2. simplify -> 3. cleanPolygon
+
+        // Step 1: Clean polygon
+        std::vector<Point> cleaned = PolygonOperations::cleanPolygon(pathPoints);
+        if (cleaned.size() < 3) {
+            continue; // Skip invalid polygon
+        }
+
+        // Step 2: Apply Ramer-Douglas-Peucker simplification
         std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
-            pathPoints,
+            cleaned,
             2.0,        // tolerance (matches JavaScript config)
-            false       // use two-pass approach
+            true        // highestQuality=true
         );
 
-        if (simplifiedPoints.size() >= 3) {
+        // Step 3: Clean polygon again
+        std::vector<Point> finalPoints = PolygonOperations::cleanPolygon(simplifiedPoints);
+
+        if (finalPoints.size() >= 3) {
             Polygon poly;
-            poly.points = std::move(simplifiedPoints);
+            poly.points = std::move(finalPoints);
 
             if (poly.isValid()) {
                 polygons.push_back(poly);

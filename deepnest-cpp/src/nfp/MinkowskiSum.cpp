@@ -159,89 +159,24 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // CRITICAL FIX: Aggressive cleaning to prevent "invalid comparator" errors
-    // in Boost.Polygon scanline algorithm
+    // NOTE: Polygon cleaning should be done BEFORE calling Minkowski sum,
+    // using PolygonOperations::cleanPolygon() in the preprocessing stage.
+    // This function simply converts the already-cleaned polygon to Boost format.
 
-    // Convert outer boundary with rounding
+    // Convert outer boundary using simple casting (matches original minkowski.cc)
     std::vector<IntPoint> points;
     points.reserve(poly.points.size());
 
     for (const auto& p : poly.points) {
-        // Use proper rounding instead of truncation to reduce quantization errors
-        int x = static_cast<int>(std::round(scale * p.x));
-        int y = static_cast<int>(std::round(scale * p.y));
+        // Use simple truncation casting like original DeepNest (minkowski.cc line 170)
+        // The polygon should already be cleaned using ClipperLib before this step
+        int x = static_cast<int>(scale * p.x);
+        int y = static_cast<int>(scale * p.y);
         points.push_back(IntPoint(x, y));
     }
 
-    // CRITICAL: Cleaning function to prevent "invalid comparator" errors
-    // Removes: near-duplicates and nearly-collinear points
-
-    // TUNABLE PARAMETERS:
-    // AGGRESSIVE cleaning to prevent Boost.Polygon scanline comparator failures
-    // These values must be large enough to prevent numerical precision issues
-    // in the scanline algorithm, but small enough to preserve geometry shape
-    constexpr int MIN_EDGE_DISTANCE_SQ = 4;           // Remove points within 2 integer units (after scaling)
-    constexpr long long COLLINEARITY_THRESHOLD = 10;  // Remove nearly-collinear points (cross product < 10)
-
-    auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
-        if (pts.size() < 3) return false;
-
-        std::vector<IntPoint> cleaned;
-        cleaned.reserve(pts.size());
-
-        // STEP 1: Remove near-duplicate points (not just exact duplicates)
-        for (size_t i = 0; i < pts.size(); ++i) {
-            size_t next = (i + 1) % pts.size();
-
-            // Calculate squared distance to next point
-            long long dx = static_cast<long long>(pts[next].x()) - pts[i].x();
-            long long dy = static_cast<long long>(pts[next].y()) - pts[i].y();
-            long long distSq = dx * dx + dy * dy;
-
-            // Keep point only if it's far enough from the next point
-            if (distSq > MIN_EDGE_DISTANCE_SQ) {
-                cleaned.push_back(pts[i]);
-            }
-        }
-
-        if (cleaned.size() < 3) return false;
-
-        // STEP 2: Remove nearly-collinear points (not just exactly collinear)
-        // This prevents scanline algorithm comparator failures from near-collinear edges
-        std::vector<IntPoint> final;
-        final.reserve(cleaned.size());
-
-        for (size_t i = 0; i < cleaned.size(); ++i) {
-            size_t prev = (i == 0) ? cleaned.size() - 1 : i - 1;
-            size_t next = (i + 1) % cleaned.size();
-
-            // Vectors
-            long long dx1 = static_cast<long long>(cleaned[i].x()) - cleaned[prev].x();
-            long long dy1 = static_cast<long long>(cleaned[i].y()) - cleaned[prev].y();
-            long long dx2 = static_cast<long long>(cleaned[next].x()) - cleaned[i].x();
-            long long dy2 = static_cast<long long>(cleaned[next].y()) - cleaned[i].y();
-
-            // Cross product to detect collinearity
-            long long cross = dx1 * dy2 - dy1 * dx2;
-
-            // Keep point only if NOT nearly collinear (absolute cross product must exceed threshold)
-            // This aggressively removes near-straight edges that cause scanline comparator failures
-            if (std::abs(cross) > COLLINEARITY_THRESHOLD) {
-                final.push_back(cleaned[i]);
-            }
-        }
-
-        if (final.size() >= 3) {
-            pts = std::move(final);
-            return true;
-        }
-
-        return false;
-    };
-
-    // Clean and validate
-    if (!cleanPoints(points)) {
-        // Return empty polygon if cleaning failed
+    // Validate minimum points
+    if (points.size() < 3) {
         return IntPolygonWithHoles();
     }
 
@@ -255,7 +190,7 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
-    // Convert holes with same aggressive cleaning
+    // Convert holes (if any)
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -265,13 +200,12 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             holePoints.reserve(hole.points.size());
 
             for (const auto& p : hole.points) {
-                int x = static_cast<int>(std::round(scale * p.x));
-                int y = static_cast<int>(std::round(scale * p.y));
+                int x = static_cast<int>(scale * p.x);
+                int y = static_cast<int>(scale * p.y);
                 holePoints.push_back(IntPoint(x, y));
             }
 
-            // Aggressive cleaning for holes
-            if (cleanPoints(holePoints)) {
+            if (holePoints.size() >= 3) {
                 try {
                     IntPolygon holePoly;
                     set_points(holePoly, holePoints.begin(), holePoints.end());
