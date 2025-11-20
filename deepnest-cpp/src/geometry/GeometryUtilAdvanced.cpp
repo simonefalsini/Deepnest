@@ -576,8 +576,9 @@ std::optional<Point> searchStartPoint(
                 d = std::min(d1.value(), d2.value());
             }
 
-            // Only slide until no longer negative
-            if (!d.has_value() || (!almostEqual(d.value(), 0.0) && d.value() <= 0)) {
+            // Only slide if d is positive and not almost zero
+            // JavaScript: if(d !== null && !_almostEqual(d,0) && d > 0)
+            if (!d.has_value() || almostEqual(d.value(), 0.0) || d.value() <= 0) {
                 continue;
             }
 
