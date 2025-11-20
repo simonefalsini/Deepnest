@@ -109,14 +109,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         // JavaScript: for(i=0; i<parts.length; i++)
         for (size_t i = 0; i < parts.size(); ) {
             Polygon& part = parts[i];
-
+#ifdef PLACEMENTDEBUG
             std::cerr << "\n=== PLACEMENT LOOP ITERATION ===" << std::endl;
             std::cerr << "  Iteration i=" << i << ", parts.size()=" << parts.size()
                       << ", placed.size()=" << placed.size() << std::endl;
             std::cerr << "  Current part: id=" << part.id << ", source=" << part.source
                       << ", rotation=" << part.rotation << std::endl;
             std::cerr.flush();
-
+#endif
             // JavaScript: var sheetNfp = null;
             //             for(j=0; j<(360/config.rotations); j++) {
             //               sheetNfp = getInnerNfp(sheet, part, config);
@@ -213,11 +213,13 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
                 // DEBUG LOGGING for first placement
                 if (placements.empty()) {
+#ifdef PLACEMENTDEBUG
                     std::cout << "\n=== PLACEMENT DEBUG: First placement ===" << std::endl;
                     std::cout << "  Part ID: " << part.id << ", Source: " << part.source
                               << ", Rotation: " << part.rotation << std::endl;
                     std::cout << "  Part.points[0]: (" << partRef.x << ", " << partRef.y << ")" << std::endl;
                     std::cout << "  Part first 4 points: ";
+#endif
                     for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
                         std::cout << "(" << part.points[p].x << "," << part.points[p].y << ") ";
                     }
@@ -251,8 +253,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 }
 
                 if (foundPosition) {
+#ifdef PLACEMENTDEBUG
                     // DEBUG LOGGING for calculated position
                     if (placements.empty()) {
+
                         std::cout << "  Selected innerNFP point (minX,minY): ("
                                   << (minX + partRef.x) << ", " << (minY + partRef.y) << ")" << std::endl;
                         std::cout << "  Calculated position: (" << bestPos.x << ", " << bestPos.y << ")" << std::endl;
@@ -268,26 +272,28 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                     std::cerr << "    part.id: " << part.id << ", part.source: " << part.source
                               << ", part.rotation: " << part.rotation << std::endl;
                     std::cerr.flush();
-
+#endif
                     position = Placement(bestPos, part.id, part.source, part.rotation);
-
+#ifdef PLACEMENTDEBUG
                     std::cerr << "  Placement object created, pushing to vector..." << std::endl;
                     std::cerr.flush();
-
+#endif
                     placements.push_back(position);
                     placed.push_back(part);
-
+#ifdef PLACEMENTDEBUG
                     std::cerr << "  FIRST PLACEMENT COMPLETE ===" << std::endl;
                     std::cerr << "    Total placed: " << placed.size() << std::endl;
                     std::cerr << "    Parts remaining before erase: " << parts.size() << std::endl;
-
+#endif
                     // Remove from parts list
                     parts.erase(parts.begin() + i);
-
+#ifdef PLACEMENTDEBUG
                     std::cerr << "    Parts remaining after erase: " << parts.size() << std::endl;
                     std::cerr << "    About to continue loop..." << std::endl;
                     std::cerr.flush();
+
                     // Don't increment i, since we removed this element
+#endif
                 }
                 else {
                     i++;
@@ -302,20 +308,21 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
             std::vector<Polygon> outerNfps;
             bool error = false;
-
+#ifdef PLACEMENTDEBUG
             std::cerr << "=== PLACEMENT DEBUG: Computing outer NFPs ===" << std::endl;
             std::cerr << "  Number of already placed parts: " << placed.size() << std::endl;
-
+#endif
             // JavaScript: for(j=startindex; j<placed.length; j++)
             for (size_t j = 0; j < placed.size(); j++) {
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  Computing outer NFP for placed[" << j << "] (id=" << placed[j].id
                           << ") vs current part (id=" << part.id << ")" << std::endl;
-
+#endif
                 // JavaScript: nfp = getOuterNfp(placed[j], part);
                 Polygon outerNfp = nfpCalculator_.getOuterNFP(placed[j], part, false);
-
+#ifdef PLACEMENTDEBUG
                 std::cerr << "    Result: " << (outerNfp.points.empty() ? "EMPTY" : std::to_string(outerNfp.points.size()) + " points") << std::endl;
-
+#endif
                 if (outerNfp.points.empty()) {
                     error = true;
                     break;
@@ -341,11 +348,13 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
                 outerNfps.push_back(outerNfp);
             }
-
+#ifdef PLACEMENTDEBUG
             std::cerr << "  Successfully collected " << outerNfps.size() << " outer NFPs" << std::endl;
-
+#endif
             if (error) {
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  ERROR: One or more outer NFPs were empty, skipping this part" << std::endl;
+#endif
                 i++;
                 continue;
             }
@@ -354,19 +363,27 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             // Union all outer NFPs
             std::vector<std::vector<Point>> combinedNfpPoints;
             if (!outerNfps.empty()) {
+#ifdef PLACEMENTDEBUG
                 std::cerr << "=== PLACEMENT DEBUG: Calling unionPolygons ===" << std::endl;
                 std::cerr << "  Number of polygons to union: " << outerNfps.size() << std::endl;
 
+#endif
                 // Convert Polygons to point vectors for union
                 std::vector<std::vector<Point>> outerNfpPoints;
                 for (const auto& nfp : outerNfps) {
+#ifdef PLACEMENTDEBUG
                     std::cerr << "    Polygon: " << nfp.points.size() << " points" << std::endl;
+#endif
                     outerNfpPoints.push_back(nfp.points);
                 }
 
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  Calling PolygonOperations::unionPolygons..." << std::endl;
+#endif
                 combinedNfpPoints = PolygonOperations::unionPolygons(outerNfpPoints);
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  unionPolygons completed successfully! Result: " << combinedNfpPoints.size() << " polygon(s)" << std::endl;
+#endif
             }
 
             // JavaScript: var finalNfp = new ClipperLib.Paths();
@@ -378,36 +395,45 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             std::vector<Polygon> finalNfp;
 
             if (combinedNfpPoints.empty()) {
+#ifdef PLACEMENTDEBUG
                 std::cerr << "=== PLACEMENT DEBUG: No combined NFPs ===" << std::endl;
                 std::cerr << "  Using innerNfp directly (no collisions)" << std::endl;
+#endif
                 // No outer NFPs, just use inner NFP
                 finalNfp.push_back(innerNfp);
             }
             else {
+#ifdef PLACEMENTDEBUG
                 std::cerr << "=== PLACEMENT DEBUG: Performing difference operation ===" << std::endl;
                 std::cerr << "  innerNfp points: " << innerNfp.points.size() << std::endl;
                 std::cerr << "  combinedNfpPoints polygons: " << combinedNfpPoints.size() << std::endl;
-
+#endif
                 // Perform difference operation
                 // Convert combined NFP to Polygon for difference
                 Polygon combinedNfpPoly;
                 if (!combinedNfpPoints.empty()) {
                     combinedNfpPoly.points = combinedNfpPoints[0];
+#ifdef PLACEMENTDEBUG
                     std::cerr << "  combinedNfpPoly[0] points: " << combinedNfpPoly.points.size() << std::endl;
+#endif
                     // Add remaining as children (holes) if any
                     for (size_t idx = 1; idx < combinedNfpPoints.size(); idx++) {
                         Polygon child;
                         child.points = combinedNfpPoints[idx];
                         combinedNfpPoly.children.push_back(child);
+#ifdef PLACEMENTDEBUG
                         std::cerr << "  combinedNfpPoly child[" << (idx-1) << "] points: " << child.points.size() << std::endl;
+#endif
                     }
                 }
-
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  Calling PolygonOperations::differencePolygons..." << std::endl;
+#endif
                 std::vector<std::vector<Point>> differenceResult =
                     PolygonOperations::differencePolygons(innerNfp.points, combinedNfpPoly.points);
+#ifdef PLACEMENTDEBUG
                 std::cerr << "  differencePolygons completed successfully! Result: " << differenceResult.size() << " polygon(s)" << std::endl;
-
+#endif
                 // Convert result back to Polygons
                 for (const auto& pointVec : differenceResult) {
                     Polygon poly;
@@ -422,10 +448,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 i++;
                 continue;
             }
-
+#ifdef PLACEMENTDEBUG
             std::cerr << "=== PLACEMENT DEBUG: finalNfp computed successfully ===" << std::endl;
             std::cerr << "  Number of NFP polygons: " << finalNfp.size() << std::endl;
-
+#endif
             // Filter small polygons
             // JavaScript: for(j=0; j<finalNfp.length; j++) {
             //               var area = Math.abs(ClipperLib.Clipper.Area(finalNfp[j]));
