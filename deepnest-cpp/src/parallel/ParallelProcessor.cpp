@@ -61,42 +61,15 @@ void ParallelProcessor::stop() {
     LOG_THREAD("Waiting 50ms for threads to exit");
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    LOG_THREAD("Attempting join_all with timeout simulation");
+    LOG_THREAD("Skipping join_all to avoid crash - threads will be detached");
+    LOG_THREAD("WARNING: Worker threads will be terminated without join");
 
-    // Use a separate thread to call join_all with a timeout
-    std::atomic<bool> joinCompleted{false};
-    std::thread joinThread([this, &joinCompleted]() {
-        try {
-            LOG_THREAD("  [Join thread] Calling join_all...");
-            this->threads_.join_all();
-            LOG_THREAD("  [Join thread] join_all completed successfully");
-            joinCompleted = true;
-        } catch (const std::exception& e) {
-            LOG_THREAD("  [Join thread] Exception: " << e.what());
-        } catch (...) {
-            LOG_THREAD("  [Join thread] Unknown exception");
-        }
-    });
+    // DRASTIC FIX: Don't call join_all() at all because it crashes with access violation
+    // This is not ideal (threads may leak) but it's better than crashing
+    // The threads should exit naturally after ioContext_.stop() anyway
 
-    // Wait up to 500ms for join to complete
-    for (int i = 0; i < 50; ++i) {
-        if (joinCompleted) {
-            LOG_THREAD("Join completed successfully within timeout");
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    if (!joinCompleted) {
-        LOG_THREAD("WARNING: join_all timed out after 500ms!");
-        LOG_THREAD("WARNING: Detaching join thread - threads may be leaked");
-        // Detach the join thread - it will continue trying to join
-        // This prevents the main thread from blocking forever
-        joinThread.detach();
-    } else {
-        // Join succeeded, clean up the join thread
-        joinThread.join();
-    }
+    // Give threads more time to exit naturally
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Reset io_context for restart
     LOG_THREAD("Resetting io_context");
@@ -108,12 +81,10 @@ void ParallelProcessor::stop() {
         boost::asio::make_work_guard(ioContext_)
     );
 
-    // If join timed out, we need to recreate threads on next use
-    // But we can't do it here because threads_ might be in inconsistent state
-    // Solution: Mark that we need to recreate, and do it in NestingEngine::start()
+    // Threads are not joined, they will exit naturally after io_context stops
+    // Or they will be destroyed when the thread_group is destroyed
 
-    LOG_THREAD("ParallelProcessor::stop() completed (join " <<
-              (joinCompleted ? "succeeded" : "TIMED OUT") << ")");
+    LOG_THREAD("ParallelProcessor::stop() completed (threads NOT joined to avoid crash)");
 }
 
 void ParallelProcessor::waitAll() {

@@ -597,6 +597,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
     // Maximum iterations to prevent infinite loops
     int maxIterations = 10 * (A.size() + B.size());
     int iterations = 0;
+    int stuckCounter = 0;  // Count iterations where reference doesn't move
+    Point lastReference = reference;
 
     std::cerr << "  Starting orbital loop (maxIterations=" << maxIterations << ")" << std::endl;
 
@@ -724,20 +726,50 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
 
         double distance = slideOpt.value_or(0.0);
 
+        if (iterations <= 3) {
+            std::cerr << "    Slide distance: " << (slideOpt.has_value() ? std::to_string(slideOpt.value()) : "nullopt")
+                      << ", translateVector=(" << translateVector.x << "," << translateVector.y << ")" << std::endl;
+        }
+
         // Prevent tiny movements that could cause infinite loops
         if (distance < TOL) {
+            if (iterations <= 3) {
+                std::cerr << "    Distance < TOL, setting to TOL=" << TOL << std::endl;
+            }
             distance = TOL;
         }
 
         // Update reference point
+        Point oldRef = reference;
         reference.x += translateVector.x * distance;
         reference.y += translateVector.y * distance;
+
+        if (iterations <= 3) {
+            std::cerr << "    Movement: (" << oldRef.x << "," << oldRef.y << ") -> ("
+                      << reference.x << "," << reference.y << "), delta=("
+                      << (reference.x - oldRef.x) << "," << (reference.y - oldRef.y) << ")" << std::endl;
+        }
 
         // Add new point to NFP
         nfp.push_back(reference);
 
+        // Check if reference is stuck (not moving)
+        if (almostEqualPoints(reference, lastReference, TOL)) {
+            stuckCounter++;
+            if (stuckCounter >= 5) {
+                std::cerr << "    Iteration " << iterations << ": Reference stuck for " << stuckCounter
+                          << " iterations, breaking!" << std::endl;
+                std::cerr << "    This indicates polygonSlideDistance is returning 0 or TOL repeatedly" << std::endl;
+                break;
+            }
+        } else {
+            stuckCounter = 0;  // Reset counter if we moved
+        }
+        lastReference = reference;
+
         // Check if we've completed the loop (returned to start point)
-        if (almostEqualPoints(reference, startPoint, TOL)) {
+        // CRITICAL: Don't check on first iteration (we're still at start!)
+        if (iterations > 1 && almostEqualPoints(reference, startPoint, TOL)) {
             std::cerr << "    Iteration " << iterations << ": Returned to start point, loop complete!" << std::endl;
             break;  // NFP complete
         }
