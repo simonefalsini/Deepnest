@@ -246,12 +246,24 @@ int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <svg-file>" << std::endl;
-        std::cerr << "\nThis tool extracts problematic polygon pairs and tests NFP calculations." << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <svg-file> [--all-pairs]" << std::endl;
+        std::cerr << "\nOptions:" << std::endl;
+        std::cerr << "  <svg-file>     SVG file to load polygons from" << std::endl;
+        std::cerr << "  --all-pairs    Test ALL possible NFP pairs (outer + inner)" << std::endl;
+        std::cerr << "                 Without this, tests only predefined problematic pairs" << std::endl;
+        std::cerr << "\nThis tool extracts polygon pairs and tests NFP calculations." << std::endl;
         return 1;
     }
 
     QString svgFile = argv[1];
+    bool testAllPairs = false;
+
+    // Check for --all-pairs option
+    for (int i = 2; i < argc; i++) {
+        if (QString(argv[i]) == "--all-pairs") {
+            testAllPairs = true;
+        }
+    }
 
     std::cout << "========================================" << std::endl;
     std::cout << "  Polygon Extractor & NFP Tester" << std::endl;
@@ -282,39 +294,184 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Loaded " << polygons.size() << " polygons" << std::endl;
 
-    // Process each problematic pair
-    for (const auto& pair : problematicPairs) {
+    if (testAllPairs) {
+        // ==================================================
+        // TEST ALL POSSIBLE NFP PAIRS
+        // ==================================================
         std::cout << "\n========================================" << std::endl;
-        std::cout << "Testing pair: A(id=" << pair.idA << ") vs B(id=" << pair.idB << ")" << std::endl;
-        std::cout << "Description: " << pair.description << std::endl;
+        std::cout << "  TESTING ALL PAIRS MODE" << std::endl;
         std::cout << "========================================" << std::endl;
 
-        // Find polygons by ID
-        Polygon* polyA = nullptr;
-        Polygon* polyB = nullptr;
+        int totalOuterPairs = (polygons.size() * (polygons.size() - 1)) / 2;
+        int totalInnerPairs = polygons.size();
+        int totalTests = totalOuterPairs + totalInnerPairs;
 
-        for (auto& poly : polygons) {
-            if (poly.id == pair.idA) polyA = &poly;
-            if (poly.id == pair.idB) polyB = &poly;
+        std::cout << "Total tests to perform: " << totalTests << std::endl;
+        std::cout << "  - Outer NFP (part vs part): " << totalOuterPairs << " pairs" << std::endl;
+        std::cout << "  - Inner NFP (sheet vs part): " << totalInnerPairs << " pairs" << std::endl;
+
+        int testsCompleted = 0;
+        int testsFailed = 0;
+
+        // ========== PART 1: Test all OUTER NFP pairs (part vs part) ==========
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "  PART 1: OUTER NFP (part vs part)" << std::endl;
+        std::cout << "========================================" << std::endl;
+
+        for (size_t i = 0; i < polygons.size(); i++) {
+            for (size_t j = i + 1; j < polygons.size(); j++) {
+                testsCompleted++;
+
+                std::cout << "\n----------------------------------------" << std::endl;
+                std::cout << "Test " << testsCompleted << "/" << totalTests << std::endl;
+                std::cout << "Outer NFP: Polygon " << polygons[i].id << " vs " << polygons[j].id << std::endl;
+                std::cout << "  A: " << polygons[i].points.size() << " points" << std::endl;
+                std::cout << "  B: " << polygons[j].points.size() << " points" << std::endl;
+                std::cout << "----------------------------------------" << std::endl;
+
+                try {
+                    // Test Minkowski sum (outer NFP)
+                    auto nfps = MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
+
+                    if (nfps.empty()) {
+                        std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
+                        testsFailed++;
+                    } else {
+                        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP(s) generated" << std::endl;
+                    }
+                } catch (const std::exception& e) {
+                    std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
+                    testsFailed++;
+                } catch (...) {
+                    std::cout << "  ❌ UNKNOWN EXCEPTION" << std::endl;
+                    testsFailed++;
+                }
+            }
         }
 
-        if (!polyA || !polyB) {
-            std::cout << "⚠️  Could not find one or both polygons" << std::endl;
-            continue;
+        // ========== PART 2: Test all INNER NFP pairs (sheet vs part) ==========
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "  PART 2: INNER NFP (sheet vs part)" << std::endl;
+        std::cout << "========================================" << std::endl;
+
+        // Create sheet polygon (bounding rectangle of all polygons + margin)
+        if (!polygons.empty()) {
+            // Calculate combined bounding box
+            BoundingBox combinedBox = polygons[0].bounds();
+            for (size_t i = 1; i < polygons.size(); i++) {
+                BoundingBox box = polygons[i].bounds();
+                combinedBox.x = std::min(combinedBox.x, box.x);
+                combinedBox.y = std::min(combinedBox.y, box.y);
+                double maxX = std::max(combinedBox.x + combinedBox.width, box.x + box.width);
+                double maxY = std::max(combinedBox.y + combinedBox.height, box.y + box.height);
+                combinedBox.width = maxX - combinedBox.x;
+                combinedBox.height = maxY - combinedBox.y;
+            }
+
+            // Add margin (20% on each side)
+            double margin = std::max(combinedBox.width, combinedBox.height) * 0.2;
+            combinedBox.x -= margin;
+            combinedBox.y -= margin;
+            combinedBox.width += 2 * margin;
+            combinedBox.height += 2 * margin;
+
+            // Create sheet polygon (rectangle)
+            Polygon sheet;
+            sheet.id = "sheet";
+            sheet.points.push_back({combinedBox.x, combinedBox.y});
+            sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y});
+            sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y + combinedBox.height});
+            sheet.points.push_back({combinedBox.x, combinedBox.y + combinedBox.height});
+
+            std::cout << "Sheet rectangle: " << combinedBox.width << " x " << combinedBox.height << std::endl;
+            std::cout << "Sheet origin: (" << combinedBox.x << ", " << combinedBox.y << ")" << std::endl;
+
+            // Test each part against sheet
+            for (size_t i = 0; i < polygons.size(); i++) {
+                testsCompleted++;
+
+                std::cout << "\n----------------------------------------" << std::endl;
+                std::cout << "Test " << testsCompleted << "/" << totalTests << std::endl;
+                std::cout << "Inner NFP: Sheet vs Polygon " << polygons[i].id << std::endl;
+                std::cout << "  Sheet: " << sheet.points.size() << " points (rectangle)" << std::endl;
+                std::cout << "  Part: " << polygons[i].points.size() << " points" << std::endl;
+                std::cout << "----------------------------------------" << std::endl;
+
+                try {
+                    // Test Minkowski sum (inner NFP)
+                    auto nfps = MinkowskiSum::calculateNFP(sheet, polygons[i], true);
+
+                    if (nfps.empty()) {
+                        std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
+                        testsFailed++;
+                    } else {
+                        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP(s) generated" << std::endl;
+                    }
+                } catch (const std::exception& e) {
+                    std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
+                    testsFailed++;
+                } catch (...) {
+                    std::cout << "  ❌ UNKNOWN EXCEPTION" << std::endl;
+                    testsFailed++;
+                }
+            }
         }
 
-        // Save individual polygons
-        savePolygonToSVG(*polyA, QString("polygon_%1_A.svg").arg(pair.idA));
-        savePolygonToSVG(*polyB, QString("polygon_%1_B.svg").arg(pair.idB));
+        // ========== SUMMARY ==========
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "  ALL PAIRS TEST SUMMARY" << std::endl;
+        std::cout << "========================================" << std::endl;
+        std::cout << "Total tests: " << testsCompleted << std::endl;
+        std::cout << "Succeeded: " << (testsCompleted - testsFailed) << std::endl;
+        std::cout << "Failed/Warning: " << testsFailed << std::endl;
 
-        // Test both algorithms with OUTSIDE mode (part-to-part collision)
-        testMinkowskiSum(*polyA, *polyB, false);
-        testOrbitalTracing(*polyA, *polyB, false);
+        if (testsFailed == 0) {
+            std::cout << "\n✅ ALL TESTS PASSED!" << std::endl;
+        } else {
+            std::cout << "\n⚠️  Some tests failed or returned empty results" << std::endl;
+        }
+
+    } else {
+        // ==================================================
+        // TEST ONLY PREDEFINED PROBLEMATIC PAIRS
+        // ==================================================
+        std::cout << "\nTesting predefined problematic pairs..." << std::endl;
+        std::cout << "(Use --all-pairs to test all possible combinations)" << std::endl;
+
+        // Process each problematic pair
+        for (const auto& pair : problematicPairs) {
+            std::cout << "\n========================================" << std::endl;
+            std::cout << "Testing pair: A(id=" << pair.idA << ") vs B(id=" << pair.idB << ")" << std::endl;
+            std::cout << "Description: " << pair.description << std::endl;
+            std::cout << "========================================" << std::endl;
+
+            // Find polygons by ID
+            Polygon* polyA = nullptr;
+            Polygon* polyB = nullptr;
+
+            for (auto& poly : polygons) {
+                if (poly.id == pair.idA) polyA = &poly;
+                if (poly.id == pair.idB) polyB = &poly;
+            }
+
+            if (!polyA || !polyB) {
+                std::cout << "⚠️  Could not find one or both polygons" << std::endl;
+                continue;
+            }
+
+            // Save individual polygons
+            savePolygonToSVG(*polyA, QString("polygon_%1_A.svg").arg(pair.idA));
+            savePolygonToSVG(*polyB, QString("polygon_%1_B.svg").arg(pair.idB));
+
+            // Test both algorithms with OUTSIDE mode (part-to-part collision)
+            testMinkowskiSum(*polyA, *polyB, false);
+            testOrbitalTracing(*polyA, *polyB, false);
+        }
     }
 
     std::cout << "\n========================================" << std::endl;
     std::cout << "Testing complete!" << std::endl;
-    std::cout << "Check generated SVG files for visualization" << std::endl;
+    std::cout << "Check console output and generated SVG files" << std::endl;
     std::cout << "========================================" << std::endl;
 
     return 0;
