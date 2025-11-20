@@ -73,6 +73,7 @@ CTestTestfile.cmake
 # Test executables
 deepnest-cpp/bin/TestApplication
 deepnest-cpp/bin/StepVerificationTests
+deepnest-cpp/bin/DiagnosticTool
 deepnest-cpp/tests/FitnessTests
 deepnest-cpp/tests/GeneticAlgorithmTests
 deepnest-cpp/tests/JSComparisonTests
