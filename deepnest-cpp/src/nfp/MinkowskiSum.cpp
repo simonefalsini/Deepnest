@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <mutex>
 
 #undef min
 #undef max
@@ -11,6 +12,11 @@
 namespace deepnest {
 
 using namespace boost::polygon;
+
+// CRITICAL: Static mutex definition for thread-safe Boost.Polygon operations
+// Boost.Polygon is NOT thread-safe and causes access violations (0xc0000005)
+// when used concurrently from multiple threads
+std::mutex MinkowskiSum::boostPolygonMutex;
 
 // Type aliases for Boost.Polygon types with integer coordinates
 using IntPoint = point_data<int>;
@@ -217,81 +223,33 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
-    // CRITICAL VALIDATION: Check for degenerate geometries that would crash Boost.Polygon
-    // These checks are done AFTER integer conversion because the degeneracy occurs
-    // in integer space due to truncation and scaling
-    auto isGeometryDegenerate = [](const std::vector<IntPoint>& pts) -> bool {
+    // MINIMAL VALIDATION: Check only for truly degenerate geometries
+    // The real crash issue was thread-safety (now fixed with mutex)
+    // Keep only basic sanity checks for obviously invalid polygons
+    auto isGeometryInvalid = [](const std::vector<IntPoint>& pts) -> bool {
         if (pts.size() < 3) return true;
 
-        // 1. Calculate polygon area in integer space using shoelace formula
-        //    Zero or near-zero area indicates degenerate geometry
-        long long area2 = 0;  // 2 * area to avoid division
+        // Check for zero area (completely degenerate - all points collinear)
+        long long area2 = 0;
         for (size_t i = 0; i < pts.size(); ++i) {
             size_t next = (i + 1) % pts.size();
             area2 += static_cast<long long>(pts[i].x()) * pts[next].y();
             area2 -= static_cast<long long>(pts[next].x()) * pts[i].y();
         }
-        area2 = std::abs(area2);
 
-        // If area is zero or extremely small, polygon is degenerate
-        if (area2 < 100) {  // Threshold: less than 50 square units in integer space
-            std::cerr << "WARNING: Polygon has near-zero area (" << (area2/2.0)
-                      << ") in integer space - likely degenerate\n";
-            return true;
-        }
-
-        // 2. Check for extremely small bounding box (collapsed polygon)
-        int minX = pts[0].x(), maxX = pts[0].x();
-        int minY = pts[0].y(), maxY = pts[0].y();
-        for (const auto& pt : pts) {
-            minX = std::min(minX, pt.x());
-            maxX = std::max(maxX, pt.x());
-            minY = std::min(minY, pt.y());
-            maxY = std::max(maxY, pt.y());
-        }
-        long long bboxWidth = maxX - minX;
-        long long bboxHeight = maxY - minY;
-
-        // If bounding box is too thin (almost a line), it's degenerate
-        if (bboxWidth < 2 || bboxHeight < 2) {
-            std::cerr << "WARNING: Polygon has thin bounding box ("
-                      << bboxWidth << " x " << bboxHeight << ") - likely degenerate\n";
-            return true;
-        }
-
-        // 3. Check for excessive collinearity (many points on same line)
-        //    This can confuse Boost's scanline algorithm
-        int collinearCount = 0;
-        for (size_t i = 0; i < pts.size(); ++i) {
-            size_t prev = (i == 0) ? pts.size() - 1 : i - 1;
-            size_t next = (i + 1) % pts.size();
-
-            // Cross product to check collinearity
-            long long dx1 = pts[i].x() - pts[prev].x();
-            long long dy1 = pts[i].y() - pts[prev].y();
-            long long dx2 = pts[next].x() - pts[i].x();
-            long long dy2 = pts[next].y() - pts[i].y();
-            long long cross = dx1 * dy2 - dy1 * dx2;
-
-            if (std::abs(cross) < 10) {  // Nearly collinear
-                collinearCount++;
-            }
-        }
-
-        // If more than 80% of points are collinear, likely degenerate
-        if (collinearCount > pts.size() * 0.8) {
-            std::cerr << "WARNING: Polygon has excessive collinearity ("
-                      << collinearCount << "/" << pts.size() << " points) - likely degenerate\n";
+        // Only reject if area is exactly zero (all points on same line)
+        if (area2 == 0) {
+            std::cerr << "WARNING: Polygon has zero area (degenerate)\n";
             return true;
         }
 
         return false;
     };
 
-    // Check if geometry is degenerate and reject if so
-    if (isGeometryDegenerate(points)) {
-        std::cerr << "ERROR: Degenerate geometry detected after integer conversion (id="
-                  << poly.id << "). Rejecting to prevent Boost.Polygon crash.\n";
+    // Check if geometry is completely invalid
+    if (isGeometryInvalid(points)) {
+        std::cerr << "ERROR: Invalid geometry detected after integer conversion (id="
+                  << poly.id << "). Polygon has zero area.\n";
         return IntPolygonWithHoles();
     }
 
@@ -325,10 +283,10 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             removeConsecutiveDuplicates(holePoints);
 
             if (holePoints.size() >= 3) {
-                // CRITICAL: Validate hole geometry too
-                if (isGeometryDegenerate(holePoints)) {
-                    std::cerr << "WARNING: Degenerate hole geometry detected (id="
-                              << poly.id << "), skipping hole to prevent crash\n";
+                // Minimal validation for holes too
+                if (isGeometryInvalid(holePoints)) {
+                    std::cerr << "WARNING: Invalid hole geometry detected (id="
+                              << poly.id << "), skipping hole (zero area)\n";
                     continue;
                 }
 
@@ -457,6 +415,14 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     const Polygon& A,
     const Polygon& B,
     bool inner) {
+
+    // CRITICAL: Lock mutex for entire Boost.Polygon operation sequence
+    // Boost.Polygon is NOT thread-safe - concurrent access causes:
+    // - Access violations (0xc0000005: read access violation at 0x10)
+    // - Memory corruption in scanline algorithm
+    // - Dangling references to internal structures
+    // This manifests especially with large datasets (154 parts)
+    std::lock_guard<std::mutex> lock(boostPolygonMutex);
 
     // Validate input
     if (A.points.empty() || B.points.empty()) {
