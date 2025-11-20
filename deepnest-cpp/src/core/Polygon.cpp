@@ -235,13 +235,16 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
 
     // CRITICAL FIX: Simplify path BEFORE conversion to remove degenerate geometries
     // and redundant curve control points that cause Boost.Polygon scanline failures
-    // simplified() uses Qt's default tolerance which works well for most cases
-    QPainterPath simplifiedPath = path.simplified();
+    // Step 1: Set proper fill rule for complex paths
+    QPainterPath cleanPath = path;
+    cleanPath.setFillRule(Qt::WindingFill);
+
+    // Step 2: Apply simplified() which merges overlapping/degenerate regions
+    cleanPath = cleanPath.simplified();
 
     // Convert QPainterPath to polygon points
     // Use Qt's toSubpathPolygons() which automatically converts curves to line segments
-    // This is more robust than manual conversion and handles all curve types correctly
-    QList<QPolygonF> subpaths = simplifiedPath.toSubpathPolygons();
+    QList<QPolygonF> subpaths = cleanPath.toSubpathPolygons();
 
     if (subpaths.isEmpty()) {
         return result;
@@ -249,11 +252,51 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
 
     // Use the first subpath as the outer boundary
     const QPolygonF& firstSubpath = subpaths.first();
-    result.points.reserve(firstSubpath.size());
 
-    for (const QPointF& pt : firstSubpath) {
-        result.points.push_back(Point::fromQt(pt));
+    // CRITICAL FIX: Remove duplicate consecutive points that cause Boost.Polygon issues
+    // This can happen when curves are converted to line segments
+    std::vector<Point> cleanedPoints;
+    cleanedPoints.reserve(firstSubpath.size());
+
+    constexpr double MIN_DISTANCE_SQ = 0.001;  // Minimum squared distance between points
+
+    for (int i = 0; i < firstSubpath.size(); ++i) {
+        Point pt = Point::fromQt(firstSubpath[i]);
+
+        // Check if this point is too close to the previous point
+        if (!cleanedPoints.empty()) {
+            const Point& prev = cleanedPoints.back();
+            double dx = pt.x - prev.x;
+            double dy = pt.y - prev.y;
+            double distSq = dx * dx + dy * dy;
+
+            if (distSq < MIN_DISTANCE_SQ) {
+                continue;  // Skip this point - too close to previous
+            }
+        }
+
+        cleanedPoints.push_back(pt);
     }
+
+    // Also check if first and last points are duplicates (closed path)
+    if (cleanedPoints.size() >= 2) {
+        const Point& first = cleanedPoints.front();
+        const Point& last = cleanedPoints.back();
+        double dx = first.x - last.x;
+        double dy = first.y - last.y;
+        double distSq = dx * dx + dy * dy;
+
+        if (distSq < MIN_DISTANCE_SQ) {
+            cleanedPoints.pop_back();  // Remove duplicate closing point
+        }
+    }
+
+    // Validate minimum points for a polygon
+    if (cleanedPoints.size() < 3) {
+        return result;  // Invalid polygon
+    }
+
+    result.points = std::move(cleanedPoints);
 
     // Additional subpaths become holes/children
     // Note: This is a simplified approach - a full implementation would need to
@@ -281,22 +324,60 @@ std::vector<Polygon> Polygon::extractFromQPainterPath(const QPainterPath& path) 
     // QPainterPath can contain multiple disconnected subpaths
     // We need to extract each one as a separate polygon
 
-    // CRITICAL FIX: Simplify path BEFORE conversion (same as fromQPainterPath)
-    QPainterPath simplifiedPath = path.simplified();
-    QList<QPolygonF> qtPolygons = simplifiedPath.toSubpathPolygons();
+    // CRITICAL FIX: Apply same cleaning as fromQPainterPath for consistency
+    QPainterPath cleanPath = path;
+    cleanPath.setFillRule(Qt::WindingFill);
+    cleanPath = cleanPath.simplified();
+    QList<QPolygonF> qtPolygons = cleanPath.toSubpathPolygons();
+
+    constexpr double MIN_DISTANCE_SQ = 0.001;
 
     for (const auto& qtPoly : qtPolygons) {
         if (qtPoly.size() < 3) {
             continue;
         }
 
-        Polygon poly;
+        // Clean up duplicate/near-duplicate points
+        std::vector<Point> cleanedPoints;
+        cleanedPoints.reserve(qtPoly.size());
+
         for (const auto& qpt : qtPoly) {
-            poly.points.push_back(Point::fromQt(qpt));
+            Point pt = Point::fromQt(qpt);
+
+            if (!cleanedPoints.empty()) {
+                const Point& prev = cleanedPoints.back();
+                double dx = pt.x - prev.x;
+                double dy = pt.y - prev.y;
+                double distSq = dx * dx + dy * dy;
+
+                if (distSq < MIN_DISTANCE_SQ) {
+                    continue;
+                }
+            }
+
+            cleanedPoints.push_back(pt);
         }
 
-        if (poly.isValid()) {
-            polygons.push_back(poly);
+        // Check closing point
+        if (cleanedPoints.size() >= 2) {
+            const Point& first = cleanedPoints.front();
+            const Point& last = cleanedPoints.back();
+            double dx = first.x - last.x;
+            double dy = first.y - last.y;
+            double distSq = dx * dx + dy * dy;
+
+            if (distSq < MIN_DISTANCE_SQ) {
+                cleanedPoints.pop_back();
+            }
+        }
+
+        if (cleanedPoints.size() >= 3) {
+            Polygon poly;
+            poly.points = std::move(cleanedPoints);
+
+            if (poly.isValid()) {
+                polygons.push_back(poly);
+            }
         }
     }
 
