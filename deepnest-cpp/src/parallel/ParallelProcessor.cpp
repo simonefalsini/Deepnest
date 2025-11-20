@@ -89,6 +89,11 @@ void ParallelProcessor::processPopulation(
     // Determine maximum concurrent tasks
     int maxTasks = (maxConcurrent > 0) ? maxConcurrent : threadCount_;
 
+    std::cerr << "=== ParallelProcessor::processPopulation ===" << std::endl;
+    std::cerr << "  maxConcurrent: " << maxConcurrent << ", threadCount_: " << threadCount_
+              << ", maxTasks: " << maxTasks << ", currently running: " << running << std::endl;
+    std::cerr.flush();
+
     // JavaScript: for(i=0; i<GA.population.length; i++) {
     //               if(running < config.threads && !GA.population[i].processing && !GA.population[i].fitness) {
     //                 GA.population[i].processing = true;
@@ -113,6 +118,9 @@ void ParallelProcessor::processPopulation(
             individual.processing = true;
             running++;
 
+            std::cerr << "  Enqueueing task for individual #" << i << ", running count now: " << running << std::endl;
+            std::cerr.flush();
+
             // Create copies for thread safety
             std::vector<Polygon> sheetsCopy = sheets;
             Individual individualCopy = individual.clone();
@@ -123,6 +131,8 @@ void ParallelProcessor::processPopulation(
 
             // Enqueue placement task
             enqueue([&population, index, sheetsCopy, &worker, individualCopy, this]() mutable {
+                std::cerr << "=== WORKER THREAD: Starting placeParts for individual #" << index << " ===" << std::endl;
+                std::cerr.flush();
                 // Prepare parts with rotations
                 // JavaScript: var ids = []; var sources = []; var children = [];
                 //             for(j=0; j<GA.population[i].placement.length; j++) {
