@@ -176,12 +176,14 @@
     </QtMoc>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ConfigDialog.cpp" />
     <ClCompile Include="RandomShapeGenerator.cpp" />
     <ClCompile Include="SVGLoader.cpp" />
     <ClCompile Include="TestApplication.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="ConfigDialog.h" />
     <ClInclude Include="RandomShapeGenerator.h" />
     <ClInclude Include="SVGLoader.h" />
     <QtMoc Include="TestApplication.h" />
