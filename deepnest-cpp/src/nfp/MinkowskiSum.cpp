@@ -380,117 +380,137 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         return std::vector<Polygon>();
     }
 
-    // Calculate scale factor
+    // CRITICAL: This is a COMPLETE REWRITE following minkowski.cc EXACTLY
+    // The key differences from previous attempts:
+    // 1. Use operator+= instead of insert()
+    // 2. Use simple truncation casting (int) not std::round()
+    // 3. NO extra simplification - polygon should already be cleaned
+    // 4. Build polygon_set directly, not via IntPolygonWithHoles
+
+    // Calculate scale factor (same as minkowski.cc lines 120-163)
     double scale = calculateScale(A, B);
 
-    // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
-    // This applies to BOTH:
-    // - Inner NFP (sheet boundary): sheet ⊖ part
-    // - Outer NFP (part-to-part no-overlap): placedPart ⊖ newPart
-    // The 'inner' parameter is only used for caching/semantics, not for computation.
-    Polygon B_to_use = B;
+    // Create Boost.Polygon data structures
+    IntPolygonSet a, b, c;
+    std::vector<IntPolygon> polys;
+    std::vector<IntPoint> pts;
 
-    // ALWAYS negate all points of B to get -B for Minkowski difference
-    for (auto& point : B_to_use.points) {
-        point.x = -point.x;
-        point.y = -point.y;
-    }
-    // CRITICAL: Negating coordinates inverts the winding order!
-    // CCW becomes CW. We must reverse the point order to restore CCW winding.
-    std::reverse(B_to_use.points.begin(), B_to_use.points.end());
-
-    // Also negate children (holes)
-    for (auto& child : B_to_use.children) {
-        for (auto& point : child.points) {
-            point.x = -point.x;
-            point.y = -point.y;
-        }
-        // Reverse child points to restore CCW winding after negation
-        std::reverse(child.points.begin(), child.points.end());
+    // Convert A to Boost polygon (minkowski.cc lines 166-178)
+    // CRITICAL: Use simple truncation casting like original!
+    pts.reserve(A.points.size());
+    for (const auto& p : A.points) {
+        int x = static_cast<int>(scale * p.x);  // truncation, not rounding!
+        int y = static_cast<int>(scale * p.y);
+        pts.push_back(IntPoint(x, y));
     }
 
-    // CRITICAL FIX: All Boost.Polygon operations are scoped to ensure proper cleanup
-    // and immediate data extraction before any Boost objects are destroyed
-    std::vector<Polygon> nfps;
-    {
-        // Convert to Boost integer polygons - scoped lifetime
-        IntPolygonSet polySetA, polySetB, result;
+    IntPolygon poly;
+    try {
+        set_points(poly, pts.begin(), pts.end());
+        a += poly;  // CRITICAL: Use operator+= not insert()!
+    }
+    catch (...) {
+        return std::vector<Polygon>();
+    }
 
-        IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-        IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
-
-        // Check if conversion produced valid polygons
-        if (boostA.begin() == boostA.end() || boostB.begin() == boostB.end()) {
-            // Empty polygon after cleaning - return empty NFP
-            return std::vector<Polygon>();
+    // Subtract holes from a (minkowski.cc lines 180-196)
+    for (const auto& hole : A.children) {
+        pts.clear();
+        pts.reserve(hole.points.size());
+        for (const auto& p : hole.points) {
+            int x = static_cast<int>(scale * p.x);
+            int y = static_cast<int>(scale * p.y);
+            pts.push_back(IntPoint(x, y));
         }
-
         try {
-            polySetA.insert(boostA);
-            polySetB.insert(boostB);
-
-            // Compute Minkowski sum - this can fail with invalid comparator
-            convolve_two_polygon_sets(result, polySetA, polySetB);
-
-            // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
-            // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
-            nfps = fromBoostPolygonSet(result, scale);
-
-            // Explicitly clear Boost containers to release any internal memory
-            result.clear();
-            polySetA.clear();
-            polySetB.clear();
-        }
-        catch (const std::exception& e) {
-            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed: " << e.what() << std::endl;
-            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
-            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
-            std::cerr << "  Scale factor: " << scale << std::endl;
-
-            // Print first few points for debugging
-            std::cerr << "  A points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
-                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            std::cerr << "  B points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
-                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            return std::vector<Polygon>();
+            set_points(poly, pts.begin(), pts.end());
+            a -= poly;  // CRITICAL: Use operator-= not difference()!
         }
         catch (...) {
-            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed with unknown error" << std::endl;
-            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
-            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
-            std::cerr << "  Scale factor: " << scale << std::endl;
-
-            // Print first few points for debugging
-            std::cerr << "  A points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
-                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            std::cerr << "  B points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
-                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            return std::vector<Polygon>();
+            continue;  // Skip problematic holes
         }
     }
-    // All Boost objects destroyed here - nfps contains completely independent data
 
-    // NOTE: We now simplify polygons BEFORE the convolution in toBoostIntPolygon(),
-    // which prevents the "invalid comparator" crash from happening in polySet.get().
-    // No need to clean the result here since the inputs were properly simplified.
+    // For NFP, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
+    // Negate and convert B (minkowski.cc lines 198-219)
+    pts.clear();
+    pts.reserve(B.points.size());
 
-    return nfps;
+    // Track first point for offset (minkowski.cc lines 203-215)
+    double xshift = 0;
+    double yshift = 0;
+
+    for (size_t i = 0; i < B.points.size(); i++) {
+        const auto& p = B.points[i];
+        // CRITICAL: Negate BEFORE scaling, then cast to int with truncation
+        int x = -static_cast<int>(scale * p.x);
+        int y = -static_cast<int>(scale * p.y);
+        pts.push_back(IntPoint(x, y));
+
+        if (i == 0) {
+            xshift = p.x;
+            yshift = p.y;
+        }
+    }
+
+    try {
+        set_points(poly, pts.begin(), pts.end());
+        b += poly;  // CRITICAL: Use operator+= not insert()!
+    }
+    catch (...) {
+        return std::vector<Polygon>();
+    }
+
+    // Compute Minkowski sum (minkowski.cc line 223)
+    polys.clear();
+    try {
+        convolve_two_polygon_sets(c, a, b);
+        c.get(polys);  // This is where crash can happen with bad geometry
+    }
+    catch (const std::exception& e) {
+        std::cerr << "ERROR: Boost.Polygon convolution failed: " << e.what() << std::endl;
+        return std::vector<Polygon>();
+    }
+    catch (...) {
+        std::cerr << "ERROR: Boost.Polygon convolution failed with unknown error" << std::endl;
+        return std::vector<Polygon>();
+    }
+
+    // Convert result back to our Polygon format (minkowski.cc lines 228-263)
+    std::vector<Polygon> result;
+    result.reserve(polys.size());
+
+    double invScale = 1.0 / scale;
+
+    for (const auto& boostPoly : polys) {
+        Polygon nfp;
+
+        // Convert outer boundary
+        for (auto itr = boostPoly.begin(); itr != boostPoly.end(); ++itr) {
+            double x = static_cast<double>((*itr).x()) * invScale + xshift;
+            double y = static_cast<double>((*itr).y()) * invScale + yshift;
+            nfp.points.emplace_back(x, y);
+        }
+
+        // Convert holes
+        for (auto holeItr = begin_holes(boostPoly); holeItr != end_holes(boostPoly); ++holeItr) {
+            Polygon hole;
+            for (auto pointItr = (*holeItr).begin(); pointItr != (*holeItr).end(); ++pointItr) {
+                double x = static_cast<double>((*pointItr).x()) * invScale + xshift;
+                double y = static_cast<double>((*pointItr).y()) * invScale + yshift;
+                hole.points.emplace_back(x, y);
+            }
+            if (hole.points.size() >= 3) {
+                nfp.children.push_back(std::move(hole));
+            }
+        }
+
+        if (nfp.points.size() >= 3) {
+            result.push_back(std::move(nfp));
+        }
+    }
+
+    return result;
 }
 
 std::vector<std::vector<Polygon>> MinkowskiSum::calculateNFPBatch(
