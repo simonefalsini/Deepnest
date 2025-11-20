@@ -321,6 +321,56 @@ namespace GeometryUtil {
         const std::vector<Point>& B
     );
 
+    // ========== Polygon Simplification ==========
+
+    /**
+     * @brief Simplify polygon using Ramer-Douglas-Peucker algorithm
+     *
+     * Based on simplify.js from the original DeepNest JavaScript implementation.
+     * Uses a two-pass approach: radial distance filtering followed by
+     * Ramer-Douglas-Peucker algorithm for optimal results.
+     *
+     * @param points Input polygon points
+     * @param tolerance Maximum distance a point can deviate from the simplified line
+     * @param highestQuality If true, skip radial distance pass for highest quality
+     * @return Simplified polygon
+     */
+    std::vector<Point> simplifyPolygon(
+        const std::vector<Point>& points,
+        double tolerance = 2.0,
+        bool highestQuality = false
+    );
+
+    /**
+     * @brief Simplify polygon using radial distance
+     *
+     * First pass: removes points that are too close to their neighbors.
+     * This is faster than Douglas-Peucker but less accurate.
+     *
+     * @param points Input polygon points
+     * @param sqTolerance Squared tolerance (distance squared)
+     * @return Simplified polygon
+     */
+    std::vector<Point> simplifyRadialDistance(
+        const std::vector<Point>& points,
+        double sqTolerance
+    );
+
+    /**
+     * @brief Simplify polygon using Ramer-Douglas-Peucker algorithm
+     *
+     * Second pass: uses the Douglas-Peucker algorithm to optimally simplify
+     * the polygon while maintaining shape fidelity within tolerance.
+     *
+     * @param points Input polygon points
+     * @param sqTolerance Squared tolerance (distance squared)
+     * @return Simplified polygon
+     */
+    std::vector<Point> simplifyDouglasPeucker(
+        const std::vector<Point>& points,
+        double sqTolerance
+    );
+
 } // namespace GeometryUtil
 
 } // namespace deepnest

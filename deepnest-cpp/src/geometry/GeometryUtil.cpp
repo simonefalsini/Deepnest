@@ -809,5 +809,122 @@ std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& 
 
 // polygonHull is now implemented in GeometryUtilAdvanced.cpp
 
+// ========== Polygon Simplification ==========
+
+/**
+ * Helper function to calculate squared perpendicular distance from a point to a line segment
+ */
+static double getSquareSegmentDistance(const Point& p, const Point& p1, const Point& p2) {
+    double x = p1.x;
+    double y = p1.y;
+    double dx = p2.x - x;
+    double dy = p2.y - y;
+
+    if (dx != 0 || dy != 0) {
+        double t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+
+        if (t > 1) {
+            x = p2.x;
+            y = p2.y;
+        } else if (t > 0) {
+            x += dx * t;
+            y += dy * t;
+        }
+    }
+
+    dx = p.x - x;
+    dy = p.y - y;
+
+    return dx * dx + dy * dy;
+}
+
+/**
+ * Helper function for Douglas-Peucker recursion
+ */
+static void simplifyDPStep(const std::vector<Point>& points, int first, int last,
+                           double sqTolerance, std::vector<Point>& simplified) {
+    double maxSqDist = sqTolerance;
+    int index = -1;
+
+    for (int i = first + 1; i < last; i++) {
+        double sqDist = getSquareSegmentDistance(points[i], points[first], points[last]);
+
+        if (sqDist > maxSqDist) {
+            index = i;
+            maxSqDist = sqDist;
+        }
+    }
+
+    if (maxSqDist > sqTolerance) {
+        if (index - first > 1) {
+            simplifyDPStep(points, first, index, sqTolerance, simplified);
+        }
+        simplified.push_back(points[index]);
+        if (last - index > 1) {
+            simplifyDPStep(points, index, last, sqTolerance, simplified);
+        }
+    }
+}
+
+std::vector<Point> simplifyRadialDistance(const std::vector<Point>& points, double sqTolerance) {
+    if (points.size() <= 2) {
+        return points;
+    }
+
+    Point prevPoint = points[0];
+    std::vector<Point> newPoints;
+    newPoints.push_back(prevPoint);
+    Point point;
+
+    for (size_t i = 1; i < points.size(); i++) {
+        point = points[i];
+
+        double dx = point.x - prevPoint.x;
+        double dy = point.y - prevPoint.y;
+        double distSq = dx * dx + dy * dy;
+
+        if (distSq > sqTolerance) {
+            newPoints.push_back(point);
+            prevPoint = point;
+        }
+    }
+
+    if (prevPoint.x != point.x || prevPoint.y != point.y) {
+        newPoints.push_back(point);
+    }
+
+    return newPoints;
+}
+
+std::vector<Point> simplifyDouglasPeucker(const std::vector<Point>& points, double sqTolerance) {
+    if (points.size() <= 2) {
+        return points;
+    }
+
+    int last = static_cast<int>(points.size()) - 1;
+
+    std::vector<Point> simplified;
+    simplified.push_back(points[0]);
+    simplifyDPStep(points, 0, last, sqTolerance, simplified);
+    simplified.push_back(points[last]);
+
+    return simplified;
+}
+
+std::vector<Point> simplifyPolygon(const std::vector<Point>& points,
+                                   double tolerance,
+                                   bool highestQuality) {
+    if (points.size() <= 2) {
+        return points;
+    }
+
+    double sqTolerance = tolerance * tolerance;
+
+    std::vector<Point> result = highestQuality ? points : simplifyRadialDistance(points, sqTolerance);
+    result = simplifyDouglasPeucker(result, sqTolerance);
+
+    return result;
+}
+
 } // namespace GeometryUtil
 } // namespace deepnest

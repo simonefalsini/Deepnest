@@ -253,50 +253,29 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
     // Use the first subpath as the outer boundary
     const QPolygonF& firstSubpath = subpaths.first();
 
-    // CRITICAL FIX: Remove duplicate consecutive points that cause Boost.Polygon issues
-    // This can happen when curves are converted to line segments
-    std::vector<Point> cleanedPoints;
-    cleanedPoints.reserve(firstSubpath.size());
-
-    constexpr double MIN_DISTANCE_SQ = 0.001;  // Minimum squared distance between points
-
-    for (int i = 0; i < firstSubpath.size(); ++i) {
-        Point pt = Point::fromQt(firstSubpath[i]);
-
-        // Check if this point is too close to the previous point
-        if (!cleanedPoints.empty()) {
-            const Point& prev = cleanedPoints.back();
-            double dx = pt.x - prev.x;
-            double dy = pt.y - prev.y;
-            double distSq = dx * dx + dy * dy;
-
-            if (distSq < MIN_DISTANCE_SQ) {
-                continue;  // Skip this point - too close to previous
-            }
-        }
-
-        cleanedPoints.push_back(pt);
+    // Convert QPolygonF to vector<Point>
+    std::vector<Point> pathPoints;
+    pathPoints.reserve(firstSubpath.size());
+    for (const QPointF& qpt : firstSubpath) {
+        pathPoints.push_back(Point::fromQt(qpt));
     }
 
-    // Also check if first and last points are duplicates (closed path)
-    if (cleanedPoints.size() >= 2) {
-        const Point& first = cleanedPoints.front();
-        const Point& last = cleanedPoints.back();
-        double dx = first.x - last.x;
-        double dy = first.y - last.y;
-        double distSq = dx * dx + dy * dy;
-
-        if (distSq < MIN_DISTANCE_SQ) {
-            cleanedPoints.pop_back();  // Remove duplicate closing point
-        }
-    }
+    // CRITICAL FIX: Apply Ramer-Douglas-Peucker simplification
+    // This matches the original DeepNest JavaScript implementation (simplify.js)
+    // Tolerance of 2.0 matches the JavaScript svgparser.js configuration
+    // This properly handles curve-to-line conversion artifacts and removes redundant points
+    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+        pathPoints,
+        2.0,        // tolerance (matches JavaScript config)
+        false       // use two-pass approach (radial + Douglas-Peucker)
+    );
 
     // Validate minimum points for a polygon
-    if (cleanedPoints.size() < 3) {
+    if (simplifiedPoints.size() < 3) {
         return result;  // Invalid polygon
     }
 
-    result.points = std::move(cleanedPoints);
+    result.points = std::move(simplifiedPoints);
 
     // Additional subpaths become holes/children
     // Note: This is a simplified approach - a full implementation would need to
@@ -330,50 +309,28 @@ std::vector<Polygon> Polygon::extractFromQPainterPath(const QPainterPath& path) 
     cleanPath = cleanPath.simplified();
     QList<QPolygonF> qtPolygons = cleanPath.toSubpathPolygons();
 
-    constexpr double MIN_DISTANCE_SQ = 0.001;
-
     for (const auto& qtPoly : qtPolygons) {
         if (qtPoly.size() < 3) {
             continue;
         }
 
-        // Clean up duplicate/near-duplicate points
-        std::vector<Point> cleanedPoints;
-        cleanedPoints.reserve(qtPoly.size());
-
-        for (const auto& qpt : qtPoly) {
-            Point pt = Point::fromQt(qpt);
-
-            if (!cleanedPoints.empty()) {
-                const Point& prev = cleanedPoints.back();
-                double dx = pt.x - prev.x;
-                double dy = pt.y - prev.y;
-                double distSq = dx * dx + dy * dy;
-
-                if (distSq < MIN_DISTANCE_SQ) {
-                    continue;
-                }
-            }
-
-            cleanedPoints.push_back(pt);
+        // Convert QPolygonF to vector<Point>
+        std::vector<Point> pathPoints;
+        pathPoints.reserve(qtPoly.size());
+        for (const QPointF& qpt : qtPoly) {
+            pathPoints.push_back(Point::fromQt(qpt));
         }
 
-        // Check closing point
-        if (cleanedPoints.size() >= 2) {
-            const Point& first = cleanedPoints.front();
-            const Point& last = cleanedPoints.back();
-            double dx = first.x - last.x;
-            double dy = first.y - last.y;
-            double distSq = dx * dx + dy * dy;
+        // Apply Ramer-Douglas-Peucker simplification (same as fromQPainterPath)
+        std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+            pathPoints,
+            2.0,        // tolerance (matches JavaScript config)
+            false       // use two-pass approach
+        );
 
-            if (distSq < MIN_DISTANCE_SQ) {
-                cleanedPoints.pop_back();
-            }
-        }
-
-        if (cleanedPoints.size() >= 3) {
+        if (simplifiedPoints.size() >= 3) {
             Polygon poly;
-            poly.points = std::move(cleanedPoints);
+            poly.points = std::move(simplifiedPoints);
 
             if (poly.isValid()) {
                 polygons.push_back(poly);
