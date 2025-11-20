@@ -12,6 +12,7 @@
 namespace deepnest {
 
 using namespace boost::polygon;
+using namespace boost::polygon::operators;  // CRITICAL: This namespace defines operator+= and operator-=!
 
 // Type aliases for Boost.Polygon types with integer coordinates
 // CRITICAL: These MUST match minkowski.cc exactly!
