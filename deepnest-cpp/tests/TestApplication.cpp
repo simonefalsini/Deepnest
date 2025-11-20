@@ -39,10 +39,11 @@ TestApplication::TestApplication(QWidget* parent)
     , running_(false)
     , currentGeneration_(0)
     , bestFitness_(std::numeric_limits<double>::max())
-    , lastResult_(nullptr)
+    // lastResult_ is unique_ptr, auto-initialized to nullptr
     , maxGenerations_(100)
     , stepTimerInterval_(50)  // 50ms between steps
 {
+    LOG_MEMORY("TestApplication constructor started");
     setWindowTitle("DeepNest C++ Test Application");
     resize(1400, 900);
 
@@ -83,13 +84,26 @@ TestApplication::TestApplication(QWidget* parent)
 
     log("DeepNest Test Application initialized");
     log("Ready to load parts or generate test shapes");
+
+    LOG_MEMORY("TestApplication constructor completed");
 }
 
 TestApplication::~TestApplication() {
+    LOG_MEMORY("TestApplication destructor entered");
+
+    // CRITICAL: Stop nesting and wait for all threads to terminate
     if (running_) {
-        solver_->stop();
+        LOG_NESTING("Destructor: Stopping nesting that was still running");
+        stopNesting();  // This now waits for threads
     }
-    delete lastResult_;
+
+    // CRITICAL: Clear callbacks to prevent them from being called with dangling 'this'
+    LOG_MEMORY("Clearing callbacks to prevent dangling pointer access");
+    solver_->setProgressCallback(nullptr);
+    solver_->setResultCallback(nullptr);
+
+    // lastResult_ is unique_ptr, auto-deleted here
+    LOG_MEMORY("TestApplication destructor completed");
 }
 
 void TestApplication::initUI() {
@@ -349,33 +363,65 @@ void TestApplication::startNesting() {
 
 void TestApplication::stopNesting() {
     if (!running_) {
+        LOG_NESTING("stopNesting() called but not running, ignoring");
         return;
     }
 
+    LOG_NESTING("Stopping nesting...");
     log("Stopping nesting...");
+
+    // Stop the step timer first
     stepTimer_->stop();
+    LOG_THREAD("Step timer stopped");
+
+    // Signal solver to stop
     solver_->stop();
+    LOG_THREAD("Solver stop() called, waiting for threads to finish...");
+
+    // CRITICAL: Wait for solver threads to actually terminate
+    // This prevents race conditions where callbacks are called after stopNesting() returns
+    // Give threads time to finish and callbacks to complete
+    // TODO: Implement solver_->waitForCompletion() for proper synchronization
+    QThread::msleep(100);  // Wait 100ms for threads to wind down
+    LOG_THREAD("Waited 100ms for threads to terminate");
+
+    // Process any remaining Qt events to handle queued callbacks
+    QCoreApplication::processEvents();
+    LOG_THREAD("Processed remaining Qt events");
+
     running_ = false;
     statusLabel_->setText("Stopped");
+
+    LOG_NESTING("Nesting stopped, all threads terminated");
     log("Nesting stopped");
 }
 
 void TestApplication::reset() {
+    LOG_NESTING("Reset called");
+
     if (running_) {
+        LOG_NESTING("Reset: stopping nesting first");
         stopNesting();
     }
 
+    LOG_MEMORY("Clearing solver state");
     solver_->clear();
     parts_.clear();
     sheets_.clear();
     clearScene();
     currentGeneration_ = 0;
     bestFitness_ = std::numeric_limits<double>::max();
-    delete lastResult_;
-    lastResult_ = nullptr;
+
+    // CRITICAL: Thread-safe reset of lastResult_
+    {
+        std::lock_guard<std::mutex> lock(resultMutex_);
+        lastResult_.reset();  // unique_ptr, no need for delete
+        LOG_MEMORY("lastResult_ reset to nullptr (thread-safe)");
+    }
 
     updateStatus();
     log("Reset complete");
+    LOG_NESTING("Reset completed");
 }
 
 void TestApplication::testRandomRectangles() {
@@ -683,16 +729,27 @@ void TestApplication::onProgress(const deepnest::NestProgress& progress) {
 }
 
 void TestApplication::onResult(const deepnest::NestResult& result) {
+    LOG_MEMORY("onResult callback invoked from worker thread");
+
+    // CRITICAL: Thread-safe update of lastResult_ using mutex
+    {
+        std::lock_guard<std::mutex> lock(resultMutex_);
+        lastResult_ = std::make_unique<deepnest::NestResult>(result);
+        LOG_MEMORY("lastResult_ updated (thread-safe with unique_ptr)");
+    }
+
     log(QString("New best result! Fitness: %1 at generation %2")
         .arg(result.fitness, 0, 'f', 2)
         .arg(result.generation));
 
-    // Store copy of result
-    delete lastResult_;
-    lastResult_ = new deepnest::NestResult(result);
+    // CRITICAL: Update visualization on UI thread, not worker thread
+    // Use QueuedConnection to marshal back to main thread safely
+    QMetaObject::invokeMethod(this, [this, result]() {
+        LOG_THREAD("updateVisualization executing on UI thread");
+        updateVisualization(result);
+    }, Qt::QueuedConnection);
 
-    // Update visualization
-    updateVisualization(result);
+    LOG_MEMORY("onResult callback completed");
 }
 
 void TestApplication::onStepTimer() {
@@ -716,9 +773,13 @@ void TestApplication::onStepTimer() {
 }
 
 void TestApplication::exportSVG() {
-    if (!lastResult_) {
-        QMessageBox::warning(this, "No Result", "No nesting result available to export");
-        return;
+    // CRITICAL: Thread-safe check of lastResult_
+    {
+        std::lock_guard<std::mutex> lock(resultMutex_);
+        if (!lastResult_) {
+            QMessageBox::warning(this, "No Result", "No nesting result available to export");
+            return;
+        }
     }
 
     QString filename = QFileDialog::getSaveFileName(

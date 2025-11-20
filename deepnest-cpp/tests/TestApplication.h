@@ -9,8 +9,10 @@
 #include <QProgressBar>
 #include <QTextEdit>
 #include <memory>
+#include <mutex>
 
 #include "../include/deepnest/DeepNestSolver.h"
+#include "../include/deepnest/DebugConfig.h"
 #include "ConfigDialog.h"
 
 /**
@@ -240,7 +242,11 @@ private:
     bool running_;                   ///< True if nesting is running
     int currentGeneration_;          ///< Current generation number
     double bestFitness_;             ///< Best fitness value found
-    deepnest::NestResult* lastResult_;  ///< Last result (owned)
+
+    // CRITICAL FIX: Use smart pointer instead of raw pointer to prevent memory corruption
+    // Thread-safe access protected by resultMutex_
+    std::unique_ptr<deepnest::NestResult> lastResult_;  ///< Last result (owned, thread-safe)
+    std::mutex resultMutex_;         ///< Protects lastResult_ from concurrent access
 
     // Parts tracking for visualization
     std::vector<deepnest::Polygon> parts_;  ///< Loaded parts (indexed by id)
