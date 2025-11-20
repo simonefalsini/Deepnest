@@ -217,6 +217,84 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
+    // CRITICAL VALIDATION: Check for degenerate geometries that would crash Boost.Polygon
+    // These checks are done AFTER integer conversion because the degeneracy occurs
+    // in integer space due to truncation and scaling
+    auto isGeometryDegenerate = [](const std::vector<IntPoint>& pts) -> bool {
+        if (pts.size() < 3) return true;
+
+        // 1. Calculate polygon area in integer space using shoelace formula
+        //    Zero or near-zero area indicates degenerate geometry
+        long long area2 = 0;  // 2 * area to avoid division
+        for (size_t i = 0; i < pts.size(); ++i) {
+            size_t next = (i + 1) % pts.size();
+            area2 += static_cast<long long>(pts[i].x()) * pts[next].y();
+            area2 -= static_cast<long long>(pts[next].x()) * pts[i].y();
+        }
+        area2 = std::abs(area2);
+
+        // If area is zero or extremely small, polygon is degenerate
+        if (area2 < 100) {  // Threshold: less than 50 square units in integer space
+            std::cerr << "WARNING: Polygon has near-zero area (" << (area2/2.0)
+                      << ") in integer space - likely degenerate\n";
+            return true;
+        }
+
+        // 2. Check for extremely small bounding box (collapsed polygon)
+        int minX = pts[0].x(), maxX = pts[0].x();
+        int minY = pts[0].y(), maxY = pts[0].y();
+        for (const auto& pt : pts) {
+            minX = std::min(minX, pt.x());
+            maxX = std::max(maxX, pt.x());
+            minY = std::min(minY, pt.y());
+            maxY = std::max(maxY, pt.y());
+        }
+        long long bboxWidth = maxX - minX;
+        long long bboxHeight = maxY - minY;
+
+        // If bounding box is too thin (almost a line), it's degenerate
+        if (bboxWidth < 2 || bboxHeight < 2) {
+            std::cerr << "WARNING: Polygon has thin bounding box ("
+                      << bboxWidth << " x " << bboxHeight << ") - likely degenerate\n";
+            return true;
+        }
+
+        // 3. Check for excessive collinearity (many points on same line)
+        //    This can confuse Boost's scanline algorithm
+        int collinearCount = 0;
+        for (size_t i = 0; i < pts.size(); ++i) {
+            size_t prev = (i == 0) ? pts.size() - 1 : i - 1;
+            size_t next = (i + 1) % pts.size();
+
+            // Cross product to check collinearity
+            long long dx1 = pts[i].x() - pts[prev].x();
+            long long dy1 = pts[i].y() - pts[prev].y();
+            long long dx2 = pts[next].x() - pts[i].x();
+            long long dy2 = pts[next].y() - pts[i].y();
+            long long cross = dx1 * dy2 - dy1 * dx2;
+
+            if (std::abs(cross) < 10) {  // Nearly collinear
+                collinearCount++;
+            }
+        }
+
+        // If more than 80% of points are collinear, likely degenerate
+        if (collinearCount > pts.size() * 0.8) {
+            std::cerr << "WARNING: Polygon has excessive collinearity ("
+                      << collinearCount << "/" << pts.size() << " points) - likely degenerate\n";
+            return true;
+        }
+
+        return false;
+    };
+
+    // Check if geometry is degenerate and reject if so
+    if (isGeometryDegenerate(points)) {
+        std::cerr << "ERROR: Degenerate geometry detected after integer conversion (id="
+                  << poly.id << "). Rejecting to prevent Boost.Polygon crash.\n";
+        return IntPolygonWithHoles();
+    }
+
     IntPolygonWithHoles result;
 
     try {
@@ -227,7 +305,7 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
-    // Convert holes with same minimal cleaning
+    // Convert holes with same minimal cleaning and validation
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -247,6 +325,13 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             removeConsecutiveDuplicates(holePoints);
 
             if (holePoints.size() >= 3) {
+                // CRITICAL: Validate hole geometry too
+                if (isGeometryDegenerate(holePoints)) {
+                    std::cerr << "WARNING: Degenerate hole geometry detected (id="
+                              << poly.id << "), skipping hole to prevent crash\n";
+                    continue;
+                }
+
                 try {
                     IntPolygon holePoly;
                     set_points(holePoly, holePoints.begin(), holePoints.end());
