@@ -312,7 +312,7 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
 
     // CRITICAL FIX: Ensure complete copy of data from Boost internal structures
     // before any processing to avoid dangling references after polySet destruction
-    std::vector<IntPolygonWithHoles> boostPolygons;
+    std::vector<IntPolygon> boostPolygons;
 
     // CRITICAL: Wrap get() in try-catch to handle "invalid comparator" errors
     // that can occur in Boost.Polygon scanline algorithm with degenerate geometries
@@ -385,12 +385,18 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         return std::vector<Polygon>();
     }
 
-    // CRITICAL: This is a COMPLETE REWRITE following minkowski.cc EXACTLY
-    // The key differences from previous attempts:
-    // 1. Use operator+= instead of insert()
-    // 2. Use simple truncation casting (int) not std::round()
-    // 3. NO extra simplification - polygon should already be cleaned
-    // 4. Build polygon_set directly, not via IntPolygonWithHoles
+    // CRITICAL FIX: Clean polygons with Clipper2 BEFORE Boost conversion
+    // This prevents "invalid comparator" crashes in c.get(polys)
+    // Even though polygons are R-D-P simplified in Polygon.cpp, we need
+    // Clipper2 SimplifyPaths to remove near-duplicates and near-collinear edges
+    // that cause Boost.Polygon scanline algorithm to fail.
+
+    std::vector<Point> cleanedA = PolygonOperations::simplifyPolygon(A.points, 0.001);
+    std::vector<Point> cleanedB = PolygonOperations::simplifyPolygon(B.points, 0.001);
+
+    if (cleanedA.size() < 3 || cleanedB.size() < 3) {
+        return std::vector<Polygon>();
+    }
 
     // Calculate scale factor (same as minkowski.cc lines 120-163)
     double scale = calculateScale(A, B);
@@ -400,10 +406,10 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     std::vector<IntPolygon> polys;
     std::vector<IntPoint> pts;
 
-    // Convert A to Boost polygon (minkowski.cc lines 166-178)
+    // Convert CLEANED A to Boost polygon (minkowski.cc lines 166-178)
     // CRITICAL: Use simple truncation casting like original!
-    pts.reserve(A.points.size());
-    for (const auto& p : A.points) {
+    pts.reserve(cleanedA.size());
+    for (const auto& p : cleanedA) {
         int x = static_cast<int>(scale * p.x);  // truncation, not rounding!
         int y = static_cast<int>(scale * p.y);
         pts.push_back(IntPoint(x, y));
@@ -420,9 +426,13 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
 
     // Subtract holes from a (minkowski.cc lines 180-196)
     for (const auto& hole : A.children) {
+        // Clean holes too
+        std::vector<Point> cleanedHole = PolygonOperations::simplifyPolygon(hole.points, 0.001);
+        if (cleanedHole.size() < 3) continue;
+
         pts.clear();
-        pts.reserve(hole.points.size());
-        for (const auto& p : hole.points) {
+        pts.reserve(cleanedHole.size());
+        for (const auto& p : cleanedHole) {
             int x = static_cast<int>(scale * p.x);
             int y = static_cast<int>(scale * p.y);
             pts.push_back(IntPoint(x, y));
@@ -437,24 +447,24 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     }
 
     // For NFP, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
-    // Negate and convert B (minkowski.cc lines 198-219)
+    // Negate and convert CLEANED B (minkowski.cc lines 198-219)
     pts.clear();
-    pts.reserve(B.points.size());
+    pts.reserve(cleanedB.size());
 
     // Track first point for offset (minkowski.cc lines 203-215)
     double xshift = 0;
     double yshift = 0;
 
-    for (size_t i = 0; i < B.points.size(); i++) {
-        const auto& p = B.points[i];
+    for (size_t i = 0; i < cleanedB.size(); i++) {
+        const auto& p = cleanedB[i];
         // CRITICAL: Negate BEFORE scaling, then cast to int with truncation
         int x = -static_cast<int>(scale * p.x);
         int y = -static_cast<int>(scale * p.y);
         pts.push_back(IntPoint(x, y));
 
         if (i == 0) {
-            xshift = p.x;
-            yshift = p.y;
+            xshift = B.points[0].x;  // Use ORIGINAL first point for shift
+            yshift = B.points[0].y;
         }
     }
 
@@ -470,7 +480,7 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     polys.clear();
     try {
         convolve_two_polygon_sets(c, a, b);
-        c.get(polys);  // This is where crash can happen with bad geometry
+        c.get(polys);  // Should not crash now with cleaned polygons!
     }
     catch (const std::exception& e) {
         std::cerr << "ERROR: Boost.Polygon convolution failed: " << e.what() << std::endl;
