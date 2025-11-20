@@ -173,16 +173,13 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         points.push_back(IntPoint(x, y));
     }
 
-    // CRITICAL: Aggressive cleaning function
-    // Removes: duplicates, near-duplicates, and collinear points
+    // CRITICAL: Cleaning function to prevent "invalid comparator" errors
+    // Removes: exact duplicates and nearly-collinear points
 
-    // TUNABLE PARAMETERS (increase if crashes persist in Debug mode):
-    // - MIN_EDGE_DISTANCE_SQ: Minimum edge length squared (default: 1)
-    //   Increase to 4 or 9 if crashes continue
-    // - COLLINEARITY_THRESHOLD: Cross product threshold (default: 2)
-    //   Increase to 5 or 10 for more aggressive simplification
-    constexpr int MIN_EDGE_DISTANCE_SQ = 1;      // Minimum: distSq > 1
-    constexpr long long COLLINEARITY_THRESHOLD = 2;  // Minimum: |cross| > 2
+    // TUNABLE PARAMETERS:
+    // Reduced aggressiveness to preserve valid geometry while preventing crashes
+    constexpr int MIN_EDGE_DISTANCE_SQ = 0;           // Accept all non-duplicate points
+    constexpr long long COLLINEARITY_THRESHOLD = 0;   // Only remove truly collinear points
 
     auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
         if (pts.size() < 3) return false;
@@ -190,24 +187,20 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         std::vector<IntPoint> cleaned;
         cleaned.reserve(pts.size());
 
-        // STEP 1: Remove exact duplicates and very close points
+        // STEP 1: Remove exact duplicates only (keep near-duplicates for now)
         for (size_t i = 0; i < pts.size(); ++i) {
             size_t next = (i + 1) % pts.size();
 
-            // Calculate distance squared to next point
-            int dx = pts[next].x() - pts[i].x();
-            int dy = pts[next].y() - pts[i].y();
-            int distSq = dx * dx + dy * dy;
-
-            // Only keep if distance > MIN_EDGE_DISTANCE_SQ
-            if (distSq > MIN_EDGE_DISTANCE_SQ) {
+            // Only remove if points are EXACTLY the same
+            if (pts[i].x() != pts[next].x() || pts[i].y() != pts[next].y()) {
                 cleaned.push_back(pts[i]);
             }
         }
 
         if (cleaned.size() < 3) return false;
 
-        // STEP 2: Remove collinear points (aggressive simplification)
+        // STEP 2: Remove only truly collinear points (cross product exactly 0)
+        // This preserves all corner points while removing only straight-line redundant points
         std::vector<IntPoint> final;
         final.reserve(cleaned.size());
 
@@ -222,12 +215,12 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             int dy2 = cleaned[next].y() - cleaned[i].y();
 
             // Cross product to detect collinearity
-            // If cross product is 0, points are collinear
             long long cross = static_cast<long long>(dx1) * dy2 -
                              static_cast<long long>(dy1) * dx2;
 
-            // Keep point if NOT collinear (|cross| > COLLINEARITY_THRESHOLD)
-            if (std::abs(cross) > COLLINEARITY_THRESHOLD) {
+            // Keep point unless exactly collinear (cross == 0)
+            // This preserves all corners and angles while removing only mid-edge points
+            if (cross != 0) {
                 final.push_back(cleaned[i]);
             }
         }

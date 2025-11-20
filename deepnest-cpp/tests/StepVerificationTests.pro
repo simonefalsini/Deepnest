@@ -30,7 +30,7 @@ LIBS += -L$$PWD/../lib -ldeepnest
 
 # Boost libraries
 unix {
-    LIBS += -lboost_thread -lboost_system -lpthread
+    LIBS += -lboost_thread -lboost_system -lboost_chrono -lpthread
 }
 
 win32 {
