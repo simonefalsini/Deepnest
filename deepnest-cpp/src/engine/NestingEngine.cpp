@@ -1,8 +1,11 @@
 #include "../../include/deepnest/engine/NestingEngine.h"
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
+#include "../../include/deepnest/DebugConfig.h"
 #include <algorithm>
 #include <stdexcept>
+#include <thread>
+#include <chrono>
 
 namespace deepnest {
 
@@ -24,31 +27,45 @@ NestingEngine::NestingEngine(const DeepNestConfig& config)
 }
 
 NestingEngine::~NestingEngine() {
+    LOG_MEMORY("NestingEngine destructor entered");
+
     // CRITICAL FIX: Ensure clean shutdown to prevent crash and memory corruption
+    LOG_NESTING("Calling stop() from destructor");
     stop();
 
     // Explicitly clear NFP cache to release all cached polygons
     // This prevents potential crashes from destructing cached Polygon objects
     // that may contain Boost.Polygon data
+    LOG_MEMORY("Clearing NFP cache");
     nfpCache_.clear();
+    LOG_MEMORY("NFP cache cleared (" << nfpCache_.size() << " entries now)");
 
     // Explicitly destroy components in correct order
     // ParallelProcessor must be destroyed first to stop all threads
     if (parallelProcessor_) {
+        LOG_MEMORY("Destroying parallel processor (should already be null from stop())");
         parallelProcessor_.reset();
+    } else {
+        LOG_MEMORY("Parallel processor already destroyed");
     }
 
     // Then destroy placement worker
     if (placementWorker_) {
+        LOG_MEMORY("Destroying placement worker");
         placementWorker_.reset();
+        LOG_MEMORY("Placement worker destroyed");
     }
 
     // Then destroy NFP calculator
     if (nfpCalculator_) {
+        LOG_MEMORY("Destroying NFP calculator");
         nfpCalculator_.reset();
+        LOG_MEMORY("NFP calculator destroyed");
     }
 
     // Genetic algorithm and population destroyed automatically
+    LOG_MEMORY("Genetic algorithm will be destroyed automatically");
+    LOG_MEMORY("NestingEngine destructor completed");
 }
 
 void NestingEngine::initialize(
@@ -57,6 +74,8 @@ void NestingEngine::initialize(
     const std::vector<Polygon>& sheets,
     const std::vector<int>& sheetQuantities
 ) {
+    LOG_NESTING("NestingEngine::initialize() called with " << parts.size() << " parts, " << sheets.size() << " sheets");
+
     if (parts.size() != quantities.size()) {
         throw std::invalid_argument("Parts and quantities arrays must have same size");
     }
@@ -64,13 +83,20 @@ void NestingEngine::initialize(
         throw std::invalid_argument("Sheets and sheetQuantities arrays must have same size");
     }
 
+    // PHASE 1: Safety check - should not be called while running
+    if (running_) {
+        throw std::runtime_error("Cannot initialize while nesting is running. Call stop() first.");
+    }
+
     // Clear previous state
+    LOG_MEMORY("Clearing previous state: parts_(" << parts_.size() << "), partPointers_(" << partPointers_.size() << "), sheets_(" << sheets_.size() << ")");
     parts_.clear();
     partPointers_.clear();
     sheets_.clear();
     results_.clear();
     evaluationsCompleted_ = 0;
     geneticAlgorithm_.reset();
+    LOG_MEMORY("Previous state cleared");
 
     // JavaScript: for(i=0; i<parts.length; i++) {
     //               if(parts[i].sheet) {
@@ -138,14 +164,19 @@ void NestingEngine::initialize(
         });
 
     // Create pointers for GA
+    LOG_MEMORY("Creating partPointers_ for " << parts_.size() << " parts");
     partPointers_.clear();
     for (auto& part : parts_) {
         partPointers_.push_back(&part);
     }
+    LOG_MEMORY("Created " << partPointers_.size() << " part pointers");
 
     // JavaScript: GA = new GeneticAlgorithm(adam, config);
     // Initialize genetic algorithm
+    LOG_NESTING("Creating GeneticAlgorithm with " << partPointers_.size() << " parts");
     geneticAlgorithm_ = std::make_unique<GeneticAlgorithm>(partPointers_, config_);
+    LOG_NESTING("GeneticAlgorithm created successfully");
+    LOG_NESTING("NestingEngine::initialize() completed successfully");
 }
 
 void NestingEngine::start(
@@ -174,13 +205,41 @@ void NestingEngine::start(
 }
 
 void NestingEngine::stop() {
+    LOG_NESTING("NestingEngine::stop() called");
+
+    if (!running_) {
+        LOG_NESTING("Already stopped, returning");
+        return;
+    }
+
+    LOG_NESTING("Stopping nesting engine");
     running_ = false;
+
     if (parallelProcessor_) {
+        LOG_THREAD("Stopping parallel processor");
+
+        // PHASE 1 FIX: Explicit stop with task queue flush
+        // This now waits for all pending tasks to complete (see ParallelProcessor::stop())
         parallelProcessor_->stop();
+
+        // PHASE 1 FIX: Explicit wait to ensure all tasks completed
+        LOG_THREAD("Waiting for all tasks to complete");
+        parallelProcessor_->waitAll();
+
         // CRITICAL FIX: Destroy the processor to force recreation on next start()
         // A stopped processor cannot be reused, so we must create a fresh one
+        LOG_THREAD("Destroying parallel processor");
         parallelProcessor_.reset();
+
+        // PHASE 1 FIX: Small delay to ensure complete cleanup before destructor
+        // This gives time for any remaining cleanup operations in threads
+        LOG_THREAD("Waiting 50ms for complete cleanup");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        LOG_THREAD("Parallel processor destroyed and cleaned up");
     }
+
+    LOG_NESTING("Nesting engine stopped successfully");
 }
 
 bool NestingEngine::step() {

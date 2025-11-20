@@ -1,5 +1,8 @@
 #include "../../include/deepnest/parallel/ParallelProcessor.h"
+#include "../../include/deepnest/DebugConfig.h"
 #include <algorithm>
+#include <thread>
+#include <chrono>
 
 namespace deepnest {
 
@@ -36,31 +39,67 @@ ParallelProcessor::~ParallelProcessor() {
 void ParallelProcessor::stop() {
     // CRITICAL FIX: Proper shutdown sequence to prevent use-after-free
     // 1. Set stopped flag and remove work guard (allow threads to finish)
-    // 2. Stop io_context to signal threads to exit after current tasks
-    // 3. Join all threads to ensure they are COMPLETELY finished
-    // 4. Only then is it safe to destroy resources captured by task lambdas
+    // 2. FLUSH all pending tasks in queue (NEW FIX!)
+    // 3. Stop io_context to signal threads to exit after current tasks
+    // 4. Join all threads to ensure they are COMPLETELY finished
+    // 5. Only then is it safe to destroy resources captured by task lambdas
+
+    LOG_THREAD("ParallelProcessor::stop() called");
 
     {
         boost::lock_guard<boost::mutex> lock(mutex_);
         if (stopped_) {
+            LOG_THREAD("Already stopped, returning");
             return;
         }
         stopped_ = true;
 
         // Remove work guard to allow io_context to finish naturally
+        LOG_THREAD("Removing work guard");
         workGuard_.reset();
     }  // Release lock before joining threads to avoid potential deadlock
 
-    // Stop io_context - this will cause threads to exit when they finish current tasks
-    // Do NOT call poll() - that drains unexecuted tasks but doesn't wait for running tasks
+    // PHASE 1 FIX: Flush all pending tasks BEFORE stopping io_context
+    // This ensures all tasks that captured references complete execution
+    // BEFORE we destroy the objects they reference
+    LOG_THREAD("Flushing pending tasks from queue...");
+    int flushCount = 0;
+    const int maxFlushIterations = 100;  // Safety limit: 100 * 10ms = 1 second max
+
+    while (flushCount < maxFlushIterations) {
+        // Poll to execute pending tasks
+        std::size_t tasksExecuted = ioContext_.poll();
+
+        if (tasksExecuted == 0) {
+            // No more tasks in queue
+            LOG_THREAD("Task queue flushed successfully (no more pending tasks)");
+            break;
+        }
+
+        LOG_THREAD("Executed " << tasksExecuted << " pending tasks, checking for more...");
+        flushCount++;
+
+        // Small delay to allow threads to finish current work
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    if (flushCount >= maxFlushIterations) {
+        LOG_THREAD("WARNING: Flush timeout after " << maxFlushIterations << " iterations");
+    }
+
+    // Now stop io_context - threads will exit after finishing current task
+    LOG_THREAD("Stopping io_context");
     ioContext_.stop();
 
-    // CRITICAL: Wait for ALL threads to COMPLETELY finish their current tasks
+    // CRITICAL: Wait for ALL threads to COMPLETELY finish
     // This ensures no thread is still executing code that references PlacementWorker, etc.
+    LOG_THREAD("Waiting for all threads to join...");
     threads_.join_all();
+    LOG_THREAD("All threads joined successfully");
 
-    // Now all threads are stopped and it's safe for NestingEngine destructor
-    // to destroy placementWorker_, nfpCalculator_, etc.
+    // Now all threads are stopped and task queue is empty
+    // Safe for NestingEngine destructor to destroy placementWorker_, nfpCalculator_, etc.
+    LOG_THREAD("ParallelProcessor::stop() completed successfully");
 }
 
 void ParallelProcessor::waitAll() {
