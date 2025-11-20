@@ -159,83 +159,61 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // CRITICAL FIX: Aggressive cleaning to prevent "invalid comparator" errors
-    // in Boost.Polygon scanline algorithm
+    // CRITICAL: Follow minkowski.cc exactly - use TRUNCATION and MINIMAL cleaning
+    // The original implementation uses (int) cast (truncation) and NO cleaning.
+    // We apply ONLY consecutive duplicate removal to match original behavior.
 
-    // Convert outer boundary with rounding
+    // Convert outer boundary with TRUNCATION (not rounding)
     std::vector<IntPoint> points;
     points.reserve(poly.points.size());
 
     for (const auto& p : poly.points) {
-        // Use proper rounding instead of truncation to reduce quantization errors
-        int x = static_cast<int>(std::round(scale * p.x));
-        int y = static_cast<int>(std::round(scale * p.y));
+        // CRITICAL: Use TRUNCATION (not rounding) to match minkowski.cc behavior
+        // Original: int x = (int)(inputscale * (double)obj->Get("x")->NumberValue());
+        int x = static_cast<int>(scale * p.x);  // Truncation toward zero
+        int y = static_cast<int>(scale * p.y);  // Truncation toward zero
         points.push_back(IntPoint(x, y));
     }
 
-    // CRITICAL: Cleaning function to prevent "invalid comparator" errors
-    // Removes: exact duplicates and nearly-collinear points
-
-    // TUNABLE PARAMETERS:
-    // Reduced aggressiveness to preserve valid geometry while preventing crashes
-    constexpr int MIN_EDGE_DISTANCE_SQ = 0;           // Accept all non-duplicate points
-    constexpr long long COLLINEARITY_THRESHOLD = 0;   // Only remove truly collinear points
-
-    auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
-        if (pts.size() < 3) return false;
+    // MINIMAL CLEANING: Remove only consecutive exact duplicate points
+    // This matches minkowski.cc behavior (which does NO cleaning at all)
+    // We do minimal cleaning only to prevent obvious issues
+    auto removeConsecutiveDuplicates = [](std::vector<IntPoint>& pts) {
+        if (pts.size() < 2) return;
 
         std::vector<IntPoint> cleaned;
         cleaned.reserve(pts.size());
+        cleaned.push_back(pts[0]);
 
-        // STEP 1: Remove exact duplicates only (keep near-duplicates for now)
-        for (size_t i = 0; i < pts.size(); ++i) {
-            size_t next = (i + 1) % pts.size();
+        for (size_t i = 1; i < pts.size(); ++i) {
+            const IntPoint& prev = cleaned.back();
+            const IntPoint& curr = pts[i];
 
-            // Only remove if points are EXACTLY the same
-            if (pts[i].x() != pts[next].x() || pts[i].y() != pts[next].y()) {
-                cleaned.push_back(pts[i]);
+            // Keep point if it's different from previous
+            if (prev.x() != curr.x() || prev.y() != curr.y()) {
+                cleaned.push_back(curr);
             }
         }
 
-        if (cleaned.size() < 3) return false;
-
-        // STEP 2: Remove only truly collinear points (cross product exactly 0)
-        // This preserves all corner points while removing only straight-line redundant points
-        std::vector<IntPoint> final;
-        final.reserve(cleaned.size());
-
-        for (size_t i = 0; i < cleaned.size(); ++i) {
-            size_t prev = (i == 0) ? cleaned.size() - 1 : i - 1;
-            size_t next = (i + 1) % cleaned.size();
-
-            // Vectors
-            int dx1 = cleaned[i].x() - cleaned[prev].x();
-            int dy1 = cleaned[i].y() - cleaned[prev].y();
-            int dx2 = cleaned[next].x() - cleaned[i].x();
-            int dy2 = cleaned[next].y() - cleaned[i].y();
-
-            // Cross product to detect collinearity
-            long long cross = static_cast<long long>(dx1) * dy2 -
-                             static_cast<long long>(dy1) * dx2;
-
-            // Keep point unless exactly collinear (cross == 0)
-            // This preserves all corners and angles while removing only mid-edge points
-            if (cross != 0) {
-                final.push_back(cleaned[i]);
+        // Check if last point equals first (close polygon properly)
+        if (cleaned.size() > 1) {
+            const IntPoint& first = cleaned.front();
+            const IntPoint& last = cleaned.back();
+            if (first.x() == last.x() && first.y() == last.y()) {
+                cleaned.pop_back();
             }
         }
 
-        if (final.size() >= 3) {
-            pts = std::move(final);
-            return true;
-        }
-
-        return false;
+        pts = std::move(cleaned);
     };
 
-    // Clean and validate
-    if (!cleanPoints(points)) {
-        // Return empty polygon if cleaning failed
+    // Apply minimal cleaning
+    removeConsecutiveDuplicates(points);
+
+    // Warn but continue if < 3 points (let Boost handle it)
+    if (points.size() < 3) {
+        std::cerr << "WARNING: Polygon has < 3 points after removing duplicates ("
+                  << points.size() << " points). Returning empty polygon.\n";
         return IntPolygonWithHoles();
     }
 
@@ -249,7 +227,7 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
-    // Convert holes with same aggressive cleaning
+    // Convert holes with same minimal cleaning
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -259,22 +237,27 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             holePoints.reserve(hole.points.size());
 
             for (const auto& p : hole.points) {
-                int x = static_cast<int>(std::round(scale * p.x));
-                int y = static_cast<int>(std::round(scale * p.y));
+                // CRITICAL: Use TRUNCATION for holes too
+                int x = static_cast<int>(scale * p.x);
+                int y = static_cast<int>(scale * p.y);
                 holePoints.push_back(IntPoint(x, y));
             }
 
-            // Aggressive cleaning for holes
-            if (cleanPoints(holePoints)) {
+            // Minimal cleaning for holes
+            removeConsecutiveDuplicates(holePoints);
+
+            if (holePoints.size() >= 3) {
                 try {
                     IntPolygon holePoly;
                     set_points(holePoly, holePoints.begin(), holePoints.end());
                     holes.push_back(holePoly);
                 }
                 catch (...) {
-                    // Skip this hole if it fails
+                    std::cerr << "WARNING: Failed to create hole polygon, skipping\n";
                     continue;
                 }
+            } else {
+                std::cerr << "WARNING: Hole has < 3 points after cleaning, skipping\n";
             }
         }
 
@@ -395,6 +378,16 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         return std::vector<Polygon>();
     }
 
+    // CRITICAL: Save reference point from B[0] for later shift
+    // This matches minkowski.cc lines 286-298 (xshift, yshift)
+    // NFP coordinates must be relative to B[0], not absolute
+    double xshift = 0.0;
+    double yshift = 0.0;
+    if (!B.points.empty()) {
+        xshift = B.points[0].x;
+        yshift = B.points[0].y;
+    }
+
     // Calculate scale factor
     double scale = calculateScale(A, B);
 
@@ -500,6 +493,60 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         }
     }
     // All Boost objects destroyed here - nfps contains completely independent data
+
+    // CRITICAL: Apply reference point shift to all NFP results
+    // This matches minkowski.cc lines 319-320, 480-481
+    // NFP coordinates are relative to B[0], not absolute origin
+    // The shift is applied because Minkowski difference is computed as A ⊖ B = A ⊕ (-B),
+    // where B is negated. The resulting NFP is in a coordinate system where B's origin
+    // is at (0,0). To place it correctly in the original coordinate system, we shift by B[0].
+    for (auto& nfp : nfps) {
+        // Shift outer boundary
+        for (auto& pt : nfp.points) {
+            pt.x += xshift;
+            pt.y += yshift;
+        }
+
+        // Shift holes (children) if present
+        for (auto& child : nfp.children) {
+            for (auto& pt : child.points) {
+                pt.x += xshift;
+                pt.y += yshift;
+            }
+        }
+    }
+
+    // CRITICAL: If multiple NFPs are returned, choose the one with largest area
+    // This matches background.js lines 666-673 (largest area selection)
+    // Minkowski sum can produce multiple disjoint polygons, but for NFP we want
+    // the largest one which represents the main no-fit region
+    if (nfps.size() > 1) {
+        size_t maxIndex = 0;
+        double maxArea = 0.0;
+
+        for (size_t i = 0; i < nfps.size(); ++i) {
+            // Calculate absolute area using shoelace formula
+            double area = 0.0;
+            const auto& pts = nfps[i].points;
+            for (size_t j = 0; j < pts.size(); ++j) {
+                size_t next = (j + 1) % pts.size();
+                area += (pts[j].x + pts[next].x) * (pts[j].y - pts[next].y);
+            }
+            area = std::abs(area * 0.5);
+
+            if (area > maxArea) {
+                maxArea = area;
+                maxIndex = i;
+            }
+        }
+
+        // Return only the largest NFP
+        std::cerr << "INFO: Multiple NFPs generated (" << nfps.size()
+                  << "), selecting largest with area " << maxArea << "\n";
+
+        Polygon largestNfp = nfps[maxIndex];
+        return {largestNfp};
+    }
 
     return nfps;
 }
