@@ -491,6 +491,10 @@ std::optional<Point> searchStartPoint(
     bool inside,
     const std::vector<std::vector<Point>>& NFP)
 {
+    std::cerr << "\n=== searchStartPoint DEBUG ===" << std::endl;
+    std::cerr << "  A.size()=" << A.size() << ", B.size()=" << B.size()
+              << ", inside=" << inside << ", NFP.size()=" << NFP.size() << std::endl;
+
     std::vector<Point> edgeA = A;
     std::vector<Point> edgeB = B;
 
@@ -501,6 +505,9 @@ std::optional<Point> searchStartPoint(
     if (!almostEqualPoints(edgeB.front(), edgeB.back())) {
         edgeB.push_back(edgeB.front());
     }
+
+    std::cerr << "  After closing: edgeA.size()=" << edgeA.size()
+              << ", edgeB.size()=" << edgeB.size() << std::endl;
 
     // Helper lambda to check if point already exists in NFP
     auto inNfp = [](const Point& p, const std::vector<std::vector<Point>>& nfp) -> bool {
@@ -517,8 +524,14 @@ std::optional<Point> searchStartPoint(
         return false;
     };
 
+    int candidatesChecked = 0;
+    int candidatesWithValidBinside = 0;
+    int candidatesPassedFirstCheck = 0;
+    int candidatesTriedSliding = 0;
+
     for (size_t i = 0; i < edgeA.size() - 1; i++) {
         for (size_t j = 0; j < edgeB.size(); j++) {
+            candidatesChecked++;
             // Calculate offset to place B[j] at A[i]
             Point offset(edgeA[i].x - edgeB[j].x, edgeA[i].y - edgeB[j].y);
 
@@ -535,8 +548,12 @@ std::optional<Point> searchStartPoint(
 
             if (!Binside.has_value()) {
                 // A and B are the same
+                std::cerr << "  ERROR: Binside is nullopt (A and B are the same)" << std::endl;
+                std::cerr << "  Candidates checked: " << candidatesChecked << std::endl;
                 return std::nullopt;
             }
+
+            candidatesWithValidBinside++;
 
             // Check if this is a valid start point
             Point startPoint = offset;
@@ -547,10 +564,23 @@ std::optional<Point> searchStartPoint(
                 offsetB.push_back(Point(bp.x + offset.x, bp.y + offset.y));
             }
 
-            if (((Binside.value() && inside) || (!Binside.value() && !inside)) &&
-                !intersect(edgeA, offsetB) && !inNfp(startPoint, NFP)) {
+            bool insideMatch = (Binside.value() && inside) || (!Binside.value() && !inside);
+            bool noIntersection = !intersect(edgeA, offsetB);
+            bool notInNfp = !inNfp(startPoint, NFP);
+
+            if (candidatesChecked <= 3) {  // Debug first few candidates
+                std::cerr << "    Candidate [" << i << "," << j << "]: Binside=" << Binside.value()
+                          << ", insideMatch=" << insideMatch << ", noIntersect=" << noIntersection
+                          << ", notInNfp=" << notInNfp << std::endl;
+            }
+
+            if (insideMatch && noIntersection && notInNfp) {
+                std::cerr << "  FOUND valid start point at [" << i << "," << j << "]: ("
+                          << startPoint.x << ", " << startPoint.y << ")" << std::endl;
                 return startPoint;
             }
+
+            candidatesPassedFirstCheck++;
 
             // Try sliding B along the edge vector
             Point edgeVec(edgeA[i + 1].x - edgeA[i].x, edgeA[i + 1].y - edgeA[i].y);
@@ -581,6 +611,8 @@ std::optional<Point> searchStartPoint(
             if (!d.has_value() || almostEqual(d.value(), 0.0) || d.value() <= 0) {
                 continue;
             }
+
+            candidatesTriedSliding++;
 
             double vd2 = edgeVec.x * edgeVec.x + edgeVec.y * edgeVec.y;
             if (d.value() * d.value() < vd2 && !almostEqual(d.value() * d.value(), vd2)) {
@@ -616,6 +648,14 @@ std::optional<Point> searchStartPoint(
             }
         }
     }
+
+    // No valid start point found after checking all candidates
+    std::cerr << "  FAILED: No valid start point found" << std::endl;
+    std::cerr << "  Statistics:" << std::endl;
+    std::cerr << "    - Total candidates checked: " << candidatesChecked << std::endl;
+    std::cerr << "    - Candidates with valid Binside: " << candidatesWithValidBinside << std::endl;
+    std::cerr << "    - Candidates passed first check: " << candidatesPassedFirstCheck << std::endl;
+    std::cerr << "    - Candidates tried sliding: " << candidatesTriedSliding << std::endl;
 
     return std::nullopt;
 }

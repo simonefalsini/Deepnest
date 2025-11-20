@@ -94,8 +94,28 @@ void ParallelProcessor::stop() {
     // CRITICAL: Wait for ALL threads to COMPLETELY finish
     // This ensures no thread is still executing code that references PlacementWorker, etc.
     LOG_THREAD("Waiting for all threads to join...");
-    threads_.join_all();
-    LOG_THREAD("All threads joined successfully");
+
+    try {
+        // Give threads a moment to exit naturally after io_context.stop()
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        // Check if threads are joinable before attempting join
+        LOG_THREAD("Attempting to join " << threads_.size() << " threads");
+
+        // Use interrupt and join to ensure threads exit
+        threads_.interrupt_all();
+        threads_.join_all();
+
+        LOG_THREAD("All threads joined successfully");
+    } catch (const std::exception& e) {
+        LOG_THREAD("ERROR during thread join: " << e.what());
+    } catch (...) {
+        LOG_THREAD("ERROR: Unknown exception during thread join");
+    }
+
+    // Reset io_context to allow restart
+    LOG_THREAD("Resetting io_context for potential restart");
+    ioContext_.restart();
 
     // Now all threads are stopped and task queue is empty
     // Safe for NestingEngine destructor to destroy placementWorker_, nfpCalculator_, etc.

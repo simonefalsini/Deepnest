@@ -561,17 +561,25 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
                                             bool inside,
                                             bool searchEdges) {
 
+    std::cerr << "\n=== noFitPolygon ORBITAL TRACING ===" << std::endl;
+    std::cerr << "  A.size()=" << A.size() << ", B.size()=" << B.size()
+              << ", inside=" << inside << ", searchEdges=" << searchEdges << std::endl;
+
     if (A.size() < 3 || B.size() < 3) {
+        std::cerr << "  ERROR: Invalid polygon sizes (need at least 3 points)" << std::endl;
         return {};  // Invalid polygons
     }
 
     std::vector<std::vector<Point>> nfps;
 
     // Find starting point using existing helper function
+    std::cerr << "  Calling searchStartPoint..." << std::endl;
     std::optional<Point> startOpt = searchStartPoint(A, B, inside, {});
     if (!startOpt.has_value()) {
+        std::cerr << "  ERROR: searchStartPoint returned nullopt (no valid start point)" << std::endl;
         return {};  // No valid start point found
     }
+    std::cerr << "  Found start point: (" << startOpt->x << ", " << startOpt->y << ")" << std::endl;
 
     Point startPoint = startOpt.value();
 
