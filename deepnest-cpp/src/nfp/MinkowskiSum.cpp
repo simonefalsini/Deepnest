@@ -160,19 +160,28 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // NOTE: Polygon cleaning should be done BEFORE calling Minkowski sum,
-    // using PolygonOperations::cleanPolygon() in the preprocessing stage.
-    // This function simply converts the already-cleaned polygon to Boost format.
+    // CRITICAL: Extra simplification step immediately before conversion to prevent
+    // "invalid comparator" crashes in Boost.Polygon convolution result.
+    // Even though polygon was cleaned in Polygon.cpp, we need additional simplification
+    // here to remove very close points that can cause problems in the convolution.
 
-    // Convert outer boundary using simple casting (matches original minkowski.cc)
+    // Use Clipper2 simplifyPolygon to remove points that are too close together
+    // Distance of 0.001 removes near-duplicates without losing shape
+    std::vector<Point> simplifiedPoints = PolygonOperations::simplifyPolygon(
+        poly.points,
+        0.001  // Very small distance to remove only near-duplicates
+    );
+
+    if (simplifiedPoints.size() < 3) {
+        return IntPolygonWithHoles();
+    }
+
+    // Convert outer boundary with rounding for precision
     std::vector<IntPoint> points;
-    points.reserve(poly.points.size());
+    points.reserve(simplifiedPoints.size());
 
-    for (const auto& p : poly.points) {
-        // CRITICAL: Use rounding instead of truncation to reduce quantization errors
-        // that can cause "invalid comparator" crashes in Boost.Polygon scanline algorithm
-        // The polygon should already be cleaned using ClipperLib before this step,
-        // but proper rounding helps prevent numerical precision issues during convolution
+    for (const auto& p : simplifiedPoints) {
+        // Use rounding instead of truncation to reduce quantization errors
         int x = static_cast<int>(std::round(scale * p.x));
         int y = static_cast<int>(std::round(scale * p.y));
         points.push_back(IntPoint(x, y));
@@ -193,16 +202,26 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         return IntPolygonWithHoles();
     }
 
-    // Convert holes (if any)
+    // Convert holes (if any) with same simplification
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
 
         for (const auto& hole : poly.children) {
-            std::vector<IntPoint> holePoints;
-            holePoints.reserve(hole.points.size());
+            // Simplify hole before conversion
+            std::vector<Point> simplifiedHole = PolygonOperations::simplifyPolygon(
+                hole.points,
+                0.001  // Same distance as outer boundary
+            );
 
-            for (const auto& p : hole.points) {
+            if (simplifiedHole.size() < 3) {
+                continue;  // Skip invalid holes
+            }
+
+            std::vector<IntPoint> holePoints;
+            holePoints.reserve(simplifiedHole.size());
+
+            for (const auto& p : simplifiedHole) {
                 int x = static_cast<int>(std::round(scale * p.x));
                 int y = static_cast<int>(std::round(scale * p.y));
                 holePoints.push_back(IntPoint(x, y));
@@ -297,8 +316,12 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     // the scanline algorithm. The scanline comparator can ASSERT with "invalid comparator"
     // when it encounters near-collinear edges or numerical precision issues.
     //
-    // We use proper rounding in toBoostIntPolygon() and clean the RESULT using Clipper2
-    // in calculateNFP(), but we still need defensive error handling here.
+    // We prevent this by:
+    // 1. Cleaning inputs in Polygon.cpp (cleanPolygon → simplify → cleanPolygon)
+    // 2. Extra simplification in toBoostIntPolygon() BEFORE convolution (distance=0.001)
+    // 3. Using proper rounding during conversion to reduce quantization errors
+    //
+    // This defensive error handling catches any remaining edge cases.
     try {
         // DEBUG: Log before calling get() to help diagnose crashes
         // This helps identify if crash is in get() or in later processing
@@ -463,40 +486,11 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     }
     // All Boost objects destroyed here - nfps contains completely independent data
 
-    // CRITICAL: Simplify the Minkowski sum RESULT using Clipper2
-    // The convolution can produce near-duplicate points and near-collinear edges
-    // even when inputs are clean. This is the KEY FIX for "invalid comparator" crashes.
-    // Apply cleanPolygon to remove self-intersections and coincident points from the result.
-    std::vector<Polygon> cleanedNfps;
-    cleanedNfps.reserve(nfps.size());
+    // NOTE: We now simplify polygons BEFORE the convolution in toBoostIntPolygon(),
+    // which prevents the "invalid comparator" crash from happening in polySet.get().
+    // No need to clean the result here since the inputs were properly simplified.
 
-    for (auto& nfp : nfps) {
-        if (nfp.points.size() >= 3) {
-            // Clean the outer boundary using Clipper2
-            std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(nfp.points);
-
-            if (cleanedPoints.size() >= 3) {
-                nfp.points = std::move(cleanedPoints);
-
-                // Also clean any holes/children
-                std::vector<Polygon> cleanedChildren;
-                for (auto& child : nfp.children) {
-                    if (child.points.size() >= 3) {
-                        std::vector<Point> cleanedChild = PolygonOperations::cleanPolygon(child.points);
-                        if (cleanedChild.size() >= 3) {
-                            child.points = std::move(cleanedChild);
-                            cleanedChildren.push_back(std::move(child));
-                        }
-                    }
-                }
-                nfp.children = std::move(cleanedChildren);
-
-                cleanedNfps.push_back(std::move(nfp));
-            }
-        }
-    }
-
-    return cleanedNfps;
+    return nfps;
 }
 
 std::vector<std::vector<Polygon>> MinkowskiSum::calculateNFPBatch(
