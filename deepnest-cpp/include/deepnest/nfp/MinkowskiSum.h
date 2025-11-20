@@ -3,7 +3,6 @@
 
 #include "../core/Polygon.h"
 #include <vector>
-#include <mutex>
 
 namespace deepnest {
 
@@ -55,11 +54,6 @@ public:
     );
 
 private:
-    // CRITICAL: Boost.Polygon is NOT thread-safe!
-    // This mutex protects ALL Boost.Polygon operations from concurrent access
-    // which causes memory corruption and access violations (crash at 0x10)
-    static std::mutex boostPolygonMutex;
-
     /**
      * @brief Calculate optimal scale factor for integer conversion
      *

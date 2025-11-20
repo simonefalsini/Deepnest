@@ -292,26 +292,26 @@ void test_RotationAngleGeneration() {
     }
 }
 
-// ========== Test 7: Minkowski Sum NFP Calculation ==========
+// ========== Test 7: Minkowski Sum Scale Calculation ==========
 void test_MinkowskiScaleCalculation() {
-    TEST_CASE("Minkowski Sum NFP Calculation");
+    TEST_CASE("Minkowski Sum Scale Calculation");
 
-    // Test that NFP calculation produces valid results
-    // NOTE: calculateScale() is a private method, so we test the public API
+    // Test scale factor calculation matches expected values
 
     Polygon A({{0, 0}, {100, 0}, {100, 100}, {0, 100}});
     Polygon B({{0, 0}, {50, 0}, {50, 50}, {0, 50}});
 
-    std::vector<Polygon> nfp = MinkowskiSum::calculateNFP(A, B, false);
+    double scale = MinkowskiSum::calculateScale(A, B);
 
-    // NFP should produce at least one polygon
-    EXPECT_TRUE(!nfp.empty(), "NFP produces at least one polygon");
+    std::cout << "  Scale factor: " << scale << std::endl;
 
-    if (!nfp.empty()) {
-        // NFP should have points
-        EXPECT_TRUE(!nfp[0].points.empty(), "NFP polygon has points");
-        std::cout << "  NFP generated with " << nfp[0].points.size() << " points" << std::endl;
-    }
+    // Scale should be positive and reasonably large for integer conversion
+    EXPECT_TRUE(scale > 1000.0, "Scale factor > 1000");
+    EXPECT_TRUE(scale < 1e9, "Scale factor < 1 billion");
+
+    // Scale should be consistent for same input
+    double scale2 = MinkowskiSum::calculateScale(A, B);
+    EXPECT_NEAR(scale, scale2, 0.1, "Scale calculation is deterministic");
 }
 
 // ========== Test 8: NFP Calculation Correctness ==========
@@ -416,7 +416,7 @@ void test_ConfigurationDefaults() {
     config.setRotations(4);
     config.setPopulationSize(10);
     config.setMutationRate(50);
-    config.curveTolerance = 0.3;  // Direct access to public member
+    config.setCurveTolerance(0.3);
     config.placementType = "gravity";
 
     // Verify defaults
@@ -424,7 +424,7 @@ void test_ConfigurationDefaults() {
     EXPECT_TRUE(config.getRotations() == 4, "Default rotations");
     EXPECT_TRUE(config.getPopulationSize() == 10, "Default population size");
     EXPECT_TRUE(config.getMutationRate() == 50, "Default mutation rate");
-    EXPECT_NEAR(config.curveTolerance, 0.3, 0.01, "Default curve tolerance");  // Direct access
+    EXPECT_NEAR(config.getCurveTolerance(), 0.3, 0.01, "Default curve tolerance");
     EXPECT_TRUE(config.placementType == "gravity", "Default placement type");
 }
 

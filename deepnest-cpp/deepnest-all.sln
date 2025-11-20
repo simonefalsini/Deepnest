@@ -14,6 +14,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StepVerificationTests", "te
 		{6A82072D-2DD7-35EF-AD24-5A40BE19F5A5} = {6A82072D-2DD7-35EF-AD24-5A40BE19F5A5}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PolygonExtractor", "tests\PolygonExtractor.vcxproj", "{4FCA5717-0D45-3460-BB57-5DD095318C5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -32,6 +34,10 @@ Global
 		{DFD06B60-0BC3-3BCB-A1C1-33C3F0255B4D}.Debug|x64.Build.0 = Debug|x64
 		{DFD06B60-0BC3-3BCB-A1C1-33C3F0255B4D}.Release|x64.ActiveCfg = Release|x64
 		{DFD06B60-0BC3-3BCB-A1C1-33C3F0255B4D}.Release|x64.Build.0 = Release|x64
+		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Debug|x64.ActiveCfg = Debug|x64
+		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Debug|x64.Build.0 = Debug|x64
+		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Release|x64.ActiveCfg = Release|x64
+		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

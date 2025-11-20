@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
 
             // Create sheet polygon (rectangle)
             Polygon sheet;
-            sheet.id = "sheet";
+            sheet.id = 0;// "sheet";
             sheet.points.push_back({combinedBox.x, combinedBox.y});
             sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y});
             sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y + combinedBox.height});

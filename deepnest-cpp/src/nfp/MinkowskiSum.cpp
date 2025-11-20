@@ -1,11 +1,7 @@
 #include "../../include/deepnest/nfp/MinkowskiSum.h"
-#include "../../include/deepnest/DebugConfig.h"
 #include <boost/polygon/polygon.hpp>
 #include <limits>
 #include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <mutex>
 
 #undef min
 #undef max
@@ -13,11 +9,6 @@
 namespace deepnest {
 
 using namespace boost::polygon;
-
-// CRITICAL: Static mutex definition for thread-safe Boost.Polygon operations
-// Boost.Polygon is NOT thread-safe and causes access violations (0xc0000005)
-// when used concurrently from multiple threads
-std::mutex MinkowskiSum::boostPolygonMutex;
 
 // Type aliases for Boost.Polygon types with integer coordinates
 using IntPoint = point_data<int>;
@@ -166,105 +157,20 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
 }
 
 IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-    // CRITICAL: Follow minkowski.cc exactly - use TRUNCATION and MINIMAL cleaning
-    // The original implementation uses (int) cast (truncation) and NO cleaning.
-    // We apply ONLY consecutive duplicate removal to match original behavior.
-
-    // Convert outer boundary with TRUNCATION (not rounding)
+    // Convert outer boundary
     std::vector<IntPoint> points;
     points.reserve(poly.points.size());
 
     for (const auto& p : poly.points) {
-        // CRITICAL: Use TRUNCATION (not rounding) to match minkowski.cc behavior
-        // Original: int x = (int)(inputscale * (double)obj->Get("x")->NumberValue());
-        int x = static_cast<int>(scale * p.x);  // Truncation toward zero
-        int y = static_cast<int>(scale * p.y);  // Truncation toward zero
+        int x = static_cast<int>(scale * p.x);
+        int y = static_cast<int>(scale * p.y);
         points.push_back(IntPoint(x, y));
     }
 
-    // MINIMAL CLEANING: Remove only consecutive exact duplicate points
-    // This matches minkowski.cc behavior (which does NO cleaning at all)
-    // We do minimal cleaning only to prevent obvious issues
-    auto removeConsecutiveDuplicates = [](std::vector<IntPoint>& pts) {
-        if (pts.size() < 2) return;
-
-        std::vector<IntPoint> cleaned;
-        cleaned.reserve(pts.size());
-        cleaned.push_back(pts[0]);
-
-        for (size_t i = 1; i < pts.size(); ++i) {
-            const IntPoint& prev = cleaned.back();
-            const IntPoint& curr = pts[i];
-
-            // Keep point if it's different from previous
-            if (prev.x() != curr.x() || prev.y() != curr.y()) {
-                cleaned.push_back(curr);
-            }
-        }
-
-        // Check if last point equals first (close polygon properly)
-        if (cleaned.size() > 1) {
-            const IntPoint& first = cleaned.front();
-            const IntPoint& last = cleaned.back();
-            if (first.x() == last.x() && first.y() == last.y()) {
-                cleaned.pop_back();
-            }
-        }
-
-        pts = std::move(cleaned);
-    };
-
-    // Apply minimal cleaning
-    removeConsecutiveDuplicates(points);
-
-    // Warn but continue if < 3 points (let Boost handle it)
-    if (points.size() < 3) {
-        std::cerr << "WARNING: Polygon has < 3 points after removing duplicates ("
-                  << points.size() << " points). Returning empty polygon.\n";
-        return IntPolygonWithHoles();
-    }
-
-    // MINIMAL VALIDATION: Check only for truly degenerate geometries
-    // The real crash issue was thread-safety (now fixed with mutex)
-    // Keep only basic sanity checks for obviously invalid polygons
-    auto isGeometryInvalid = [](const std::vector<IntPoint>& pts) -> bool {
-        if (pts.size() < 3) return true;
-
-        // Check for zero area (completely degenerate - all points collinear)
-        long long area2 = 0;
-        for (size_t i = 0; i < pts.size(); ++i) {
-            size_t next = (i + 1) % pts.size();
-            area2 += static_cast<long long>(pts[i].x()) * pts[next].y();
-            area2 -= static_cast<long long>(pts[next].x()) * pts[i].y();
-        }
-
-        // Only reject if area is exactly zero (all points on same line)
-        if (area2 == 0) {
-            std::cerr << "WARNING: Polygon has zero area (degenerate)\n";
-            return true;
-        }
-
-        return false;
-    };
-
-    // Check if geometry is completely invalid
-    if (isGeometryInvalid(points)) {
-        std::cerr << "ERROR: Invalid geometry detected after integer conversion (id="
-                  << poly.id << "). Polygon has zero area.\n";
-        return IntPolygonWithHoles();
-    }
-
     IntPolygonWithHoles result;
-
-    try {
         set_points(result, points.begin(), points.end());
-    }
-    catch (...) {
-        // If set_points fails, return empty
-        return IntPolygonWithHoles();
-    }
 
-    // Convert holes with same minimal cleaning and validation
+    // Convert holes
     if (!poly.children.empty()) {
         std::vector<IntPolygon> holes;
         holes.reserve(poly.children.size());
@@ -274,46 +180,18 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             holePoints.reserve(hole.points.size());
 
             for (const auto& p : hole.points) {
-                // CRITICAL: Use TRUNCATION for holes too
                 int x = static_cast<int>(scale * p.x);
                 int y = static_cast<int>(scale * p.y);
                 holePoints.push_back(IntPoint(x, y));
             }
 
-            // Minimal cleaning for holes
-            removeConsecutiveDuplicates(holePoints);
-
-            if (holePoints.size() >= 3) {
-                // Minimal validation for holes too
-                if (isGeometryInvalid(holePoints)) {
-                    std::cerr << "WARNING: Invalid hole geometry detected (id="
-                              << poly.id << "), skipping hole (zero area)\n";
-                    continue;
-                }
-
-                try {
                     IntPolygon holePoly;
                     set_points(holePoly, holePoints.begin(), holePoints.end());
                     holes.push_back(holePoly);
                 }
-                catch (...) {
-                    std::cerr << "WARNING: Failed to create hole polygon, skipping\n";
-                    continue;
-                }
-            } else {
-                std::cerr << "WARNING: Hole has < 3 points after cleaning, skipping\n";
-            }
-        }
 
-        if (!holes.empty()) {
-            try {
                 set_holes(result, holes.begin(), holes.end());
             }
-            catch (...) {
-                // Continue without holes if set_holes fails
-            }
-        }
-    }
 
     return result;
 }
@@ -322,46 +200,24 @@ Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, 
     Polygon result;
     double invScale = 1.0 / scale;
 
-    // CRITICAL FIX: Extract points to temporary containers first to avoid
-    // dangling iterators and ensure complete data copy before Boost objects are destroyed
-
-    // Extract outer boundary to temporary container
-    std::vector<IntPoint> outerPoints;
+    // Extract outer boundary
     for (auto it = begin_points(boostPoly); it != end_points(boostPoly); ++it) {
-        outerPoints.push_back(*it);  // Complete copy of point data
-    }
-
-    // Convert outer points
-    result.points.reserve(outerPoints.size());
-    for (const auto& pt : outerPoints) {
         result.points.emplace_back(
-            static_cast<double>(pt.x()) * invScale,
-            static_cast<double>(pt.y()) * invScale
+            static_cast<double>(it->x()) * invScale,
+            static_cast<double>(it->y()) * invScale
         );
     }
 
-    // Extract holes - copy data completely before conversion
-    std::vector<std::vector<IntPoint>> holePointsList;
+    // Extract holes
     for (auto holeIt = begin_holes(boostPoly); holeIt != end_holes(boostPoly); ++holeIt) {
-        std::vector<IntPoint> holePoints;
-        for (auto pointIt = begin_points(*holeIt); pointIt != end_points(*holeIt); ++pointIt) {
-            holePoints.push_back(*pointIt);  // Complete copy
-        }
-        holePointsList.push_back(holePoints);
-    }
-
-    // Convert holes
-    result.children.reserve(holePointsList.size());
-    for (const auto& holePoints : holePointsList) {
         Polygon hole;
-        hole.points.reserve(holePoints.size());
-        for (const auto& pt : holePoints) {
+        for (auto pointIt = begin_points(*holeIt); pointIt != end_points(*holeIt); ++pointIt) {
             hole.points.emplace_back(
-                static_cast<double>(pt.x()) * invScale,
-                static_cast<double>(pt.y()) * invScale
+                static_cast<double>(pointIt->x()) * invScale,
+                static_cast<double>(pointIt->y()) * invScale
             );
         }
-        result.children.push_back(std::move(hole));  // Move instead of copy
+        result.children.push_back(hole);
     }
 
     return result;
@@ -370,51 +226,16 @@ Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, 
 std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     const IntPolygonSet& polySet, double scale) {
 
-    LOG_NFP("fromBoostPolygonSet called");
-
-    // CRITICAL FIX: Ensure complete copy of data from Boost internal structures
-    // before any processing to avoid dangling references after polySet destruction
     std::vector<IntPolygonWithHoles> boostPolygons;
-
-    // CRITICAL: Wrap get() in try-catch to handle "invalid comparator" errors
-    // that can occur in Boost.Polygon scanline algorithm with degenerate geometries
-    try {
-        LOG_NFP("About to call polySet.get() - THIS IS WHERE CRASH TYPICALLY OCCURS");
-        LOG_NFP("polySet dirty() = " << polySet.dirty());
-
-        polySet.get(boostPolygons);  // This triggers clean() which uses scanline algorithm
-
-        LOG_NFP("polySet.get() succeeded, extracted " << boostPolygons.size() << " polygons");
-    }
-    catch (const std::exception& e) {
-        // If Boost.Polygon scanline fails (invalid comparator, etc.), return empty
-        // This can happen with degenerate geometries even after cleaning
-        LOG_NFP("WARNING: Boost.Polygon get() failed: " << e.what() << " - returning empty NFP");
-        return std::vector<Polygon>();
-    }
-    catch (...) {
-        // Catch any other exceptions from Boost.Polygon
-        LOG_NFP("WARNING: Boost.Polygon get() failed with unknown exception - returning empty NFP");
-        return std::vector<Polygon>();
-    }
+    polySet.get(boostPolygons);
 
     std::vector<Polygon> result;
     result.reserve(boostPolygons.size());
 
-    // Process all polygons immediately while boostPolygons is still valid
-    // fromBoostIntPolygon now does complete data extraction before conversion
     for (const auto& boostPoly : boostPolygons) {
-        Polygon converted = fromBoostIntPolygon(boostPoly, scale);
-        // Only add non-empty polygons
-        if (!converted.points.empty()) {
-            result.push_back(std::move(converted));
+        result.push_back(fromBoostIntPolygon(boostPoly, scale));
         }
-    }
 
-    // Explicitly clear boost containers to ensure no dangling references
-    boostPolygons.clear();
-
-    LOG_NFP("fromBoostPolygonSet completed successfully, returning " << result.size() << " polygons");
     return result;
 }
 
@@ -422,36 +243,6 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     const Polygon& A,
     const Polygon& B,
     bool inner) {
-
-    // CRITICAL: Lock mutex for entire Boost.Polygon operation sequence
-    // Boost.Polygon is NOT thread-safe - concurrent access causes:
-    // - Access violations (0xc0000005: read access violation at 0x10)
-    // - Memory corruption in scanline algorithm
-    // - Dangling references to internal structures
-    // This manifests especially with large datasets (154 parts)
-    std::lock_guard<std::mutex> lock(boostPolygonMutex);
-
-    // DEBUG: Log which polygon pair we're processing
-    LOG_NFP("\n=== calculateNFP START ===");
-    LOG_NFP("A: id=" << A.id << ", points=" << A.points.size() << ", children=" << A.children.size());
-    LOG_NFP("B: id=" << B.id << ", points=" << B.points.size() << ", children=" << B.children.size());
-    LOG_NFP("inner=" << (inner ? "true" : "false"));
-
-    // Validate input
-    if (A.points.empty() || B.points.empty()) {
-        LOG_NFP("ERROR: Empty polygon points, returning empty NFP");
-        return std::vector<Polygon>();
-    }
-
-    // CRITICAL: Save reference point from B[0] for later shift
-    // This matches minkowski.cc lines 286-298 (xshift, yshift)
-    // NFP coordinates must be relative to B[0], not absolute
-    double xshift = 0.0;
-    double yshift = 0.0;
-    if (!B.points.empty()) {
-        xshift = B.points[0].x;
-        yshift = B.points[0].y;
-    }
 
     // Calculate scale factor
     double scale = calculateScale(A, B);
@@ -482,150 +273,21 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         std::reverse(child.points.begin(), child.points.end());
     }
 
-    // CRITICAL FIX: All Boost.Polygon operations are scoped to ensure proper cleanup
-    // and immediate data extraction before any Boost objects are destroyed
-    std::vector<Polygon> nfps;
-    {
-        LOG_NFP("Converting to Boost integer polygons...");
-
-        // Convert to Boost integer polygons - scoped lifetime
+    // Convert to Boost integer polygons
         IntPolygonSet polySetA, polySetB, result;
 
         IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-        LOG_NFP("Converted A to Boost polygon");
-
         IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
-        LOG_NFP("Converted B to Boost polygon");
 
-        // Check if conversion produced valid polygons
-        if (boostA.begin() == boostA.end() || boostB.begin() == boostB.end()) {
-            // Empty polygon after cleaning - return empty NFP
-            LOG_NFP("ERROR: Empty polygon after conversion, returning empty NFP");
-            return std::vector<Polygon>();
-        }
-
-        try {
-            LOG_NFP("Inserting A into polygon set...");
             polySetA.insert(boostA);
-
-            LOG_NFP("Inserting B into polygon set...");
             polySetB.insert(boostB);
 
-            LOG_NFP("Computing Minkowski convolution...");
-            // Compute Minkowski sum - this can fail with invalid comparator
+    // Compute Minkowski sum
             convolve_two_polygon_sets(result, polySetA, polySetB);
-            LOG_NFP("Minkowski convolution completed");
 
-            LOG_NFP("Extracting result from polygon set (calling .get())...");
-            // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
-            // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
-            nfps = fromBoostPolygonSet(result, scale);
-            LOG_NFP("Successfully extracted " << nfps.size() << " NFPs");
+    // Convert back to our Polygon type
+    std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
 
-            // Explicitly clear Boost containers to release any internal memory
-            result.clear();
-            polySetA.clear();
-            polySetB.clear();
-        }
-        catch (const std::exception& e) {
-            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed: " << e.what() << std::endl;
-            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
-            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
-            std::cerr << "  Scale factor: " << scale << std::endl;
-
-            // Print first few points for debugging
-            std::cerr << "  A points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
-                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            std::cerr << "  B points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
-                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            return std::vector<Polygon>();
-        }
-        catch (...) {
-            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed with unknown error" << std::endl;
-            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
-            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
-            std::cerr << "  Scale factor: " << scale << std::endl;
-
-            // Print first few points for debugging
-            std::cerr << "  A points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
-                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            std::cerr << "  B points[0-2]: ";
-            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
-                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
-            }
-            std::cerr << std::endl;
-
-            return std::vector<Polygon>();
-        }
-    }
-    // All Boost objects destroyed here - nfps contains completely independent data
-
-    // CRITICAL: Apply reference point shift to all NFP results
-    // This matches minkowski.cc lines 319-320, 480-481
-    // NFP coordinates are relative to B[0], not absolute origin
-    // The shift is applied because Minkowski difference is computed as A ⊖ B = A ⊕ (-B),
-    // where B is negated. The resulting NFP is in a coordinate system where B's origin
-    // is at (0,0). To place it correctly in the original coordinate system, we shift by B[0].
-    for (auto& nfp : nfps) {
-        // Shift outer boundary
-        for (auto& pt : nfp.points) {
-            pt.x += xshift;
-            pt.y += yshift;
-        }
-
-        // Shift holes (children) if present
-        for (auto& child : nfp.children) {
-            for (auto& pt : child.points) {
-                pt.x += xshift;
-                pt.y += yshift;
-            }
-        }
-    }
-
-    // CRITICAL: If multiple NFPs are returned, choose the one with largest area
-    // This matches background.js lines 666-673 (largest area selection)
-    // Minkowski sum can produce multiple disjoint polygons, but for NFP we want
-    // the largest one which represents the main no-fit region
-    if (nfps.size() > 1) {
-        size_t maxIndex = 0;
-        double maxArea = 0.0;
-
-        for (size_t i = 0; i < nfps.size(); ++i) {
-            // Calculate absolute area using shoelace formula
-            double area = 0.0;
-            const auto& pts = nfps[i].points;
-            for (size_t j = 0; j < pts.size(); ++j) {
-                size_t next = (j + 1) % pts.size();
-                area += (pts[j].x + pts[next].x) * (pts[j].y - pts[next].y);
-            }
-            area = std::abs(area * 0.5);
-
-            if (area > maxArea) {
-                maxArea = area;
-                maxIndex = i;
-            }
-        }
-
-        // Return only the largest NFP
-        LOG_NFP("INFO: Multiple NFPs generated (" << nfps.size() << "), selecting largest with area " << maxArea);
-
-        Polygon largestNfp = nfps[maxIndex];
-        return {largestNfp};
-    }
-
-    LOG_NFP("=== calculateNFP END: SUCCESS, returning " << nfps.size() << " NFPs ===");
     return nfps;
 }
 

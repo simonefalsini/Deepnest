@@ -62,6 +62,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         rotated.source = part.source;
         rotated.id = part.id;
 
+#ifdef PLACEMENTDEBUG
         // Debug log for first part
         if (idx == 0) {
             std::cout << "\n=== ROTATION DEBUG: First part ===" << std::endl;
@@ -70,6 +71,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             std::cout << "  Rotated points[0]: (" << rotated.points[0].x << ", " << rotated.points[0].y << ")" << std::endl;
             std::cout.flush();
         }
+#endif
 
         rotatedParts.push_back(rotated);
     }
@@ -138,18 +140,23 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             for (int rotAttempt = 0; rotAttempt < maxRotationAttempts; rotAttempt++) {
                 // Debug logging for first part's first rotation attempt
                 if (placements.empty() && rotAttempt == 0) {
+#ifdef PLACEMENTDEBUG
                     std::cout << "\n=== NFP CALCULATION DEBUG ===" << std::endl;
                     std::cout << "  Sheet first 4 points: ";
+#endif
                     for (size_t p = 0; p < std::min(size_t(4), sheet.points.size()); ++p) {
                         std::cout << "(" << sheet.points[p].x << "," << sheet.points[p].y << ") ";
                     }
+#ifdef PLACEMENTDEBUG
                     std::cout << std::endl;
                     std::cout << "  Part first 4 points: ";
+
                     for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
                         std::cout << "(" << part.points[p].x << "," << part.points[p].y << ") ";
                     }
                     std::cout << std::endl;
                     std::cout.flush();
+ #endif 
                 }
 
                 auto innerNfps = nfpCalculator_.getInnerNFP(sheet, part);
@@ -219,7 +226,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                               << ", Rotation: " << part.rotation << std::endl;
                     std::cout << "  Part.points[0]: (" << partRef.x << ", " << partRef.y << ")" << std::endl;
                     std::cout << "  Part first 4 points: ";
-#endif
+
                     for (size_t p = 0; p < std::min(size_t(4), part.points.size()); ++p) {
                         std::cout << "(" << part.points[p].x << "," << part.points[p].y << ") ";
                     }
@@ -233,6 +240,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                         std::cout << std::endl;
                     }
                     std::cout.flush();
+#endif 
                 }
 
                 // innerNfp may have children, check main polygon
