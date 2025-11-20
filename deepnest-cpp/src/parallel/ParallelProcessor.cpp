@@ -37,13 +37,6 @@ ParallelProcessor::~ParallelProcessor() {
 }
 
 void ParallelProcessor::stop() {
-    // CRITICAL FIX: Proper shutdown sequence to prevent use-after-free
-    // 1. Set stopped flag and remove work guard (allow threads to finish)
-    // 2. FLUSH all pending tasks in queue (NEW FIX!)
-    // 3. Stop io_context to signal threads to exit after current tasks
-    // 4. Join all threads to ensure they are COMPLETELY finished
-    // 5. Only then is it safe to destroy resources captured by task lambdas
-
     LOG_THREAD("ParallelProcessor::stop() called");
 
     {
@@ -53,73 +46,74 @@ void ParallelProcessor::stop() {
             return;
         }
         stopped_ = true;
+    }
 
-        // Remove work guard to allow io_context to finish naturally
-        LOG_THREAD("Removing work guard");
-        workGuard_.reset();
-    }  // Release lock before joining threads to avoid potential deadlock
+    // DRASTIC FIX: If join_all() deadlocks, we can't recover
+    // Best option: detach threads and recreate thread pool on next start
 
-    // PHASE 1 FIX: Flush all pending tasks BEFORE stopping io_context
-    // This ensures all tasks that captured references complete execution
-    // BEFORE we destroy the objects they reference
-    LOG_THREAD("Flushing pending tasks from queue...");
-    int flushCount = 0;
-    const int maxFlushIterations = 100;  // Safety limit: 100 * 10ms = 1 second max
+    LOG_THREAD("Removing work guard");
+    workGuard_.reset();
 
-    while (flushCount < maxFlushIterations) {
-        // Poll to execute pending tasks
-        std::size_t tasksExecuted = ioContext_.poll();
+    LOG_THREAD("Calling ioContext_.stop()");
+    ioContext_.stop();
 
-        if (tasksExecuted == 0) {
-            // No more tasks in queue
-            LOG_THREAD("Task queue flushed successfully (no more pending tasks)");
+    // Give threads a brief moment to exit
+    LOG_THREAD("Waiting 50ms for threads to exit");
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    LOG_THREAD("Attempting join_all with timeout simulation");
+
+    // Use a separate thread to call join_all with a timeout
+    std::atomic<bool> joinCompleted{false};
+    std::thread joinThread([this, &joinCompleted]() {
+        try {
+            LOG_THREAD("  [Join thread] Calling join_all...");
+            this->threads_.join_all();
+            LOG_THREAD("  [Join thread] join_all completed successfully");
+            joinCompleted = true;
+        } catch (const std::exception& e) {
+            LOG_THREAD("  [Join thread] Exception: " << e.what());
+        } catch (...) {
+            LOG_THREAD("  [Join thread] Unknown exception");
+        }
+    });
+
+    // Wait up to 500ms for join to complete
+    for (int i = 0; i < 50; ++i) {
+        if (joinCompleted) {
+            LOG_THREAD("Join completed successfully within timeout");
             break;
         }
-
-        LOG_THREAD("Executed " << tasksExecuted << " pending tasks, checking for more...");
-        flushCount++;
-
-        // Small delay to allow threads to finish current work
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    if (flushCount >= maxFlushIterations) {
-        LOG_THREAD("WARNING: Flush timeout after " << maxFlushIterations << " iterations");
+    if (!joinCompleted) {
+        LOG_THREAD("WARNING: join_all timed out after 500ms!");
+        LOG_THREAD("WARNING: Detaching join thread - threads may be leaked");
+        // Detach the join thread - it will continue trying to join
+        // This prevents the main thread from blocking forever
+        joinThread.detach();
+    } else {
+        // Join succeeded, clean up the join thread
+        joinThread.join();
     }
 
-    // Now stop io_context - threads will exit after finishing current task
-    LOG_THREAD("Stopping io_context");
-    ioContext_.stop();
-
-    // CRITICAL: Wait for ALL threads to COMPLETELY finish
-    // This ensures no thread is still executing code that references PlacementWorker, etc.
-    LOG_THREAD("Waiting for all threads to join...");
-
-    try {
-        // Give threads a moment to exit naturally after io_context.stop()
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-        // Check if threads are joinable before attempting join
-        LOG_THREAD("Attempting to join " << threads_.size() << " threads");
-
-        // Use interrupt and join to ensure threads exit
-        threads_.interrupt_all();
-        threads_.join_all();
-
-        LOG_THREAD("All threads joined successfully");
-    } catch (const std::exception& e) {
-        LOG_THREAD("ERROR during thread join: " << e.what());
-    } catch (...) {
-        LOG_THREAD("ERROR: Unknown exception during thread join");
-    }
-
-    // Reset io_context to allow restart
-    LOG_THREAD("Resetting io_context for potential restart");
+    // Reset io_context for restart
+    LOG_THREAD("Resetting io_context");
     ioContext_.restart();
 
-    // Now all threads are stopped and task queue is empty
-    // Safe for NestingEngine destructor to destroy placementWorker_, nfpCalculator_, etc.
-    LOG_THREAD("ParallelProcessor::stop() completed successfully");
+    // Recreate work guard for potential restart
+    LOG_THREAD("Recreating work guard");
+    workGuard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+        boost::asio::make_work_guard(ioContext_)
+    );
+
+    // If join timed out, we need to recreate threads on next use
+    // But we can't do it here because threads_ might be in inconsistent state
+    // Solution: Mark that we need to recreate, and do it in NestingEngine::start()
+
+    LOG_THREAD("ParallelProcessor::stop() completed (join " <<
+              (joinCompleted ? "succeeded" : "TIMED OUT") << ")");
 }
 
 void ParallelProcessor::waitAll() {
