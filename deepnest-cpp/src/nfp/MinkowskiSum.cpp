@@ -14,10 +14,14 @@ namespace deepnest {
 using namespace boost::polygon;
 
 // Type aliases for Boost.Polygon types with integer coordinates
+// CRITICAL: These MUST match minkowski.cc exactly!
+// minkowski.cc line 14-17:
+//   typedef boost::polygon::point_data<int> point;
+//   typedef boost::polygon::polygon_set_data<int> polygon_set;
+//   typedef boost::polygon::polygon_with_holes_data<int> polygon;
 using IntPoint = point_data<int>;
-using IntPolygon = polygon_data<int>;
-using IntPolygonWithHoles = polygon_with_holes_data<int>;
 using IntPolygonSet = polygon_set_data<int>;
+using IntPolygon = polygon_with_holes_data<int>;  // CRITICAL: with_holes, not polygon_data!
 using IntEdge = std::pair<IntPoint, IntPoint>;
 
 // Forward declarations of helper functions from minkowski.cc
@@ -159,7 +163,7 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
     return scale;
 }
 
-IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
+IntPolygon MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
     // CRITICAL: Extra simplification step immediately before conversion to prevent
     // "invalid comparator" crashes in Boost.Polygon convolution result.
     // Even though polygon was cleaned in Polygon.cpp, we need additional simplification
@@ -173,7 +177,7 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
     );
 
     if (simplifiedPoints.size() < 3) {
-        return IntPolygonWithHoles();
+        return IntPolygon();
     }
 
     // Convert outer boundary with rounding for precision
@@ -189,17 +193,17 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
 
     // Validate minimum points
     if (points.size() < 3) {
-        return IntPolygonWithHoles();
+        return IntPolygon();
     }
 
-    IntPolygonWithHoles result;
+    IntPolygon result;
 
     try {
         set_points(result, points.begin(), points.end());
     }
     catch (...) {
         // If set_points fails, return empty
-        return IntPolygonWithHoles();
+        return IntPolygon();
     }
 
     // Convert holes (if any) with same simplification
