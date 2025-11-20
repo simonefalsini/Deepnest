@@ -385,19 +385,6 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         return std::vector<Polygon>();
     }
 
-    // CRITICAL FIX: Clean polygons with Clipper2 BEFORE Boost conversion
-    // This prevents "invalid comparator" crashes in c.get(polys)
-    // Even though polygons are R-D-P simplified in Polygon.cpp, we need
-    // Clipper2 SimplifyPaths to remove near-duplicates and near-collinear edges
-    // that cause Boost.Polygon scanline algorithm to fail.
-
-    std::vector<Point> cleanedA = PolygonOperations::simplifyPolygon(A.points, 0.001);
-    std::vector<Point> cleanedB = PolygonOperations::simplifyPolygon(B.points, 0.001);
-
-    if (cleanedA.size() < 3 || cleanedB.size() < 3) {
-        return std::vector<Polygon>();
-    }
-
     // Calculate scale factor (same as minkowski.cc lines 120-163)
     double scale = calculateScale(A, B);
 
@@ -406,10 +393,11 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     std::vector<IntPolygon> polys;
     std::vector<IntPoint> pts;
 
-    // Convert CLEANED A to Boost polygon (minkowski.cc lines 166-178)
-    // CRITICAL: Use simple truncation casting like original!
-    pts.reserve(cleanedA.size());
-    for (const auto& p : cleanedA) {
+    // Convert A to Boost polygon (minkowski.cc lines 166-178)
+    // CRITICAL: NO extra cleaning! Use polygons as-is from Polygon.cpp (R-D-P simplified)
+    // Use simple truncation casting like original!
+    pts.reserve(A.points.size());
+    for (const auto& p : A.points) {
         int x = static_cast<int>(scale * p.x);  // truncation, not rounding!
         int y = static_cast<int>(scale * p.y);
         pts.push_back(IntPoint(x, y));
@@ -426,13 +414,9 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
 
     // Subtract holes from a (minkowski.cc lines 180-196)
     for (const auto& hole : A.children) {
-        // Clean holes too
-        std::vector<Point> cleanedHole = PolygonOperations::simplifyPolygon(hole.points, 0.001);
-        if (cleanedHole.size() < 3) continue;
-
         pts.clear();
-        pts.reserve(cleanedHole.size());
-        for (const auto& p : cleanedHole) {
+        pts.reserve(hole.points.size());
+        for (const auto& p : hole.points) {
             int x = static_cast<int>(scale * p.x);
             int y = static_cast<int>(scale * p.y);
             pts.push_back(IntPoint(x, y));
@@ -447,24 +431,24 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     }
 
     // For NFP, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
-    // Negate and convert CLEANED B (minkowski.cc lines 198-219)
+    // Negate and convert B (minkowski.cc lines 198-219)
     pts.clear();
-    pts.reserve(cleanedB.size());
+    pts.reserve(B.points.size());
 
     // Track first point for offset (minkowski.cc lines 203-215)
     double xshift = 0;
     double yshift = 0;
 
-    for (size_t i = 0; i < cleanedB.size(); i++) {
-        const auto& p = cleanedB[i];
+    for (size_t i = 0; i < B.points.size(); i++) {
+        const auto& p = B.points[i];
         // CRITICAL: Negate BEFORE scaling, then cast to int with truncation
         int x = -static_cast<int>(scale * p.x);
         int y = -static_cast<int>(scale * p.y);
         pts.push_back(IntPoint(x, y));
 
         if (i == 0) {
-            xshift = B.points[0].x;  // Use ORIGINAL first point for shift
-            yshift = B.points[0].y;
+            xshift = p.x;  // Use original first point
+            yshift = p.y;
         }
     }
 
@@ -480,7 +464,14 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     polys.clear();
     try {
         convolve_two_polygon_sets(c, a, b);
-        c.get(polys);  // Should not crash now with cleaned polygons!
+
+        // CRITICAL: Clean the result BEFORE calling get()!
+        // The convolution can create degenerate edges even with clean inputs.
+        // Calling clean() triggers the scanline algorithm in a controlled way
+        // that removes degenerate geometries before get() tries to extract them.
+        c.clean();
+
+        c.get(polys);  // Should not crash now with cleaned result!
     }
     catch (const std::exception& e) {
         std::cerr << "ERROR: Boost.Polygon convolution failed: " << e.what() << std::endl;
