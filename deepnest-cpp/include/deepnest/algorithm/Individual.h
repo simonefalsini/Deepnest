@@ -94,14 +94,16 @@ public:
     /**
      * @brief Construct individual from parts and random rotations
      *
-     * @param parts List of polygons to be nested
+     * @param parts List of polygons to be nested (shared_ptr for thread safety)
      * @param config Configuration containing rotation settings
      * @param seed Random seed for rotation generation (optional)
      *
      * Initializes placement with the given parts in order, and assigns
      * random rotation angles based on config.rotations.
+     *
+     * PHASE 2: Changed from Polygon* to shared_ptr for thread safety.
      */
-    Individual(const std::vector<Polygon*>& parts,
+    Individual(const std::vector<std::shared_ptr<Polygon>>& parts,
                const DeepNestConfig& config,
                unsigned int seed = std::random_device{}());
 

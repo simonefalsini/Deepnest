@@ -123,7 +123,7 @@ const DeepNestConfig& GeneticAlgorithm::getConfig() const {
     return config_;
 }
 
-const std::vector<Polygon*>& GeneticAlgorithm::getParts() const {
+const std::vector<std::shared_ptr<Polygon>>& GeneticAlgorithm::getParts() const {
     return parts_;
 }
 

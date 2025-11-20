@@ -305,10 +305,11 @@ void Population::clear() {
     individuals_.clear();
 }
 
-bool Population::containsPolygon(const std::vector<Polygon*>& placement, int polygonId) {
+bool Population::containsPolygon(const std::vector<std::shared_ptr<Polygon>>& placement, int polygonId) {
     // JavaScript: function contains(gene, id) { for(var i=0; i<gene.length; i++)
     //   if(gene[i].id == id) { return true; } }
-    for (const auto* poly : placement) {
+    // PHASE 2: Now uses shared_ptr instead of raw pointers
+    for (const auto& poly : placement) {
         if (poly != nullptr && poly->id == polygonId) {
             return true;
         }

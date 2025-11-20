@@ -157,8 +157,10 @@ public:
 private:
     /**
      * @brief Check if a placement sequence contains a polygon by ID
+     *
+     * PHASE 2: Changed from Polygon* to shared_ptr for thread safety.
      */
-    static bool containsPolygon(const std::vector<Polygon*>& placement, int polygonId);
+    static bool containsPolygon(const std::vector<std::shared_ptr<Polygon>>& placement, int polygonId);
 
     /**
      * @brief Find index of individual in population (by pointer comparison)
