@@ -598,8 +598,15 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
     int maxIterations = 10 * (A.size() + B.size());
     int iterations = 0;
 
+    std::cerr << "  Starting orbital loop (maxIterations=" << maxIterations << ")" << std::endl;
+
     while (iterations < maxIterations) {
         iterations++;
+
+        if (iterations <= 3 || iterations % 10 == 0) {
+            std::cerr << "    Iteration " << iterations << ": reference=("
+                      << reference.x << "," << reference.y << ")" << std::endl;
+        }
 
         // Find all edges of A and B that are touching at current reference position
         struct TouchingEdge {
@@ -656,7 +663,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
         }
 
         if (touching.empty()) {
+            std::cerr << "    Iteration " << iterations << ": No touching edges found, breaking" << std::endl;
             break;  // No more touching edges, NFP complete
+        }
+
+        if (iterations <= 3) {
+            std::cerr << "    Found " << touching.size() << " touching edges" << std::endl;
         }
 
         // Select the edge with the smallest positive angle (for outer NFP)
@@ -686,7 +698,13 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
         }
 
         if (!selectedEdge) {
+            std::cerr << "    Iteration " << iterations << ": No valid edge selected, breaking" << std::endl;
             break;  // No valid edge to follow
+        }
+
+        if (iterations <= 3) {
+            std::cerr << "    Selected edge: polygon=" << selectedEdge->polygon
+                      << ", angle=" << selectedEdge->angle << std::endl;
         }
 
         // Translation vector is the direction of the selected edge
@@ -720,6 +738,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
 
         // Check if we've completed the loop (returned to start point)
         if (almostEqualPoints(reference, startPoint, TOL)) {
+            std::cerr << "    Iteration " << iterations << ": Returned to start point, loop complete!" << std::endl;
             break;  // NFP complete
         }
 
@@ -763,14 +782,23 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
         }
     }
 
+    std::cerr << "  Orbital loop completed after " << iterations << " iterations" << std::endl;
+    std::cerr << "  Raw NFP points: " << nfp.size() << std::endl;
+    std::cerr << "  Cleaned NFP points: " << cleanedNFP.size() << std::endl;
+
     if (!cleanedNFP.empty() && cleanedNFP.size() >= 3) {
+        std::cerr << "  ✅ NFP is valid (>= 3 points), adding to results" << std::endl;
         nfps.push_back(cleanedNFP);
+    } else {
+        std::cerr << "  ❌ NFP is INVALID (< 3 points), discarding!" << std::endl;
+        std::cerr << "  This is why orbital tracing returns empty!" << std::endl;
     }
 
     // If searchEdges is true, we would repeat the process for different starting edges
     // For now, we just return the single NFP found from the default start point
     // This can be extended if needed for better coverage
 
+    std::cerr << "  Returning " << nfps.size() << " NFP(s)" << std::endl;
     return nfps;
 }
 
