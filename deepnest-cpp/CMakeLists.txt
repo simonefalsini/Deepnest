@@ -11,7 +11,8 @@ option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(BUILD_TESTS "Build test applications" ON)
 
 # Find required packages
-find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+# Qt5 is optional for library-only build
+find_package(Qt5 COMPONENTS Core Gui Widgets QUIET)
 find_package(Boost REQUIRED COMPONENTS thread system)
 
 # Include directories
@@ -127,12 +128,15 @@ endif()
 # Link libraries
 target_link_libraries(deepnest
     PUBLIC
-        Qt5::Core
-        Qt5::Gui
-        Qt5::Widgets
         ${Boost_LIBRARIES}
         pthread
 )
+
+# Link Qt5 only if found
+if(Qt5_FOUND)
+    target_link_libraries(deepnest PUBLIC Qt5::Core Qt5::Gui Qt5::Widgets)
+    target_compile_definitions(deepnest PUBLIC HAS_QT5)
+endif()
 
 # Set target properties
 set_target_properties(deepnest PROPERTIES
