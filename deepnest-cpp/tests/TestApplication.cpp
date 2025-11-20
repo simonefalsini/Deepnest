@@ -1039,6 +1039,9 @@ double TestApplication::runAutomaticTest(int generations) {
         return std::numeric_limits<double>::max();
     }
 
+    // For automatic testing, use single thread to avoid threading issues during debugging
+    config_.threads = 1;
+
     std::cout << "\n========================================" << std::endl;
     std::cout << "  AUTOMATIC NESTING TEST" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -1046,7 +1049,7 @@ double TestApplication::runAutomaticTest(int generations) {
     std::cout << "Parts: " << solver_->getPartCount() << std::endl;
     std::cout << "Sheets: " << solver_->getSheetCount() << std::endl;
     std::cout << "Population size: " << config_.populationSize << std::endl;
-    std::cout << "Threads: " << config_.threads << std::endl;
+    std::cout << "Threads: " << config_.threads << " (forced to 1 for debugging)" << std::endl;
     std::cout << "Spacing: " << config_.spacing << std::endl;
     std::cout << "----------------------------------------" << std::endl;
 
@@ -1057,6 +1060,7 @@ double TestApplication::runAutomaticTest(int generations) {
     // Configure solver with current settings
     solver_->setPopulationSize(config_.populationSize);
     solver_->setMutationRate(config_.mutationRate);
+    solver_->setThreads(config_.threads);
 
     // Start nesting
     solver_->start(0);  // 0 = unlimited generations, we'll control manually

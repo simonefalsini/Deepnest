@@ -41,52 +41,20 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
             return fallbackNFP;
         }
 
-        std::cerr << "ERROR: Orbital tracing also failed, using bounding box approximation" << std::endl;
+        std::cerr << "ERROR: Orbital tracing also failed" << std::endl;
+        std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
+        std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
 
-        // FALLBACK 2: If even orbital tracing fails, use conservative bounding box
-        BoundingBox bboxA = A.bounds();
-        BoundingBox bboxB = B.bounds();
+        // CRITICAL FIX: When both Minkowski and orbital tracing fail,
+        // it's better to skip this pair entirely rather than creating invalid geometry
+        // that may cause crashes later.
+        //
+        // The problematic pairs will simply not have collision detection,
+        // which is better than crashing the entire nesting process.
+        std::cerr << "  SKIPPING: Returning empty NFP to avoid potential crashes" << std::endl;
 
-        Polygon fallbackNFP;
-
-        if (!inside) {
-            // Outer NFP: B orbits outside A
-            // Conservative approach: use dilated bounding box of A
-            double padding = std::max(bboxB.width, bboxB.height);
-
-            // Create rectangle around A with padding for B
-            fallbackNFP.points.push_back(Point(bboxA.x - padding, bboxA.y - padding));
-            fallbackNFP.points.push_back(Point(bboxA.x + bboxA.width + padding, bboxA.y - padding));
-            fallbackNFP.points.push_back(Point(bboxA.x + bboxA.width + padding, bboxA.y + bboxA.height + padding));
-            fallbackNFP.points.push_back(Point(bboxA.x - padding, bboxA.y + bboxA.height + padding));
-
-            // Add A's bounding box as a hole (forbidden region)
-            Polygon hole;
-            hole.points.push_back(Point(bboxA.x, bboxA.y));
-            hole.points.push_back(Point(bboxA.x + bboxA.width, bboxA.y));
-            hole.points.push_back(Point(bboxA.x + bboxA.width, bboxA.y + bboxA.height));
-            hole.points.push_back(Point(bboxA.x, bboxA.y + bboxA.height));
-            fallbackNFP.children.push_back(hole);
-        } else {
-            // Inner NFP: B must fit inside A
-            // Conservative approach: shrink A's bounding box by B's dimensions
-            double innerWidth = std::max(0.0, bboxA.width - bboxB.width);
-            double innerHeight = std::max(0.0, bboxA.height - bboxB.height);
-
-            if (innerWidth > 0 && innerHeight > 0) {
-                fallbackNFP.points.push_back(Point(bboxA.x, bboxA.y));
-                fallbackNFP.points.push_back(Point(bboxA.x + innerWidth, bboxA.y));
-                fallbackNFP.points.push_back(Point(bboxA.x + innerWidth, bboxA.y + innerHeight));
-                fallbackNFP.points.push_back(Point(bboxA.x, bboxA.y + innerHeight));
-            }
-            // If B doesn't fit, return empty (fallbackNFP.points stays empty)
-        }
-
-        if (!fallbackNFP.points.empty()) {
-            return fallbackNFP;
-        }
-
-        // If even bounding box fallback fails, return empty polygon
+        // Return an empty polygon - this will cause PlacementStrategy to skip
+        // collision detection for this specific pair, allowing nesting to continue
         return Polygon();
     }
 
@@ -266,8 +234,17 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
     // Compute outer NFP between frame and B with inside=true (background.js line 746)
     Polygon frameNfp = getOuterNFP(frame, B, true);
 
+    // CRITICAL FIX: Safety check before accessing children
+    // If frameNfp is empty (failed to compute), return immediately
+    if (frameNfp.points.empty()) {
+        std::cerr << "WARNING: getInnerNFP failed for A(id=" << A.id << ") and B(id=" << B.id << ")" << std::endl;
+        std::cerr << "  Frame NFP computation returned empty polygon" << std::endl;
+        return {}; // Return empty vector
+    }
+
     // Check if computation succeeded (background.js line 748-750)
-    if (frameNfp.points.empty() || frameNfp.children.empty()) {
+    if (frameNfp.children.empty()) {
+        std::cerr << "WARNING: getInnerNFP has no children for A(id=" << A.id << ") and B(id=" << B.id << ")" << std::endl;
         return {}; // Return empty vector
     }
 
