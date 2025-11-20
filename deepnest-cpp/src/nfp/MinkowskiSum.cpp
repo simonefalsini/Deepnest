@@ -174,12 +174,14 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
     }
 
     // CRITICAL: Cleaning function to prevent "invalid comparator" errors
-    // Removes: exact duplicates and nearly-collinear points
+    // Removes: near-duplicates and nearly-collinear points
 
     // TUNABLE PARAMETERS:
-    // Reduced aggressiveness to preserve valid geometry while preventing crashes
-    constexpr int MIN_EDGE_DISTANCE_SQ = 0;           // Accept all non-duplicate points
-    constexpr long long COLLINEARITY_THRESHOLD = 0;   // Only remove truly collinear points
+    // AGGRESSIVE cleaning to prevent Boost.Polygon scanline comparator failures
+    // These values must be large enough to prevent numerical precision issues
+    // in the scanline algorithm, but small enough to preserve geometry shape
+    constexpr int MIN_EDGE_DISTANCE_SQ = 4;           // Remove points within 2 integer units (after scaling)
+    constexpr long long COLLINEARITY_THRESHOLD = 10;  // Remove nearly-collinear points (cross product < 10)
 
     auto cleanPoints = [](std::vector<IntPoint>& pts) -> bool {
         if (pts.size() < 3) return false;
@@ -187,20 +189,25 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
         std::vector<IntPoint> cleaned;
         cleaned.reserve(pts.size());
 
-        // STEP 1: Remove exact duplicates only (keep near-duplicates for now)
+        // STEP 1: Remove near-duplicate points (not just exact duplicates)
         for (size_t i = 0; i < pts.size(); ++i) {
             size_t next = (i + 1) % pts.size();
 
-            // Only remove if points are EXACTLY the same
-            if (pts[i].x() != pts[next].x() || pts[i].y() != pts[next].y()) {
+            // Calculate squared distance to next point
+            long long dx = static_cast<long long>(pts[next].x()) - pts[i].x();
+            long long dy = static_cast<long long>(pts[next].y()) - pts[i].y();
+            long long distSq = dx * dx + dy * dy;
+
+            // Keep point only if it's far enough from the next point
+            if (distSq > MIN_EDGE_DISTANCE_SQ) {
                 cleaned.push_back(pts[i]);
             }
         }
 
         if (cleaned.size() < 3) return false;
 
-        // STEP 2: Remove only truly collinear points (cross product exactly 0)
-        // This preserves all corner points while removing only straight-line redundant points
+        // STEP 2: Remove nearly-collinear points (not just exactly collinear)
+        // This prevents scanline algorithm comparator failures from near-collinear edges
         std::vector<IntPoint> final;
         final.reserve(cleaned.size());
 
@@ -209,18 +216,17 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
             size_t next = (i + 1) % cleaned.size();
 
             // Vectors
-            int dx1 = cleaned[i].x() - cleaned[prev].x();
-            int dy1 = cleaned[i].y() - cleaned[prev].y();
-            int dx2 = cleaned[next].x() - cleaned[i].x();
-            int dy2 = cleaned[next].y() - cleaned[i].y();
+            long long dx1 = static_cast<long long>(cleaned[i].x()) - cleaned[prev].x();
+            long long dy1 = static_cast<long long>(cleaned[i].y()) - cleaned[prev].y();
+            long long dx2 = static_cast<long long>(cleaned[next].x()) - cleaned[i].x();
+            long long dy2 = static_cast<long long>(cleaned[next].y()) - cleaned[i].y();
 
             // Cross product to detect collinearity
-            long long cross = static_cast<long long>(dx1) * dy2 -
-                             static_cast<long long>(dy1) * dx2;
+            long long cross = dx1 * dy2 - dy1 * dx2;
 
-            // Keep point unless exactly collinear (cross == 0)
-            // This preserves all corners and angles while removing only mid-edge points
-            if (cross != 0) {
+            // Keep point only if NOT nearly collinear (absolute cross product must exceed threshold)
+            // This aggressively removes near-straight edges that cause scanline comparator failures
+            if (std::abs(cross) > COLLINEARITY_THRESHOLD) {
                 final.push_back(cleaned[i]);
             }
         }
@@ -349,8 +355,27 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
 
     // CRITICAL: Wrap get() in try-catch to handle "invalid comparator" errors
     // that can occur in Boost.Polygon scanline algorithm with degenerate geometries
+    //
+    // NOTE: The problem is that polySet.get() internally calls clean() which uses
+    // the scanline algorithm. The scanline comparator can ASSERT with "invalid comparator"
+    // when it encounters near-collinear edges or numerical precision issues.
+    //
+    // We've added aggressive polygon cleaning in toBoostIntPolygon() to prevent this,
+    // but we still need defensive error handling here.
     try {
+        // DEBUG: Log before calling get() to help diagnose crashes
+        // This helps identify if crash is in get() or in later processing
+        #ifdef DEBUG_MINKOWSKI
+        std::cerr << "DEBUG: Calling polySet.get() to extract "
+                  << polySet.size() << " polygons from result set..." << std::endl;
+        #endif
+
         polySet.get(boostPolygons);  // This triggers clean() which uses scanline algorithm
+
+        #ifdef DEBUG_MINKOWSKI
+        std::cerr << "DEBUG: polySet.get() succeeded, extracted "
+                  << boostPolygons.size() << " polygon(s)" << std::endl;
+        #endif
     }
     catch (const std::exception& e) {
         // If Boost.Polygon scanline fails (invalid comparator, etc.), return empty
