@@ -40,6 +40,39 @@ public:
      */
     ~TestApplication();
 
+    /**
+     * @brief Load SVG file from path (for command-line/automated testing)
+     *
+     * @param filepath Path to SVG file
+     * @return true if loaded successfully, false otherwise
+     */
+    bool loadSVGFromPath(const QString& filepath);
+
+    /**
+     * @brief Run automatic nesting test
+     *
+     * Runs nesting for a specified number of generations and returns
+     * the best fitness achieved.
+     *
+     * @param generations Number of generations to run
+     * @return Best fitness value achieved
+     */
+    double runAutomaticTest(int generations = 100);
+
+    /**
+     * @brief Get current best fitness
+     *
+     * @return Current best fitness value
+     */
+    double getBestFitness() const { return bestFitness_; }
+
+    /**
+     * @brief Check if nesting is running
+     *
+     * @return true if running, false otherwise
+     */
+    bool isRunning() const { return running_; }
+
 private slots:
     /**
      * @brief Load SVG file with parts and optionally sheet

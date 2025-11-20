@@ -21,6 +21,9 @@
 #include <QPainter>
 #include <QGraphicsTextItem>
 #include <random>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
 
 TestApplication::TestApplication(QWidget* parent)
     : QMainWindow(parent)
@@ -944,4 +947,167 @@ void TestApplication::updateStatus() {
 void TestApplication::log(const QString& message) {
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
     logWidget_->append(QString("[%1] %2").arg(timestamp).arg(message));
+}
+
+// ========== Automatic Testing Methods ==========
+
+bool TestApplication::loadSVGFromPath(const QString& filepath) {
+    if (filepath.isEmpty()) {
+        std::cerr << "ERROR: Empty filepath provided" << std::endl;
+        return false;
+    }
+
+    QFileInfo fileInfo(filepath);
+    if (!fileInfo.exists()) {
+        std::cerr << "ERROR: File does not exist: " << filepath.toStdString() << std::endl;
+        return false;
+    }
+
+    reset();
+    std::cout << "Loading SVG: " << filepath.toStdString() << std::endl;
+
+    // Load SVG file
+    SVGLoader::LoadResult result = SVGLoader::loadFile(filepath);
+
+    if (!result.success()) {
+        std::cerr << "ERROR: Failed to load SVG: " << result.errorMessage.toStdString() << std::endl;
+        return false;
+    }
+
+    // Add container/sheet if found
+    int sheetCount = 0;
+    if (result.container) {
+        QPainterPath containerPath = result.container->path;
+        if (!result.container->transform.isIdentity()) {
+            containerPath = result.container->transform.map(containerPath);
+        }
+
+        deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath, 0);
+        sheets_.push_back(sheetPoly);
+        solver_->addSheet(sheetPoly, 1, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
+        sheetCount++;
+
+        std::cout << "  Added sheet: " << (result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString()) << std::endl;
+    }
+
+    // Add all shapes as parts
+    int partCount = 0;
+    for (const auto& shape : result.shapes) {
+        QPainterPath shapePath = shape.path;
+        if (!shape.transform.isIdentity()) {
+            shapePath = shape.transform.map(shapePath);
+        }
+
+        deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(shapePath, partCount);
+
+        if (partPoly.isValid()) {
+            QString partName = shape.id.isEmpty() ? QString("Part_%1").arg(partCount) : shape.id;
+            parts_.push_back(partPoly);
+            solver_->addPart(partPoly, 1, partName.toStdString());
+            partCount++;
+        }
+    }
+
+    std::cout << "  Loaded " << partCount << " parts and " << sheetCount << " sheet(s)" << std::endl;
+
+    if (partCount == 0) {
+        std::cerr << "ERROR: No valid parts found in SVG file" << std::endl;
+        return false;
+    }
+
+    if (sheetCount == 0) {
+        std::cerr << "WARNING: No sheet/container found in SVG" << std::endl;
+    }
+
+    return true;
+}
+
+double TestApplication::runAutomaticTest(int generations) {
+    if (running_) {
+        std::cerr << "ERROR: Nesting is already running" << std::endl;
+        return bestFitness_;
+    }
+
+    // Validate we have parts and sheets
+    if (solver_->getPartCount() == 0) {
+        std::cerr << "ERROR: No parts loaded. Cannot start nesting." << std::endl;
+        return std::numeric_limits<double>::max();
+    }
+
+    if (solver_->getSheetCount() == 0) {
+        std::cerr << "ERROR: No sheets loaded. Cannot start nesting." << std::endl;
+        return std::numeric_limits<double>::max();
+    }
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "  AUTOMATIC NESTING TEST" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "Generations: " << generations << std::endl;
+    std::cout << "Parts: " << solver_->getPartCount() << std::endl;
+    std::cout << "Sheets: " << solver_->getSheetCount() << std::endl;
+    std::cout << "Population size: " << config_.populationSize << std::endl;
+    std::cout << "Threads: " << config_.threads << std::endl;
+    std::cout << "Spacing: " << config_.spacing << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+
+    running_ = true;
+    currentGeneration_ = 0;
+    bestFitness_ = std::numeric_limits<double>::max();
+
+    // Configure solver with current settings
+    solver_->setPopulationSize(config_.populationSize);
+    solver_->setMutationRate(config_.mutationRate);
+
+    // Start nesting
+    solver_->start(0);  // 0 = unlimited generations, we'll control manually
+
+    // Run for specified generations
+    int lastProgressGen = -1;
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    while (currentGeneration_ < generations && running_ && solver_->isRunning()) {
+        // Step the solver
+        solver_->step();
+
+        // Get current state
+        const deepnest::NestResult* result = solver_->getBestResult();
+        if (result != nullptr) {
+            bestFitness_ = result->fitness;
+            currentGeneration_ = result->generation;
+
+            // Print progress every 10 generations
+            if (currentGeneration_ - lastProgressGen >= 10) {
+                auto currentTime = std::chrono::high_resolution_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+                double gensPerSec = (elapsed > 0) ? (currentGeneration_ * 1000.0 / elapsed) : 0.0;
+
+                std::cout << "Gen " << currentGeneration_ << "/" << generations
+                          << " | Fitness: " << bestFitness_
+                          << " | Speed: " << std::fixed << std::setprecision(2) << gensPerSec << " gen/s"
+                          << std::endl;
+                lastProgressGen = currentGeneration_;
+            }
+        }
+
+        // Process Qt events to handle signals
+        QCoreApplication::processEvents();
+    }
+
+    // Stop nesting
+    solver_->stop();
+    running_ = false;
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto totalTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "Test completed!" << std::endl;
+    std::cout << "  Final generation: " << currentGeneration_ << std::endl;
+    std::cout << "  Best fitness: " << std::fixed << std::setprecision(4) << bestFitness_ << std::endl;
+    std::cout << "  Total time: " << (totalTime / 1000.0) << " seconds" << std::endl;
+    std::cout << "  Average speed: " << std::fixed << std::setprecision(2)
+              << (totalTime > 0 ? (currentGeneration_ * 1000.0 / totalTime) : 0.0) << " gen/s" << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    return bestFitness_;
 }
