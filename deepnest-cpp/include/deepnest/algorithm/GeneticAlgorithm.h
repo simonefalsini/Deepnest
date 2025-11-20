@@ -39,9 +39,12 @@ private:
     const DeepNestConfig& config_;
 
     /**
-     * @brief Parts to be nested (stored as pointers for efficiency)
+     * @brief Parts to be nested (stored as shared_ptr for thread safety)
+     *
+     * PHASE 2 FIX: Changed from raw pointers to shared_ptr.
+     * Shared ownership ensures parts stay alive even if source vector is cleared.
      */
-    std::vector<Polygon*> parts_;
+    std::vector<std::shared_ptr<Polygon>> parts_;
 
     /**
      * @brief Generation counter
@@ -55,12 +58,14 @@ public:
      * Initializes the genetic algorithm with a list of parts (adam) and configuration.
      * Creates initial population with adam as first individual and fills rest with mutations.
      *
+     * PHASE 2: Now accepts shared_ptr instead of raw pointers for thread safety.
+     *
      * @param adam List of parts to be nested (order preserved in first individual)
      * @param config Algorithm configuration
      *
      * Corresponds to JavaScript GeneticAlgorithm constructor (line 1329-1346)
      */
-    GeneticAlgorithm(const std::vector<Polygon*>& adam, const DeepNestConfig& config);
+    GeneticAlgorithm(const std::vector<std::shared_ptr<Polygon>>& adam, const DeepNestConfig& config);
 
     /**
      * @brief Create next generation
@@ -145,8 +150,10 @@ public:
 
     /**
      * @brief Get parts list
+     *
+     * PHASE 2: Returns shared_ptr vector instead of raw pointers.
      */
-    const std::vector<Polygon*>& getParts() const;
+    const std::vector<std::shared_ptr<Polygon>>& getParts() const;
 
     /**
      * @brief Reset algorithm
@@ -161,9 +168,11 @@ public:
      *
      * Resets and creates new population from given parts.
      *
+     * PHASE 2: Now accepts shared_ptr instead of raw pointers.
+     *
      * @param adam New parts list
      */
-    void reinitialize(const std::vector<Polygon*>& adam);
+    void reinitialize(const std::vector<std::shared_ptr<Polygon>>& adam);
 
     /**
      * @brief Get statistics about current state

@@ -11,10 +11,10 @@ Individual::Individual()
     , processing(false) {
 }
 
-Individual::Individual(const std::vector<Polygon*>& parts,
+Individual::Individual(const std::vector<std::shared_ptr<Polygon>>& parts,
                        const DeepNestConfig& config,
                        unsigned int seed)
-    : placement(parts)
+    : placement(parts)  // PHASE 2: Now copies shared_ptr, not raw pointers
     , fitness(std::numeric_limits<double>::max())
     , area(0.0)
     , mergedLength(0.0)

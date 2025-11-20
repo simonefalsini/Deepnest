@@ -53,11 +53,13 @@ public:
      * 1. First individual ("adam") has parts in given order with random rotations
      * 2. Remaining individuals are mutations of adam
      *
-     * @param parts List of polygon pointers to be nested
+     * PHASE 2: Now accepts shared_ptr instead of raw pointers for thread safety.
+     *
+     * @param parts List of polygon shared pointers to be nested
      *
      * Corresponds to JavaScript GeneticAlgorithm constructor (line 1331-1345)
      */
-    void initialize(const std::vector<Polygon*>& parts);
+    void initialize(const std::vector<std::shared_ptr<Polygon>>& parts);
 
     /**
      * @brief Perform single-point crossover between two parents

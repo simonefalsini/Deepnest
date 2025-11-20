@@ -341,8 +341,12 @@ private:
 
     /**
      * @brief Pointers to parts (for GA)
+     *
+     * PHASE 2 FIX: Changed from raw pointers to shared_ptr for thread safety.
+     * Shared ownership ensures parts stay alive even if parts_ vector is cleared.
+     * This prevents use-after-free when worker threads access parts during restart.
      */
-    std::vector<Polygon*> partPointers_;
+    std::vector<std::shared_ptr<Polygon>> partPointers_;
 
     /**
      * @brief Available sheets (with quantities expanded)

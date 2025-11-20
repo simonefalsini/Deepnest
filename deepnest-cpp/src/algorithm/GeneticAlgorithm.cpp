@@ -4,10 +4,10 @@
 
 namespace deepnest {
 
-GeneticAlgorithm::GeneticAlgorithm(const std::vector<Polygon*>& adam, const DeepNestConfig& config)
+GeneticAlgorithm::GeneticAlgorithm(const std::vector<std::shared_ptr<Polygon>>& adam, const DeepNestConfig& config)
     : population_(config)
     , config_(config)
-    , parts_(adam)
+    , parts_(adam)  // PHASE 2: Now stores shared_ptr, not raw pointers
     , currentGeneration_(0) {
 
     if (adam.empty()) {
@@ -20,7 +20,7 @@ GeneticAlgorithm::GeneticAlgorithm(const std::vector<Polygon*>& adam, const Deep
     //                 var mutant = this.mutate(this.population[0]);
     //                 this.population.push(mutant);
     //             }
-    population_.initialize(adam);
+    population_.initialize(adam);  // Population::initialize now accepts shared_ptr
 }
 
 void GeneticAlgorithm::generation() {
@@ -132,14 +132,14 @@ void GeneticAlgorithm::reset() {
     currentGeneration_ = 0;
 }
 
-void GeneticAlgorithm::reinitialize(const std::vector<Polygon*>& adam) {
+void GeneticAlgorithm::reinitialize(const std::vector<std::shared_ptr<Polygon>>& adam) {
     if (adam.empty()) {
         throw std::invalid_argument("Parts list (adam) cannot be empty");
     }
 
     reset();
-    parts_ = adam;
-    population_.initialize(adam);
+    parts_ = adam;  // PHASE 2: Stores shared_ptr
+    population_.initialize(adam);  // Population::initialize now accepts shared_ptr
 }
 
 std::tuple<int, size_t, size_t, bool> GeneticAlgorithm::getStatistics() const {

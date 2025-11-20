@@ -7,6 +7,7 @@
 #include <vector>
 #include <limits>
 #include <random>
+#include <memory>
 
 namespace deepnest {
 
@@ -27,10 +28,12 @@ public:
     /**
      * @brief Placement sequence - order of part insertion
      *
-     * Each element is a pointer to a Polygon that will be placed.
+     * PHASE 2 FIX: Changed from raw pointers to shared_ptr for thread safety.
+     * Each element is a shared_ptr to a Polygon that will be placed.
      * The order in this array determines the placement sequence.
+     * Shared ownership ensures polygons stay alive even if parts_ vector is cleared.
      */
-    std::vector<Polygon*> placement;
+    std::vector<std::shared_ptr<Polygon>> placement;
 
     /**
      * @brief Rotation angles for each part (in degrees)

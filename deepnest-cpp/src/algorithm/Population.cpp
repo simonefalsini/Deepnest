@@ -14,7 +14,7 @@ Population::Population(const DeepNestConfig& config, unsigned int seed)
     , rng_(seed) {
 }
 
-void Population::initialize(const std::vector<Polygon*>& parts) {
+void Population::initialize(const std::vector<std::shared_ptr<Polygon>>& parts) {
     individuals_.clear();
 
     if (parts.empty()) {
@@ -28,6 +28,7 @@ void Population::initialize(const std::vector<Polygon*>& parts) {
 
     // Create first individual "adam" with parts in given order and random rotations
     // JavaScript: this.population = [{placement: adam, rotation: angles}];
+    // PHASE 2: Individual constructor now accepts shared_ptr
     Individual adam(parts, config_, rng_());
     individuals_.push_back(adam);
 

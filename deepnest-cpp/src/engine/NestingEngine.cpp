@@ -163,13 +163,16 @@ void NestingEngine::initialize(
                    std::abs(GeometryUtil::polygonArea(b.points));
         });
 
-    // Create pointers for GA
-    LOG_MEMORY("Creating partPointers_ for " << parts_.size() << " parts");
+    // PHASE 2 FIX: Create shared_ptr for GA instead of raw pointers
+    // This ensures parts stay alive even if parts_ vector is cleared during restart
+    LOG_MEMORY("Creating shared_ptr partPointers_ for " << parts_.size() << " parts");
     partPointers_.clear();
     for (auto& part : parts_) {
-        partPointers_.push_back(&part);
+        // CRITICAL: Create shared_ptr copy of each polygon
+        // This prevents use-after-free when parts_ is cleared while threads are running
+        partPointers_.push_back(std::make_shared<Polygon>(part));
     }
-    LOG_MEMORY("Created " << partPointers_.size() << " part pointers");
+    LOG_MEMORY("Created " << partPointers_.size() << " shared_ptr part pointers");
 
     // JavaScript: GA = new GeneticAlgorithm(adam, config);
     // Initialize genetic algorithm
