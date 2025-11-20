@@ -233,10 +233,15 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         return result;
     }
 
+    // CRITICAL FIX: Simplify path BEFORE conversion to remove degenerate geometries
+    // and redundant curve control points that cause Boost.Polygon scanline failures
+    // simplified() uses Qt's default tolerance which works well for most cases
+    QPainterPath simplifiedPath = path.simplified();
+
     // Convert QPainterPath to polygon points
     // Use Qt's toSubpathPolygons() which automatically converts curves to line segments
     // This is more robust than manual conversion and handles all curve types correctly
-    QList<QPolygonF> subpaths = path.toSubpathPolygons();
+    QList<QPolygonF> subpaths = simplifiedPath.toSubpathPolygons();
 
     if (subpaths.isEmpty()) {
         return result;
@@ -276,7 +281,9 @@ std::vector<Polygon> Polygon::extractFromQPainterPath(const QPainterPath& path) 
     // QPainterPath can contain multiple disconnected subpaths
     // We need to extract each one as a separate polygon
 
-    QList<QPolygonF> qtPolygons = path.toSubpathPolygons();
+    // CRITICAL FIX: Simplify path BEFORE conversion (same as fromQPainterPath)
+    QPainterPath simplifiedPath = path.simplified();
+    QList<QPolygonF> qtPolygons = simplifiedPath.toSubpathPolygons();
 
     for (const auto& qtPoly : qtPolygons) {
         if (qtPoly.size() < 3) {
