@@ -457,13 +457,45 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
             polySetB.clear();
         }
         catch (const std::exception& e) {
-            std::cerr << "WARNING: Boost.Polygon Minkowski convolution failed: " << e.what()
-                      << " - returning empty NFP (geometry too complex/degenerate)" << std::endl;
+            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed: " << e.what() << std::endl;
+            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
+            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
+            std::cerr << "  Scale factor: " << scale << std::endl;
+
+            // Print first few points for debugging
+            std::cerr << "  A points[0-2]: ";
+            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
+                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
+            }
+            std::cerr << std::endl;
+
+            std::cerr << "  B points[0-2]: ";
+            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
+                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
+            }
+            std::cerr << std::endl;
+
             return std::vector<Polygon>();
         }
         catch (...) {
-            std::cerr << "WARNING: Boost.Polygon Minkowski convolution failed with unknown error"
-                      << " - returning empty NFP (geometry too complex/degenerate)" << std::endl;
+            std::cerr << "ERROR: Boost.Polygon Minkowski convolution failed with unknown error" << std::endl;
+            std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
+            std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
+            std::cerr << "  Scale factor: " << scale << std::endl;
+
+            // Print first few points for debugging
+            std::cerr << "  A points[0-2]: ";
+            for (size_t i = 0; i < std::min(size_t(3), A.points.size()); ++i) {
+                std::cerr << "(" << A.points[i].x << "," << A.points[i].y << ") ";
+            }
+            std::cerr << std::endl;
+
+            std::cerr << "  B points[0-2]: ";
+            for (size_t i = 0; i < std::min(size_t(3), B.points.size()); ++i) {
+                std::cerr << "(" << B.points[i].x << "," << B.points[i].y << ") ";
+            }
+            std::cerr << std::endl;
+
             return std::vector<Polygon>();
         }
     }

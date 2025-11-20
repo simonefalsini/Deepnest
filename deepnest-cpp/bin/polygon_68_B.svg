@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="45.963" height="37.637" viewBox="278.894 247.373 45.963 37.637">
+  <polygon points="288.894,257.373 314.857,257.373 314.857,275.01 288.894,275.01 288.894,257.373" fill="lightblue" stroke="blue" stroke-width="0.5"/>
+  <circle cx="288.894" cy="257.373" r="0.5" fill="red"/>
+  <text x="289.894" y="256.373" font-size="3" fill="black">0</text>
+  <circle cx="314.857" cy="257.373" r="0.5" fill="red"/>
+  <text x="315.857" y="256.373" font-size="3" fill="black">1</text>
+  <circle cx="314.857" cy="275.01" r="0.5" fill="red"/>
+  <text x="315.857" y="274.01" font-size="3" fill="black">2</text>
+  <circle cx="288.894" cy="275.01" r="0.5" fill="red"/>
+  <text x="289.894" y="274.01" font-size="3" fill="black">3</text>
+  <circle cx="288.894" cy="257.373" r="0.5" fill="red"/>
+  <text x="289.894" y="256.373" font-size="3" fill="black">4</text>
+</svg>

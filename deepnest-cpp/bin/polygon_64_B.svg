@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="52.813" height="48.415" viewBox="356.53 184.596 52.813 48.415">
+  <polygon points="366.53,223.011 382.935,194.596 399.343,223.011 366.53,223.011" fill="lightblue" stroke="blue" stroke-width="0.5"/>
+  <circle cx="366.53" cy="223.011" r="0.5" fill="red"/>
+  <text x="367.53" y="222.011" font-size="3" fill="black">0</text>
+  <circle cx="382.935" cy="194.596" r="0.5" fill="red"/>
+  <text x="383.935" y="193.596" font-size="3" fill="black">1</text>
+  <circle cx="399.343" cy="223.011" r="0.5" fill="red"/>
+  <text x="400.343" y="222.011" font-size="3" fill="black">2</text>
+  <circle cx="366.53" cy="223.011" r="0.5" fill="red"/>
+  <text x="367.53" y="222.011" font-size="3" fill="black">3</text>
+</svg>

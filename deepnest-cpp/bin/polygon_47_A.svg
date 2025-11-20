@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="44.869" height="45.507" viewBox="329.895 137.465 44.869 45.507">
+  <polygon points="339.895,154.543 348.772,147.465 359.838,149.994 364.764,160.22 359.838,170.443 348.772,172.972 339.895,165.891 339.895,154.543" fill="lightblue" stroke="blue" stroke-width="0.5"/>
+  <circle cx="339.895" cy="154.543" r="0.5" fill="red"/>
+  <text x="340.895" y="153.543" font-size="3" fill="black">0</text>
+  <circle cx="348.772" cy="147.465" r="0.5" fill="red"/>
+  <text x="349.772" y="146.465" font-size="3" fill="black">1</text>
+  <circle cx="359.838" cy="149.994" r="0.5" fill="red"/>
+  <text x="360.838" y="148.994" font-size="3" fill="black">2</text>
+  <circle cx="364.764" cy="160.22" r="0.5" fill="red"/>
+  <text x="365.764" y="159.22" font-size="3" fill="black">3</text>
+  <circle cx="359.838" cy="170.443" r="0.5" fill="red"/>
+  <text x="360.838" y="169.443" font-size="3" fill="black">4</text>
+  <circle cx="348.772" cy="172.972" r="0.5" fill="red"/>
+  <text x="349.772" y="171.972" font-size="3" fill="black">5</text>
+  <circle cx="339.895" cy="165.891" r="0.5" fill="red"/>
+  <text x="340.895" y="164.891" font-size="3" fill="black">6</text>
+  <circle cx="339.895" cy="154.543" r="0.5" fill="red"/>
+  <text x="340.895" y="153.543" font-size="3" fill="black">7</text>
+</svg>
