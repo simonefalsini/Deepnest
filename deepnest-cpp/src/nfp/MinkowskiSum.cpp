@@ -1,4 +1,5 @@
 #include "../../include/deepnest/nfp/MinkowskiSum.h"
+#include "../../include/deepnest/DebugConfig.h"
 #include <boost/polygon/polygon.hpp>
 #include <limits>
 #include <algorithm>
@@ -369,7 +370,7 @@ Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, 
 std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     const IntPolygonSet& polySet, double scale) {
 
-    std::cerr << "DEBUG: fromBoostPolygonSet called" << std::endl;
+    LOG_NFP("fromBoostPolygonSet called");
 
     // CRITICAL FIX: Ensure complete copy of data from Boost internal structures
     // before any processing to avoid dangling references after polySet destruction
@@ -378,24 +379,22 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     // CRITICAL: Wrap get() in try-catch to handle "invalid comparator" errors
     // that can occur in Boost.Polygon scanline algorithm with degenerate geometries
     try {
-        std::cerr << "DEBUG: About to call polySet.get() - THIS IS WHERE CRASH TYPICALLY OCCURS" << std::endl;
-        std::cerr << "DEBUG: polySet dirty() = " << polySet.dirty() << std::endl;
+        LOG_NFP("About to call polySet.get() - THIS IS WHERE CRASH TYPICALLY OCCURS");
+        LOG_NFP("polySet dirty() = " << polySet.dirty());
 
         polySet.get(boostPolygons);  // This triggers clean() which uses scanline algorithm
 
-        std::cerr << "DEBUG: polySet.get() succeeded, extracted " << boostPolygons.size() << " polygons" << std::endl;
+        LOG_NFP("polySet.get() succeeded, extracted " << boostPolygons.size() << " polygons");
     }
     catch (const std::exception& e) {
         // If Boost.Polygon scanline fails (invalid comparator, etc.), return empty
         // This can happen with degenerate geometries even after cleaning
-        std::cerr << "WARNING: Boost.Polygon get() failed: " << e.what()
-                  << " - returning empty NFP (degenerate geometry)" << std::endl;
+        LOG_NFP("WARNING: Boost.Polygon get() failed: " << e.what() << " - returning empty NFP");
         return std::vector<Polygon>();
     }
     catch (...) {
         // Catch any other exceptions from Boost.Polygon
-        std::cerr << "WARNING: Boost.Polygon get() failed with unknown exception"
-                  << " - returning empty NFP (degenerate geometry)" << std::endl;
+        LOG_NFP("WARNING: Boost.Polygon get() failed with unknown exception - returning empty NFP");
         return std::vector<Polygon>();
     }
 
@@ -415,7 +414,7 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     // Explicitly clear boost containers to ensure no dangling references
     boostPolygons.clear();
 
-    std::cerr << "DEBUG: fromBoostPolygonSet completed successfully, returning " << result.size() << " polygons" << std::endl;
+    LOG_NFP("fromBoostPolygonSet completed successfully, returning " << result.size() << " polygons");
     return result;
 }
 
@@ -433,16 +432,14 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     std::lock_guard<std::mutex> lock(boostPolygonMutex);
 
     // DEBUG: Log which polygon pair we're processing
-    std::cerr << "\n=== calculateNFP START ===" << std::endl;
-    std::cerr << "A: id=" << A.id << ", points=" << A.points.size()
-              << ", children=" << A.children.size() << std::endl;
-    std::cerr << "B: id=" << B.id << ", points=" << B.points.size()
-              << ", children=" << B.children.size() << std::endl;
-    std::cerr << "inner=" << (inner ? "true" : "false") << std::endl;
+    LOG_NFP("\n=== calculateNFP START ===");
+    LOG_NFP("A: id=" << A.id << ", points=" << A.points.size() << ", children=" << A.children.size());
+    LOG_NFP("B: id=" << B.id << ", points=" << B.points.size() << ", children=" << B.children.size());
+    LOG_NFP("inner=" << (inner ? "true" : "false"));
 
     // Validate input
     if (A.points.empty() || B.points.empty()) {
-        std::cerr << "ERROR: Empty polygon points, returning empty NFP" << std::endl;
+        LOG_NFP("ERROR: Empty polygon points, returning empty NFP");
         return std::vector<Polygon>();
     }
 
@@ -489,41 +486,41 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     // and immediate data extraction before any Boost objects are destroyed
     std::vector<Polygon> nfps;
     {
-        std::cerr << "DEBUG: Converting to Boost integer polygons..." << std::endl;
+        LOG_NFP("Converting to Boost integer polygons...");
 
         // Convert to Boost integer polygons - scoped lifetime
         IntPolygonSet polySetA, polySetB, result;
 
         IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-        std::cerr << "DEBUG: Converted A to Boost polygon" << std::endl;
+        LOG_NFP("Converted A to Boost polygon");
 
         IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
-        std::cerr << "DEBUG: Converted B to Boost polygon" << std::endl;
+        LOG_NFP("Converted B to Boost polygon");
 
         // Check if conversion produced valid polygons
         if (boostA.begin() == boostA.end() || boostB.begin() == boostB.end()) {
             // Empty polygon after cleaning - return empty NFP
-            std::cerr << "ERROR: Empty polygon after conversion, returning empty NFP" << std::endl;
+            LOG_NFP("ERROR: Empty polygon after conversion, returning empty NFP");
             return std::vector<Polygon>();
         }
 
         try {
-            std::cerr << "DEBUG: Inserting A into polygon set..." << std::endl;
+            LOG_NFP("Inserting A into polygon set...");
             polySetA.insert(boostA);
 
-            std::cerr << "DEBUG: Inserting B into polygon set..." << std::endl;
+            LOG_NFP("Inserting B into polygon set...");
             polySetB.insert(boostB);
 
-            std::cerr << "DEBUG: Computing Minkowski convolution..." << std::endl;
+            LOG_NFP("Computing Minkowski convolution...");
             // Compute Minkowski sum - this can fail with invalid comparator
             convolve_two_polygon_sets(result, polySetA, polySetB);
-            std::cerr << "DEBUG: Minkowski convolution completed" << std::endl;
+            LOG_NFP("Minkowski convolution completed");
 
-            std::cerr << "DEBUG: Extracting result from polygon set (calling .get())..." << std::endl;
+            LOG_NFP("Extracting result from polygon set (calling .get())...");
             // CRITICAL: Extract and convert data IMMEDIATELY while all Boost objects are still valid
             // fromBoostPolygonSet now does complete deep copy before any Boost object destruction
             nfps = fromBoostPolygonSet(result, scale);
-            std::cerr << "DEBUG: Successfully extracted " << nfps.size() << " NFPs" << std::endl;
+            LOG_NFP("Successfully extracted " << nfps.size() << " NFPs");
 
             // Explicitly clear Boost containers to release any internal memory
             result.clear();
@@ -622,14 +619,13 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         }
 
         // Return only the largest NFP
-        std::cerr << "INFO: Multiple NFPs generated (" << nfps.size()
-                  << "), selecting largest with area " << maxArea << "\n";
+        LOG_NFP("INFO: Multiple NFPs generated (" << nfps.size() << "), selecting largest with area " << maxArea);
 
         Polygon largestNfp = nfps[maxIndex];
         return {largestNfp};
     }
 
-    std::cerr << "=== calculateNFP END: SUCCESS, returning " << nfps.size() << " NFPs ===" << std::endl;
+    LOG_NFP("=== calculateNFP END: SUCCESS, returning " << nfps.size() << " NFPs ===");
     return nfps;
 }
 
