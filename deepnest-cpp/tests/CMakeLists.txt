@@ -24,6 +24,7 @@ target_link_libraries(PolygonExtractor
     Qt5::Xml
     Qt5::Widgets
     ${Boost_LIBRARIES}
+    boost_chrono
     pthread
 )
 
