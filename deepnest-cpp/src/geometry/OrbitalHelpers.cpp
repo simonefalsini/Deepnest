@@ -5,6 +5,11 @@
 
 namespace deepnest {
 
+// Use GeometryUtil functions without namespace prefix
+using namespace GeometryUtil;
+
+namespace GeometryUtil {
+
 /**
  * @brief Find all touching contacts between polygons A and B
  *
@@ -249,5 +254,7 @@ bool isBacktracking(
 
     return false;
 }
+
+} // namespace GeometryUtil
 
 } // namespace deepnest

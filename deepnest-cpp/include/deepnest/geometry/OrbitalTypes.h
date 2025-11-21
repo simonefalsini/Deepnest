@@ -68,7 +68,7 @@ struct TranslationVector {
      * @brief Check if this is a zero vector
      */
     bool isZero() const {
-        return almostEqual(x, 0.0) && almostEqual(y, 0.0);
+        return std::abs(x) < TOL && std::abs(y) < TOL;
     }
 };
 

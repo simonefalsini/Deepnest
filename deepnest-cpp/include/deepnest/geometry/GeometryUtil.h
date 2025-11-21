@@ -4,6 +4,7 @@
 #include "../core/Types.h"
 #include "../core/Point.h"
 #include "../core/BoundingBox.h"
+#include "OrbitalTypes.h"
 #include <vector>
 #include <optional>
 
@@ -377,9 +378,8 @@ namespace GeometryUtil {
      * @brief Find all touching contacts between polygons A and B
      *
      * Used by orbital tracing algorithm to detect contact points.
-     * Forward declaration - implementation in OrbitalHelpers.cpp
+     * Implementation in OrbitalHelpers.cpp
      */
-    struct TouchingContact;  // Forward declaration
     std::vector<TouchingContact> findTouchingContacts(
         const std::vector<Point>& A,
         const std::vector<Point>& B,
@@ -390,9 +390,8 @@ namespace GeometryUtil {
      * @brief Generate translation vectors from a touching contact
      *
      * Used by orbital tracing algorithm to generate candidate slide directions.
-     * Forward declaration - implementation in OrbitalHelpers.cpp
+     * Implementation in OrbitalHelpers.cpp
      */
-    struct TranslationVector;  // Forward declaration
     std::vector<TranslationVector> generateTranslationVectors(
         const TouchingContact& touch,
         const std::vector<Point>& A,
