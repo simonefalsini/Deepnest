@@ -770,7 +770,9 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             // STEP 6: Check loop closure
             // JavaScript lines 1682-1700
             if (almostEqual(reference.x, startPoint.x) && almostEqual(reference.y, startPoint.y)) {
-                LOG_NFP("    Loop closed: returned to start point");
+                LOG_NFP("    Loop closed: returned to start point (" << startPoint.x << ", " << startPoint.y << ")");
+                LOG_NFP("    Distance from start: " << std::sqrt((reference.x - startPoint.x)*(reference.x - startPoint.x) +
+                       (reference.y - startPoint.y)*(reference.y - startPoint.y)));
                 break;  // Completed loop
             }
 
