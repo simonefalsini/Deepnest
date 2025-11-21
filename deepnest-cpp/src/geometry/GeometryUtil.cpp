@@ -617,7 +617,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     std::optional<Point> startOpt;
 
     if (!inside) {
-        // OUTSIDE NFP: Use heuristic - place bottom of A at top of B
+        // OUTSIDE NFP: Try heuristic first, but verify with searchStartPoint
         // JavaScript lines 1447-1475
         size_t minAindex = 0;
         double minAy = A[0].y;
@@ -637,11 +637,22 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             }
         }
 
-        startOpt = Point(
+        Point heuristicStart(
             A[minAindex].x - B[maxBindex].x,
             A[minAindex].y - B[maxBindex].y
         );
-        LOG_NFP("  Start point (heuristic): (" << startOpt->x << ", " << startOpt->y << ")");
+        LOG_NFP("  Start point (heuristic): (" << heuristicStart.x << ", " << heuristicStart.y << ")");
+
+        // CRITICAL FIX: For rotated polygons, heuristic may find internal loop
+        // Use searchStartPoint to find point on external perimeter
+        startOpt = searchStartPoint(A, B, false, {});
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search - external): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            // Fallback to heuristic if search fails
+            LOG_NFP("  WARNING: searchStartPoint failed, using heuristic");
+            startOpt = heuristicStart;
+        }
     }
     else {
         // INSIDE NFP: No reliable heuristic, use search
