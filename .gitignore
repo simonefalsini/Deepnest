@@ -66,6 +66,12 @@ Makefile
 Testing/
 CTestTestfile.cmake
 
+# PolygonExtractor test output files
+deepnest-cpp/polygon_*.svg
+deepnest-cpp/polygon_pair_*.svg
+deepnest-cpp/build/polygon_*.svg
+deepnest-cpp/build/polygon_pair_*.svg
+
 # Package managers
 *.deb
 *.rpm
