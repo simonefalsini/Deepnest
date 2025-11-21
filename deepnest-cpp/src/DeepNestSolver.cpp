@@ -70,7 +70,7 @@ void DeepNestSolver::setThreads(int threads) {
 }
 
 void DeepNestSolver::setPlacementType(const std::string& type) {
-    if (type != "gravity" && type != "box" && type != "convexhull") {
+    if (type != "gravity" && type != "boundingbox" && type != "convexhull") {
         throw std::invalid_argument("Placement type must be 'gravity', 'box', or 'convexhull'");
     }
     config_.placementType = type;
