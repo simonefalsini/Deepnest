@@ -16,13 +16,14 @@ namespace deepnest {
 struct Point {
     double x;
     double y;
-    bool exact;  // Used for merge detection - marks if this point is an exact match
+    bool exact;   // Used for merge detection - marks if this point is an exact match
+    bool marked;  // Used for orbital tracing - tracks visited vertices
 
     // Constructors
-    Point() : x(0.0), y(0.0), exact(true) {}  // Default constructor: exact coordinates
+    Point() : x(0.0), y(0.0), exact(true), marked(false) {}  // Default constructor
 
-    Point(double x_, double y_, bool exact_ = true)  // CRITICAL FIX: exact=true by default
-        : x(x_), y(y_), exact(exact_) {}
+    Point(double x_, double y_, bool exact_ = true)
+        : x(x_), y(y_), exact(exact_), marked(false) {}
 
     // LINE MERGE FIX: When creating points from explicit coordinates (not curve approximations),
     // they should be marked as exact=true so that MergeDetection can use them.

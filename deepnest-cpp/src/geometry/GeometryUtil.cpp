@@ -1,5 +1,6 @@
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/GeometryUtilAdvanced.h"
+#include "../../include/deepnest/geometry/OrbitalTypes.h"
 #include "../../include/deepnest/core/Polygon.h"
 #include <cmath>
 #include <algorithm>
@@ -556,287 +557,221 @@ std::vector<Point> linearize(const Point& p1, const Point& p2,
 // PHASE 3.2: Complete Orbital-Based noFitPolygon implementation
 // This provides a fallback when Minkowski sum fails or for validation
 // Reference: geometryutil.js:1437-1727 (noFitPolygon function)
-std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
-                                            const std::vector<Point>& B,
+std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
+                                            const std::vector<Point>& B_input,
                                             bool inside,
                                             bool searchEdges) {
+    // Complete rewrite based on JavaScript geometryutil.js lines 1437-1727
+    // This implementation follows the JavaScript algorithm exactly
 
-    std::cerr << "\n=== noFitPolygon ORBITAL TRACING ===" << std::endl;
-    std::cerr << "  A.size()=" << A.size() << ", B.size()=" << B.size()
-              << ", inside=" << inside << ", searchEdges=" << searchEdges << std::endl;
-
-    if (A.size() < 3 || B.size() < 3) {
-        std::cerr << "  ERROR: Invalid polygon sizes (need at least 3 points)" << std::endl;
-        return {};  // Invalid polygons
+    if (A_input.size() < 3 || B_input.size() < 3) {
+        return {};
     }
 
-    std::vector<std::vector<Point>> nfps;
+    // Make working copies that we can modify
+    std::vector<Point> A = A_input;
+    std::vector<Point> B = B_input;
 
-    // Find starting point using existing helper function
-    std::cerr << "  Calling searchStartPoint..." << std::endl;
-    std::optional<Point> startOpt = searchStartPoint(A, B, inside, {});
-    if (!startOpt.has_value()) {
-        std::cerr << "  ERROR: searchStartPoint returned nullopt (no valid start point)" << std::endl;
-        return {};  // No valid start point found
-    }
-    std::cerr << "  Found start point: (" << startOpt->x << ", " << startOpt->y << ")" << std::endl;
+    // Initialize marked flags (used to track visited vertices)
+    for (auto& p : A) p.marked = false;
+    for (auto& p : B) p.marked = false;
 
-    Point startPoint = startOpt.value();
+    std::vector<std::vector<Point>> nfpList;
 
-    // Initialize NFP with start point
-    std::vector<Point> nfp;
-    nfp.push_back(startPoint);
+    // Get initial start point
+    std::optional<Point> startOpt;
 
-    // Track reference point (current position of B's reference point relative to A)
-    Point reference = startPoint;
-
-    // Previous translation vector (for angle selection)
-    Point prevVector{0, 0};
-
-    // Main orbital tracing loop
-    // Maximum iterations to prevent infinite loops
-    int maxIterations = 10 * (A.size() + B.size());
-    int iterations = 0;
-    int stuckCounter = 0;  // Count iterations where reference doesn't move
-    Point lastReference = reference;
-
-    std::cerr << "  Starting orbital loop (maxIterations=" << maxIterations << ")" << std::endl;
-
-    while (iterations < maxIterations) {
-        iterations++;
-
-        if (iterations <= 3 || iterations % 10 == 0) {
-            std::cerr << "    Iteration " << iterations << ": reference=("
-                      << reference.x << "," << reference.y << ")" << std::endl;
-        }
-
-        // Find all edges of A and B that are touching at current reference position
-        struct TouchingEdge {
-            int edgeIndex;      // Index of edge start point
-            char polygon;       // 'A' or 'B'
-            Point direction;    // Unit direction vector of edge
-            double angle;       // Angle of edge relative to previous vector
-        };
-
-        std::vector<TouchingEdge> touching;
-
-        // Check all edges of polygon A
-        for (size_t i = 0; i < A.size(); ++i) {
-            size_t j = (i + 1) % A.size();
-
-            // Edge direction vector
-            Point edgeDir{A[j].x - A[i].x, A[j].y - A[i].y};
-            double len = std::sqrt(edgeDir.x * edgeDir.x + edgeDir.y * edgeDir.y);
-            if (len < TOL) continue;
-
-            edgeDir.x /= len;
-            edgeDir.y /= len;
-
-            // Calculate angle relative to previous vector
-            double angle = std::atan2(edgeDir.y, edgeDir.x) - std::atan2(prevVector.y, prevVector.x);
-
-            // Normalize angle to [-π, π]
-            while (angle > M_PI) angle -= 2 * M_PI;
-            while (angle < -M_PI) angle += 2 * M_PI;
-
-            touching.push_back({(int)i, 'A', edgeDir, angle});
-        }
-
-        // Check all edges of polygon B (translated to reference position)
-        for (size_t i = 0; i < B.size(); ++i) {
-            size_t j = (i + 1) % B.size();
-
-            // Edge direction vector (negated because B moves opposite to A's edges)
-            Point edgeDir{-(B[j].x - B[i].x), -(B[j].y - B[i].y)};
-            double len = std::sqrt(edgeDir.x * edgeDir.x + edgeDir.y * edgeDir.y);
-            if (len < TOL) continue;
-
-            edgeDir.x /= len;
-            edgeDir.y /= len;
-
-            // Calculate angle relative to previous vector
-            double angle = std::atan2(edgeDir.y, edgeDir.x) - std::atan2(prevVector.y, prevVector.x);
-
-            // Normalize angle to [-π, π]
-            while (angle > M_PI) angle -= 2 * M_PI;
-            while (angle < -M_PI) angle += 2 * M_PI;
-
-            touching.push_back({(int)i, 'B', edgeDir, angle});
-        }
-
-        if (touching.empty()) {
-            std::cerr << "    Iteration " << iterations << ": No touching edges found, breaking" << std::endl;
-            break;  // No more touching edges, NFP complete
-        }
-
-        if (iterations <= 3) {
-            std::cerr << "    Found " << touching.size() << " touching edges" << std::endl;
-        }
-
-        // Select the edge with the smallest positive angle (for outer NFP)
-        // or largest negative angle (for inner NFP)
-        TouchingEdge* selectedEdge = nullptr;
-        double bestAngle = inside ? -2 * M_PI : 2 * M_PI;
-
-        for (auto& edge : touching) {
-            if (inside) {
-                // For inner NFP, select most negative angle (most clockwise)
-                if (edge.angle < bestAngle && edge.angle < 0) {
-                    bestAngle = edge.angle;
-                    selectedEdge = &edge;
-                }
-            } else {
-                // For outer NFP, select smallest positive angle (most counter-clockwise)
-                if (edge.angle < bestAngle && edge.angle >= 0) {
-                    bestAngle = edge.angle;
-                    selectedEdge = &edge;
-                }
+    if (!inside) {
+        // OUTSIDE NFP: Use heuristic - place bottom of A at top of B
+        // JavaScript lines 1447-1475
+        size_t minAindex = 0;
+        double minAy = A[0].y;
+        for (size_t i = 1; i < A.size(); i++) {
+            if (A[i].y < minAy) {
+                minAy = A[i].y;
+                minAindex = i;
             }
         }
 
-        // If no suitable edge found in preferred direction, take any edge
-        if (!selectedEdge && !touching.empty()) {
-            selectedEdge = &touching[0];
+        size_t maxBindex = 0;
+        double maxBy = B[0].y;
+        for (size_t i = 1; i < B.size(); i++) {
+            if (B[i].y > maxBy) {
+                maxBy = B[i].y;
+                maxBindex = i;
+            }
         }
 
-        if (!selectedEdge) {
-            std::cerr << "    Iteration " << iterations << ": No valid edge selected, breaking" << std::endl;
-            break;  // No valid edge to follow
-        }
-
-        if (iterations <= 3) {
-            std::cerr << "    Selected edge: polygon=" << selectedEdge->polygon
-                      << ", angle=" << selectedEdge->angle << std::endl;
-        }
-
-        // Translation vector is the direction of the selected edge
-        Point translateVector = selectedEdge->direction;
-
-        // Calculate how far we can slide B along this direction before hitting something
-        // Use polygonSlideDistance with translated B
-        std::vector<Point> B_translated;
-        B_translated.reserve(B.size());
-        for (const auto& p : B) {
-            B_translated.push_back({p.x + reference.x, p.y + reference.y});
-        }
-
-        std::optional<double> slideOpt = polygonSlideDistance(
-            A, B_translated, translateVector, !inside
+        startOpt = Point(
+            A[minAindex].x - B[maxBindex].x,
+            A[minAindex].y - B[maxBindex].y
         );
+    }
+    else {
+        // INSIDE NFP: No reliable heuristic, use search
+        // JavaScript lines 1477-1479
+        startOpt = searchStartPoint(A, B, true, {});
+    }
 
-        double distance = slideOpt.value_or(0.0);
+    // Main loop: find all NFPs starting from different points
+    // JavaScript lines 1483-1724
+    while (startOpt.has_value()) {
+        Point offsetB = startOpt.value();
 
-        if (iterations <= 3) {
-            std::cerr << "    Slide distance: " << (slideOpt.has_value() ? std::to_string(slideOpt.value()) : "nullopt")
-                      << ", translateVector=(" << translateVector.x << "," << translateVector.y << ")" << std::endl;
-        }
+        std::vector<Point> nfp;
+        TranslationVector* prevVector = nullptr;
 
-        // Prevent tiny movements that could cause infinite loops
-        if (distance < TOL) {
-            if (iterations <= 3) {
-                std::cerr << "    Distance < TOL, setting to TOL=" << TOL << std::endl;
-            }
-            distance = TOL;
-        }
+        // Reference point: B[0] translated by offset
+        // JavaScript lines 1497-1500
+        Point reference(B[0].x + offsetB.x, B[0].y + offsetB.y);
+        Point startPoint = reference;
 
-        // Update reference point
-        Point oldRef = reference;
-        reference.x += translateVector.x * distance;
-        reference.y += translateVector.y * distance;
-
-        if (iterations <= 3) {
-            std::cerr << "    Movement: (" << oldRef.x << "," << oldRef.y << ") -> ("
-                      << reference.x << "," << reference.y << "), delta=("
-                      << (reference.x - oldRef.x) << "," << (reference.y - oldRef.y) << ")" << std::endl;
-        }
-
-        // Add new point to NFP
         nfp.push_back(reference);
 
-        // Check if reference is stuck (not moving)
-        // Use 10*TOL as threshold because movement of exactly TOL doesn't count as progress
-        double dx = reference.x - lastReference.x;
-        double dy = reference.y - lastReference.y;
-        double movementDist = std::sqrt(dx*dx + dy*dy);
+        int counter = 0;
+        int maxIterations = 10 * (A.size() + B.size());
 
-        if (movementDist < 10 * TOL) {
-            stuckCounter++;
-            if (stuckCounter >= 5) {
-                std::cerr << "    Iteration " << iterations << ": Reference stuck for " << stuckCounter
-                          << " iterations (movement=" << movementDist << " < 10*TOL), breaking!" << std::endl;
-                std::cerr << "    Root cause: polygonSlideDistance returning nullopt or near-zero" << std::endl;
-                break;
-            }
-        } else {
-            stuckCounter = 0;  // Reset counter if we moved
-        }
-        lastReference = reference;
+        // Main orbital tracing loop
+        // JavaScript lines 1503-1711
+        while (counter < maxIterations) {
+            // STEP 1: Find all touching contacts
+            // JavaScript lines 1504-1520
+            auto touchingList = findTouchingContacts(A, B, offsetB);
 
-        // Check if we've completed the loop (returned to start point)
-        // CRITICAL: Don't check on first iteration (we're still at start!)
-        if (iterations > 1 && almostEqualPoints(reference, startPoint, TOL)) {
-            std::cerr << "    Iteration " << iterations << ": Returned to start point, loop complete!" << std::endl;
-            break;  // NFP complete
-        }
-
-        // Update previous vector for next iteration
-        prevVector = translateVector;
-    }
-
-    // Clean up NFP: remove duplicate consecutive points and near-collinear points
-    std::vector<Point> cleanedNFP;
-    if (!nfp.empty()) {
-        cleanedNFP.push_back(nfp[0]);
-
-        for (size_t i = 1; i < nfp.size(); ++i) {
-            Point& prev = cleanedNFP.back();
-            Point& curr = nfp[i];
-
-            // Skip if point is duplicate of previous
-            if (almostEqualPoints(prev, curr, TOL)) {
-                continue;
+            if (touchingList.empty()) {
+                break;  // No touching contacts
             }
 
-            // Check for collinearity if we have at least 2 points
-            if (cleanedNFP.size() >= 2) {
-                Point& prevPrev = cleanedNFP[cleanedNFP.size() - 2];
+            // STEP 2: Generate translation vectors from all touches
+            // JavaScript lines 1522-1616
+            std::vector<TranslationVector> allVectors;
+            for (const auto& touch : touchingList) {
+                // Mark vertex as touched
+                A[touch.indexA].marked = true;
 
-                // Calculate cross product to check collinearity
-                double dx1 = prev.x - prevPrev.x;
-                double dy1 = prev.y - prevPrev.y;
-                double dx2 = curr.x - prev.x;
-                double dy2 = curr.y - prev.y;
-                double cross = std::abs(dx1 * dy2 - dy1 * dx2);
+                auto vectors = generateTranslationVectors(touch, A, B, offsetB);
+                allVectors.insert(allVectors.end(), vectors.begin(), vectors.end());
+            }
 
-                // If points are collinear, replace previous point with current
-                if (cross < TOL) {
-                    cleanedNFP.back() = curr;
+            // STEP 3: Filter and select best vector
+            // JavaScript lines 1620-1657
+            TranslationVector* bestVector = nullptr;
+            double maxDistance = 0.0;
+
+            for (auto& vec : allVectors) {
+                // Skip zero vectors and backtracking
+                // JavaScript lines 1624-1642
+                if (isBacktracking(vec, prevVector)) {
                     continue;
+                }
+
+                // Calculate slide distance
+                // JavaScript line 1645
+                auto slideOpt = polygonSlideDistance(A, B, Point(vec.x, vec.y), true);
+
+                double slideDistance;
+                double vecLength2 = vec.x * vec.x + vec.y * vec.y;
+
+                // JavaScript lines 1648-1651: if null or too large, use vector length
+                if (!slideOpt.has_value() || slideOpt.value() * slideOpt.value() > vecLength2) {
+                    slideDistance = std::sqrt(vecLength2);
+                }
+                else {
+                    slideDistance = slideOpt.value();
+                }
+
+                // Select vector with MAXIMUM distance
+                // JavaScript lines 1653-1656
+                if (slideDistance > maxDistance) {
+                    maxDistance = slideDistance;
+                    bestVector = &vec;
                 }
             }
 
-            cleanedNFP.push_back(curr);
+            // JavaScript lines 1660-1664: check if valid vector found
+            if (!bestVector || almostEqual(maxDistance, 0.0)) {
+                nfp.clear();  // Didn't close loop properly
+                break;
+            }
+
+            // Mark vertices as used
+            // JavaScript lines 1666-1667
+            if (bestVector->polygon == 'A') {
+                A[bestVector->startIndex].marked = true;
+                A[bestVector->endIndex].marked = true;
+            } else {
+                B[bestVector->startIndex].marked = true;
+                B[bestVector->endIndex].marked = true;
+            }
+
+            prevVector = bestVector;
+
+            // STEP 4: Trim vector if needed
+            // JavaScript lines 1672-1677
+            double vecLength2 = bestVector->x * bestVector->x + bestVector->y * bestVector->y;
+            if (maxDistance * maxDistance < vecLength2 &&
+                !almostEqual(maxDistance * maxDistance, vecLength2)) {
+                double scale = std::sqrt((maxDistance * maxDistance) / vecLength2);
+                bestVector->x *= scale;
+                bestVector->y *= scale;
+            }
+
+            // STEP 5: Move reference point
+            // JavaScript lines 1679-1680
+            reference.x += bestVector->x;
+            reference.y += bestVector->y;
+
+            // STEP 6: Check loop closure
+            // JavaScript lines 1682-1700
+            if (almostEqual(reference.x, startPoint.x) && almostEqual(reference.y, startPoint.y)) {
+                break;  // Completed loop
+            }
+
+            // Check if we've returned to any previous point
+            // JavaScript lines 1688-1700
+            bool looped = false;
+            if (nfp.size() > 0) {
+                for (size_t i = 0; i < nfp.size() - 1; i++) {
+                    if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
+                        looped = true;
+                        break;
+                    }
+                }
+            }
+
+            if (looped) {
+                break;  // Completed loop
+            }
+
+            // Add point to NFP
+            // JavaScript lines 1702-1705
+            nfp.push_back(reference);
+
+            // Update offset for next iteration
+            // JavaScript lines 1707-1708
+            offsetB.x += bestVector->x;
+            offsetB.y += bestVector->y;
+
+            counter++;
         }
+
+        // Add NFP if valid
+        // JavaScript lines 1713-1715
+        if (!nfp.empty() && nfp.size() >= 3) {
+            nfpList.push_back(nfp);
+        }
+
+        if (!searchEdges) {
+            break;  // Only get first NFP
+        }
+
+        // Search for next start point
+        // JavaScript line 1722
+        startOpt = searchStartPoint(A, B, inside, nfpList);
     }
 
-    std::cerr << "  Orbital loop completed after " << iterations << " iterations" << std::endl;
-    std::cerr << "  Raw NFP points: " << nfp.size() << std::endl;
-    std::cerr << "  Cleaned NFP points: " << cleanedNFP.size() << std::endl;
-
-    if (!cleanedNFP.empty() && cleanedNFP.size() >= 3) {
-        std::cerr << "  ✅ NFP is valid (>= 3 points), adding to results" << std::endl;
-        nfps.push_back(cleanedNFP);
-    } else {
-        std::cerr << "  ❌ NFP is INVALID (< 3 points), discarding!" << std::endl;
-        std::cerr << "  This is why orbital tracing returns empty!" << std::endl;
-    }
-
-    // If searchEdges is true, we would repeat the process for different starting edges
-    // For now, we just return the single NFP found from the default start point
-    // This can be extended if needed for better coverage
-
-    std::cerr << "  Returning " << nfps.size() << " NFP(s)" << std::endl;
-    return nfps;
+    // JavaScript line 1726
+    return nfpList;
 }
 
 std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& A,

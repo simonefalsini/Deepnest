@@ -371,6 +371,46 @@ namespace GeometryUtil {
         double sqTolerance
     );
 
+    // ========== Orbital Tracing Helper Functions ==========
+
+    /**
+     * @brief Find all touching contacts between polygons A and B
+     *
+     * Used by orbital tracing algorithm to detect contact points.
+     * Forward declaration - implementation in OrbitalHelpers.cpp
+     */
+    struct TouchingContact;  // Forward declaration
+    std::vector<TouchingContact> findTouchingContacts(
+        const std::vector<Point>& A,
+        const std::vector<Point>& B,
+        const Point& offsetB
+    );
+
+    /**
+     * @brief Generate translation vectors from a touching contact
+     *
+     * Used by orbital tracing algorithm to generate candidate slide directions.
+     * Forward declaration - implementation in OrbitalHelpers.cpp
+     */
+    struct TranslationVector;  // Forward declaration
+    std::vector<TranslationVector> generateTranslationVectors(
+        const TouchingContact& touch,
+        const std::vector<Point>& A,
+        const std::vector<Point>& B,
+        const Point& offsetB
+    );
+
+    /**
+     * @brief Check if a vector represents backtracking
+     *
+     * Used by orbital tracing algorithm to filter invalid slide directions.
+     * Forward declaration - implementation in OrbitalHelpers.cpp
+     */
+    bool isBacktracking(
+        const TranslationVector& vec,
+        const TranslationVector* prevVector
+    );
+
 } // namespace GeometryUtil
 
 } // namespace deepnest
