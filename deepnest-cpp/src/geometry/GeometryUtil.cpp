@@ -637,31 +637,32 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             }
         }
 
-        Point heuristicStart(
-            A[minAindex].x - B[maxBindex].x,
-            A[minAindex].y - B[maxBindex].y
-        );
-        LOG_NFP("  Start point (heuristic): (" << heuristicStart.x << ", " << heuristicStart.y << ")");
-
-        // CRITICAL FIX: For rotated polygons, heuristic may find internal loop
-        // Use searchStartPoint to find point on external perimeter
+        // OUTSIDE NFP: Use searchStartPoint to find valid point on external perimeter
+        // For rotated polygons, heuristic can find internal loops, so we MUST use search
+        // JavaScript uses only searchStartPoint without heuristic fallback
         startOpt = searchStartPoint(A, B, false, {});
-        if (startOpt.has_value()) {
-            LOG_NFP("  Start point (search - external): (" << startOpt->x << ", " << startOpt->y << ")");
-        } else {
-            // Fallback to heuristic if search fails
-            LOG_NFP("  WARNING: searchStartPoint failed, using heuristic");
-            startOpt = heuristicStart;
-        }
-    }
-    else {
-        // INSIDE NFP: No reliable heuristic, use search
-        // JavaScript lines 1477-1479
-        startOpt = searchStartPoint(A, B, true, {});
+
         if (startOpt.has_value()) {
             LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
         } else {
-            LOG_NFP("  ERROR: No start point found!");
+            // If searchStartPoint fails, return empty list (no valid NFP)
+            LOG_NFP("  ERROR: searchStartPoint failed for OUTSIDE NFP!");
+            LOG_NFP("  This likely means B is larger than A or shapes are incompatible");
+            return {};  // Return empty NFP list
+        }
+    }
+    else {
+        // INSIDE NFP: No reliable heuristic, MUST use searchStartPoint
+        // JavaScript lines 1477-1479
+        startOpt = searchStartPoint(A, B, true, {});
+
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            // If searchStartPoint fails for inside NFP, return empty
+            LOG_NFP("  ERROR: searchStartPoint failed for INSIDE NFP!");
+            LOG_NFP("  This likely means B does not fit inside A");
+            return {};  // Return empty NFP list
         }
     }
 
@@ -817,10 +818,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
 
             // Check if we've returned to any previous point
             // JavaScript lines 1688-1700
-            // TEMPORARY: Disabled to force closure only at start point
-            // This helps identify if the algorithm is following the correct path
+            // ENABLED: Loop closure detection to ensure NFP closes properly
             bool looped = false;
-            /*
             if (nfp.size() > 2 * std::max(A.size(), B.size())) {  // Only after visiting 2x more points than polygon vertices
                 for (size_t i = 0; i < nfp.size() - 1; i++) {
                     if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
@@ -831,7 +830,6 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     }
                 }
             }
-            */
 
             if (looped) {
                 break;  // Completed loop
@@ -868,6 +866,34 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     }
 
     LOG_NFP("=== ORBITAL TRACING COMPLETE: " << nfpList.size() << " NFPs generated ===");
+
+    // VALIDATION: Ensure all NFP loops are properly closed
+    for (auto& nfp : nfpList) {
+        if (nfp.size() >= 3) {
+            const Point& first = nfp.front();
+            const Point& last = nfp.back();
+
+            // Check if loop is closed
+            if (!almostEqual(first.x, last.x) || !almostEqual(first.y, last.y)) {
+                double distance = std::sqrt((last.x - first.x) * (last.x - first.x) +
+                                           (last.y - first.y) * (last.y - first.y));
+
+                LOG_NFP("  WARNING: NFP loop not closed! Distance: " << distance);
+                LOG_NFP("    First point: (" << first.x << ", " << first.y << ")");
+                LOG_NFP("    Last point: (" << last.x << ", " << last.y << ")");
+
+                // FORCE close the loop by adding first point at end
+                nfp.push_back(first);
+                LOG_NFP("    → Loop forcibly closed by adding first point");
+            }
+
+            // Check for near-zero area (indicates degenerate polygon)
+            double area = polygonArea(nfp);
+            if (std::abs(area) < 1e-6) {
+                LOG_NFP("  WARNING: NFP has near-zero area! Area: " << area);
+            }
+        }
+    }
 
     // JavaScript line 1726
     return nfpList;
