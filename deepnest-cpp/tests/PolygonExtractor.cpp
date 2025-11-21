@@ -13,6 +13,8 @@
 #include "../include/deepnest/core/Polygon.h"
 #include "../include/deepnest/nfp/MinkowskiSum.h"
 #include "../include/deepnest/geometry/GeometryUtil.h"
+#include "../include/deepnest/geometry/ConvexHull.h"
+#include "../include/deepnest/geometry/PolygonOperations.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
 
 #include <QCoreApplication>
@@ -278,6 +280,29 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Additional Debug Options
+    double debugSpacing = 0.0;
+    bool useConvexHull = false;
+    bool useBoundingBox = false;
+
+    for (int i = 2; i < argc; i++) {
+        QString arg = argv[i];
+        if (arg == "--spacing" && i + 1 < argc) {
+            debugSpacing = QString(argv[++i]).toDouble();
+        } else if (arg == "--use-hull") {
+            useConvexHull = true;
+        } else if (arg == "--use-box") {
+            useBoundingBox = true;
+        }
+    }
+
+    if (debugSpacing > 0 || useConvexHull || useBoundingBox) {
+        std::cout << "Debug Transformations Enabled:" << std::endl;
+        if (debugSpacing > 0) std::cout << "  - Spacing: " << debugSpacing << std::endl;
+        if (useConvexHull) std::cout << "  - Use Convex Hull" << std::endl;
+        if (useBoundingBox) std::cout << "  - Use Bounding Box" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "  Polygon Extractor & NFP Tester" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -301,7 +326,58 @@ int main(int argc, char *argv[]) {
 
         Polygon poly = QtBoostConverter::fromQPainterPath(shapePath, i);
         if (poly.isValid()) {
-            polygons.push_back(poly);
+            // Apply Debug Transformations
+            Polygon processedPoly = poly;
+
+            // 1. Apply Spacing
+            if (debugSpacing > 0) {
+                // Use PolygonOperations::offset (which is what applySpacing uses)
+                // We treat this as a single contour for simplicity here, or wrap in vector
+                std::vector<std::vector<Point>> contours = { processedPoly.points };
+                for (const auto& child : processedPoly.children) {
+                    contours.push_back(child.points);
+                }
+                
+                auto offsetResults = PolygonOperations::offset(contours, debugSpacing);
+                
+                // Reconstruct (simplistic, taking largest)
+                if (!offsetResults.empty()) {
+                    // Find largest
+                    size_t bestIdx = 0;
+                    double maxArea = 0.0;
+                    for(size_t k=0; k<offsetResults.size(); ++k) {
+                        double a = std::abs(GeometryUtil::polygonArea(offsetResults[k]));
+                        if(a > maxArea) { maxArea = a; bestIdx = k; }
+                    }
+                    processedPoly.points = offsetResults[bestIdx];
+                    processedPoly.children.clear(); // Lost holes for now in this debug tool
+                } else {
+                    std::cerr << "Warning: Spacing reduced polygon " << i << " to nothing." << std::endl;
+                }
+            }
+
+            // 2. Apply Convex Hull
+            if (useConvexHull) {
+                processedPoly.points = ConvexHull::computeHull(processedPoly.points);
+                processedPoly.children.clear(); // Hull has no holes
+            }
+
+            // 3. Apply Bounding Box
+            if (useBoundingBox) {
+                BoundingBox box = processedPoly.bounds();
+                processedPoly.points = {
+                    {box.x, box.y},
+                    {box.x + box.width, box.y},
+                    {box.x + box.width, box.y + box.height},
+                    {box.x, box.y + box.height}
+                };
+                processedPoly.children.clear();
+            }
+            
+            // Update ID to reflect transformations
+            processedPoly.id = poly.id;
+
+            polygons.push_back(processedPoly);
         }
     }
 
