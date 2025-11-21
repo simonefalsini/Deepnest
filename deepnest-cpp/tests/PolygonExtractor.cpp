@@ -192,12 +192,30 @@ void testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& p
     // Test Minkowski sum
     auto nfps = deepnest::MinkowskiSum::calculateNFP(polyA, polyB, inside);
 
+    // CRITICAL: Apply B[0] translation to match NFPCalculator behavior
+    // JavaScript (background.js:202-203): clipperNfp[i].x += B[0].x; clipperNfp[i].y += B[0].y;
+    // C++ (NFPCalculator.cpp:113): result.translate(B.points[0].x, B.points[0].y)
+    if (!nfps.empty() && !polyB.points.empty()) {
+        for (auto& nfp : nfps) {
+            nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
+        }
+        std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
+    }
+
     if (nfps.empty()) {
         std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
     } else {
         std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
         for (size_t i = 0; i < nfps.size(); ++i) {
             std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+        }
+
+        // DEBUG: Print ALL points of first NFP
+        if (!nfps.empty() && !nfps[0].points.empty()) {
+            std::cout << "  [DEBUG] Minkowski NFP[0] ALL " << nfps[0].points.size() << " points:" << std::endl;
+            for (size_t i = 0; i < nfps[0].points.size(); ++i) {
+                std::cout << "    [" << i << "] (" << nfps[0].points[i].x << ", " << nfps[0].points[i].y << ")" << std::endl;
+            }
         }
 
         // Save combined visualization
