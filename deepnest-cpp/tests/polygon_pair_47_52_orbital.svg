@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="777.949" height="438.612" viewBox="-384.764 -200.05 777.949 438.612">
+  <text x="-379.764" y="-190.05" font-size="8" fill="black">Polygon A(id=47) vs B(id=52)</text>
+  <polygon points="-339.895,-154.543 -348.772,-147.465 -359.838,-149.994 -364.764,-160.22 -359.838,-170.443 -348.772,-172.972 -339.895,-165.891 -339.895,-154.543" fill="lightcoral" fill-opacity="0.5" stroke="red" stroke-width="1"/>
+  <polygon points="373.185,211.484 364.307,218.562 353.243,216.034 348.316,205.807 353.243,195.584 364.307,193.055 373.185,200.136 373.185,211.484" fill="lightblue" fill-opacity="0.5" stroke="blue" stroke-width="1"/>
+  <polygon points="-339.894,-180.05 -331.017,-172.969 -339.895,-165.891 -348.772,-172.972" fill="lightgreen" fill-opacity="0.3" stroke="green" stroke-width="0.5"/>
+</svg>
