@@ -16,6 +16,7 @@
 #include "../include/deepnest/geometry/ConvexHull.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
+//#include "../include/deepnest/engine/NestingEngine.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -331,29 +332,7 @@ int main(int argc, char *argv[]) {
 
             // 1. Apply Spacing
             if (debugSpacing > 0) {
-                // Use PolygonOperations::offset (which is what applySpacing uses)
-                // We treat this as a single contour for simplicity here, or wrap in vector
-                std::vector<std::vector<Point>> contours = { processedPoly.points };
-                for (const auto& child : processedPoly.children) {
-                    contours.push_back(child.points);
-                }
-                
-                auto offsetResults = PolygonOperations::offset(contours, debugSpacing);
-                
-                // Reconstruct (simplistic, taking largest)
-                if (!offsetResults.empty()) {
-                    // Find largest
-                    size_t bestIdx = 0;
-                    double maxArea = 0.0;
-                    for(size_t k=0; k<offsetResults.size(); ++k) {
-                        double a = std::abs(GeometryUtil::polygonArea(offsetResults[k]));
-                        if(a > maxArea) { maxArea = a; bestIdx = k; }
-                    }
-                    processedPoly.points = offsetResults[bestIdx];
-                    processedPoly.children.clear(); // Lost holes for now in this debug tool
-                } else {
-                    std::cerr << "Warning: Spacing reduced polygon " << i << " to nothing." << std::endl;
-                }
+//                processedPoly = deepnest::NestingEngine::applySpacing(processedPoly, debugSpacing);
             }
 
             // 2. Apply Convex Hull

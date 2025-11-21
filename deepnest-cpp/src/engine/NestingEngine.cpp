@@ -116,7 +116,7 @@ void NestingEngine::initialize(
 
             // Apply negative offset to sheets (shrink)
             if (config_.spacing > 0) {
-                sheet = applySpacing(sheet, -0.5 * config_.spacing);
+                sheet = applySpacing(sheet, -0.5 * config_.spacing,  config_.curveTolerance);
                 
                 // If sheet became invalid/empty after spacing, skip it
                 if (sheet.points.size() < 3 || std::abs(sheet.area()) < 1e-6) {
@@ -139,7 +139,7 @@ void NestingEngine::initialize(
 
             // Apply positive offset to parts (expand)
             if (config_.spacing > 0) {
-                part = applySpacing(part, 0.5 * config_.spacing);
+                part = applySpacing(part, 0.5 * config_.spacing,  config_.curveTolerance);
                 
                 // If part became invalid/empty after spacing, skip it
                 if (part.points.size() < 3 || std::abs(part.area()) < 1e-6) {
@@ -424,7 +424,7 @@ void NestingEngine::setResultCallback(ResultCallback callback) {
     resultCallback_ = callback;
 }
 
-Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
+Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset, double curveTolerance) {
     if (std::abs(offset) < 1e-6) {
         return polygon;
     }
@@ -434,7 +434,7 @@ Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
 
     // Use PolygonOperations::offset
     std::vector<std::vector<Point>> offsetResults =
-        PolygonOperations::offset(polygon.points, offset, 4.0, config_.curveTolerance);
+        PolygonOperations::offset(polygon.points, offset, 4.0, curveTolerance);
 
     if (offsetResults.empty()) {
         // Offset failed or polygon vanished (e.g. negative offset on small part)
@@ -465,7 +465,7 @@ Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
     if (!polygon.children.empty()) {
         result.children.clear();
         for (const auto& child : polygon.children) {
-            Polygon offsetChild = applySpacing(child, -offset);
+            Polygon offsetChild = applySpacing(child, -offset, curveTolerance);
             // Only add valid children
             if (offsetChild.points.size() >= 3 && std::abs(offsetChild.area()) > 1e-6) {
                 result.children.push_back(offsetChild);

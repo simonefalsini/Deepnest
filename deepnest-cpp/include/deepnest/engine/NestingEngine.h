@@ -251,7 +251,7 @@ private:
      * @param offset Offset amount (positive = expand, negative = shrink)
      * @return Offset polygon
      */
-    Polygon applySpacing(const Polygon& polygon, double offset);
+    static Polygon applySpacing(const Polygon& polygon, double offset, double curveTolerance);
 
     /**
      * @brief Evaluate a single individual
