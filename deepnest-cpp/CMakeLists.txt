@@ -221,3 +221,11 @@ message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  C++ standard: C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  Qt5 version: ${Qt5_VERSION}")
 message(STATUS "  Boost version: ${Boost_VERSION}")
+
+# Build test tools if requested and Qt5 is available
+if(BUILD_TESTS AND Qt5_FOUND)
+    message(STATUS "Building test tools...")
+    add_subdirectory(tests)
+else()
+    message(STATUS "Skipping test tools (BUILD_TESTS=${BUILD_TESTS}, Qt5_FOUND=${Qt5_FOUND})")
+endif()
