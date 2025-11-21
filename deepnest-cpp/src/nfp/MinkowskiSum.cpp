@@ -144,6 +144,19 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
     double maxyAbs = std::max(Cmaxy, std::fabs(Cminy));
     double maxda = std::max(maxxAbs, maxyAbs);
 
+    // CRITICAL FIX: Ensure individual polygon coordinates also fit in int range!
+    // If A is far negative and B is far positive, C (sum) might be near zero,
+    // resulting in a huge scale factor that causes A or B to overflow when converted.
+    maxda = std::max(maxda, std::fabs(Aminx));
+    maxda = std::max(maxda, std::fabs(Amaxx));
+    maxda = std::max(maxda, std::fabs(Aminy));
+    maxda = std::max(maxda, std::fabs(Amaxy));
+
+    maxda = std::max(maxda, std::fabs(Bminx));
+    maxda = std::max(maxda, std::fabs(Bmaxx));
+    maxda = std::max(maxda, std::fabs(Bminy));
+    maxda = std::max(maxda, std::fabs(Bmaxy));
+
     if (maxda < 1.0) {
         maxda = 1.0;
     }

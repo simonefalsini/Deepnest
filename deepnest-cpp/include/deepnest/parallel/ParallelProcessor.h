@@ -122,6 +122,16 @@ public:
      */
     void waitAll();
 
+    /**
+     * @brief Execute a function under the processor's lock
+     * 
+     * Allows external components (like NestingEngine) to synchronize access
+     * to shared data protected by the processor's mutex.
+     * 
+     * @param func Function to execute while holding the lock
+     */
+    void executeLocked(std::function<void()> func);
+
 private:
     /**
      * @brief IO context for task queue

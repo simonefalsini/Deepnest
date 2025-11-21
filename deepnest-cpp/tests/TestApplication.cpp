@@ -3,6 +3,7 @@
 #include "../include/deepnest/converters/QtBoostConverter.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
 #include "../include/deepnest/geometry/GeometryUtil.h"
+#include <QThread>
 
 #include <QMenuBar>
 #include <QToolBar>

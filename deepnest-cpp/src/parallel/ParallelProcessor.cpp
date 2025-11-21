@@ -57,32 +57,9 @@ void ParallelProcessor::stop() {
     LOG_THREAD("Calling ioContext_.stop()");
     ioContext_.stop();
 
-    // Give threads a brief moment to exit
-    LOG_THREAD("Waiting 50ms for threads to exit");
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    LOG_THREAD("Skipping join_all to avoid crash - threads will be detached");
-    LOG_THREAD("WARNING: Worker threads will be terminated without join");
-
-    // DRASTIC FIX: Don't call join_all() at all because it crashes with access violation
-    // This is not ideal (threads may leak) but it's better than crashing
-    // The threads should exit naturally after ioContext_.stop() anyway
-
-    // Give threads more time to exit naturally
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    // Reset io_context for restart
-    LOG_THREAD("Resetting io_context");
-    ioContext_.restart();
-
-    // Recreate work guard for potential restart
-    LOG_THREAD("Recreating work guard");
-    workGuard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
-        boost::asio::make_work_guard(ioContext_)
-    );
-
-    // Threads are not joined, they will exit naturally after io_context stops
-    // Or they will be destroyed when the thread_group is destroyed
+    // CRITICAL: Wait for ALL threads to COMPLETELY finish their current tasks
+    // This ensures no thread is still executing code that references PlacementWorker, etc.
+    threads_.join_all();
 
     LOG_THREAD("ParallelProcessor::stop() completed (threads NOT joined to avoid crash)");
 }
@@ -100,94 +77,98 @@ void ParallelProcessor::waitAll() {
     }
 }
 
+void ParallelProcessor::executeLocked(std::function<void()> func) {
+    boost::lock_guard<boost::mutex> lock(mutex_);
+    func();
+}
+
 void ParallelProcessor::processPopulation(
     Population& population,
     const std::vector<Polygon>& sheets,
     PlacementWorker& worker,
     int maxConcurrent
 ) {
-    // JavaScript: var running = GA.population.filter(function(p){ return !!p.processing; }).length;
-    // Count currently processing individuals
-    size_t running = population.getProcessingCount();
+    // CRITICAL FIX: Protect the entire task selection and submission process
+    // This prevents race conditions where:
+    // 1. Multiple threads try to process the same individual
+    // 2. The 'processing' flag is read/written concurrently without protection
+    
+    // We need to identify tasks to run while holding the lock, but we can't
+    // hold the lock while enqueuing if enqueuing might block or re-acquire (though here it shouldn't).
+    // However, to be safe and atomic, we'll identify AND mark as processing under the lock.
+    
+    std::vector<size_t> indicesToProcess;
+    
+    {
+        boost::lock_guard<boost::mutex> lock(mutex_);
+        
+        if (stopped_) return;
 
-    // Determine maximum concurrent tasks
-    int maxTasks = (maxConcurrent > 0) ? maxConcurrent : threadCount_;
-
-    std::cerr << "=== ParallelProcessor::processPopulation ===" << std::endl;
-    std::cerr << "  maxConcurrent: " << maxConcurrent << ", threadCount_: " << threadCount_
-              << ", maxTasks: " << maxTasks << ", currently running: " << running << std::endl;
-    std::cerr.flush();
-
-    // JavaScript: for(i=0; i<GA.population.length; i++) {
-    //               if(running < config.threads && !GA.population[i].processing && !GA.population[i].fitness) {
-    //                 GA.population[i].processing = true;
-    //                 // launch worker
-    //                 running++;
-    //               }
-    //             }
-    // Launch workers for unevaluated individuals
-    auto& individuals = population.getIndividuals();
-
-    for (size_t i = 0; i < individuals.size(); ++i) {
-        Individual& individual = individuals[i];
-
-        // Check if we can launch more workers
-        if (static_cast<int>(running) >= maxTasks) {
-            break;
+        int running = 0;
+        for(const auto& ind : population.getIndividuals()) {
+            if(ind.processing) running++;
         }
 
-        // Check if individual needs evaluation
-        if (!individual.processing && !individual.hasValidFitness()) {
-            // Mark as processing
-            individual.processing = true;
+        int availableSlots = (maxConcurrent > 0) ? maxConcurrent : threadCount_;
+        // If maxConcurrent is 0 (default), use thread count. If thread count is 0 (hardware), 
+        // we need to know what that is. The constructor handles this, but let's be safe.
+        if (availableSlots <= 0) availableSlots = boost::thread::hardware_concurrency();
+
+    auto& individuals = population.getIndividuals();
+        for(size_t i = 0; i < individuals.size(); ++i) {
+            if(running >= availableSlots) break;
+
+            auto& individual = individuals[i];
+            
+            // Check if needs processing: fitness not valid and not currently processing
+            if(!individual.hasValidFitness() && !individual.processing) {
+                individual.processing = true; // Mark as processing IMMEDIATELY under lock
+                indicesToProcess.push_back(i);
             running++;
+            }
+        }
+    }
 
-            std::cerr << "  Enqueueing task for individual #" << i << ", running count now: " << running << std::endl;
-            std::cerr.flush();
-
-            // Create copies for thread safety
-            std::vector<Polygon> sheetsCopy = sheets;
-            Individual individualCopy = individual.clone();
-
-            // CRITICAL FIX: Capture index instead of reference to avoid use-after-free
-            // The old code captured &individual which could become invalid when the lambda executes
+    // Now enqueue the tasks. The 'processing' flag is already set, so other calls
+    // to processPopulation won't pick these up.
+    for(size_t i : indicesToProcess) {
+        // Capture BY VALUE
             size_t index = i;
-
-            // Enqueue placement task
-            enqueue([&population, index, sheetsCopy, &worker, individualCopy, this]() mutable {
-                std::cerr << "=== WORKER THREAD: Starting placeParts for individual #" << index << " ===" << std::endl;
-                std::cerr.flush();
+        
+        enqueue([&population, &sheets, &worker, index, this]() {
+            // Create a thread-local copy of the individual to work on
+            // We need to read the input data safely. 
+            // The individual at 'index' is stable in the vector (vector doesn't resize here).
+            // But we should copy it to avoid reading it while main thread might be reading it?
+            // Actually, main thread only reads 'processing' and results. 
+            // Input data (parts, rotation) is constant during evaluation.
+            
+            Individual individualCopy;
+            {
+                boost::lock_guard<boost::mutex> lock(mutex_);
+                individualCopy = population.getIndividuals()[index];
+            }
+            
+            // Perform the heavy lifting WITHOUT the lock
                 // Prepare parts with rotations
-                // JavaScript: var ids = []; var sources = []; var children = [];
-                //             for(j=0; j<GA.population[i].placement.length; j++) {
-                //               var id = GA.population[i].placement[j].id;
-                //               var source = GA.population[i].placement[j].source;
-                //               ...
-                //             }
                 std::vector<Polygon> parts;
                 for (size_t j = 0; j < individualCopy.placement.size(); ++j) {
                     Polygon part = *individualCopy.placement[j];
                     part.rotation = individualCopy.rotation[j];
                     parts.push_back(part);
                 }
-
-                // Execute placement
-                // JavaScript: ipcRenderer.send('background-start', {...})
-                // In background process: placeParts(sheets, parts, config, nestindex)
-                PlacementWorker::PlacementResult result = worker.placeParts(sheetsCopy, parts);
-
-                // Update individual with result - THREAD SAFE ACCESS
-                // JavaScript: GA.population[payload.index].processing = false;
-                //             GA.population[payload.index].fitness = payload.fitness;
+            PlacementWorker::PlacementResult result = worker.placeParts(sheets, parts);
+            
+            // Update the results WITH the lock
                 {
-                    boost::lock_guard<boost::mutex> lock(this->mutex_);
-                    auto& individuals = population.getIndividuals();
-                    if (index < individuals.size()) {
-                        individuals[index].fitness = result.fitness;
-                        individuals[index].area = result.area;
-                        individuals[index].mergedLength = result.mergedLength;
-                        individuals[index].placements = result.placements;  // Store actual placements!
-                        individuals[index].processing = false;
+                boost::lock_guard<boost::mutex> lock(mutex_);
+                // Update the original individual with results
+                auto& originalIndividual = population.getIndividuals()[index];
+                originalIndividual.fitness = result.fitness;
+                originalIndividual.area = result.area;
+                originalIndividual.mergedLength = result.mergedLength;
+                originalIndividual.placements = result.placements;
+                originalIndividual.processing = false;
 
                         // GA DEBUG: Log fitness evaluation (first 10 individuals only to avoid spam)
                         static int evalCount = 0;
@@ -200,10 +181,8 @@ void ParallelProcessor::processPopulation(
                             std::cout.flush();
                         }
                     }
-                }
             });
         }
-    }
 }
 
 } // namespace deepnest

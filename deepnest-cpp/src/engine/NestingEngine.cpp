@@ -328,23 +328,21 @@ bool NestingEngine::step() {
     // and updates Individual.fitness directly. We need to check for new best results.
 
     // Check for best results and update
+    // CRITICAL FIX: Use executeLocked to safely read results from individuals
+    // This prevents race conditions where worker threads are updating the individual
+    // while we are trying to read its fitness or placements.
+    std::vector<NestResult> newBetterResults;
+
+    parallelProcessor_->executeLocked([&]() {
     auto& population = geneticAlgorithm_->getPopulation();
     for (size_t i = 0; i < population.size(); ++i) {
         Individual& individual = population[i];
 
         // Check if this individual was just evaluated
         if (individual.hasValidFitness() && !individual.processing) {
-            // We need to get the placement result somehow
-            // For now, we'll create a simplified NestResult from the individual's fitness
-            // In a full implementation, we'd store the PlacementResult in the Individual
-
-            // JavaScript: if(this.nests.length == 0 || this.nests[0].fitness > payload.fitness) {
-            //               this.nests.unshift(payload);
-            //               if(this.nests.length > 10) { this.nests.pop(); }
-            //               if(displayCallback) { displayCallback(); }
-            //             }
-
-            // Create result from individual data (now includes placements!)
+                // Check if it's a new best result
+                // We check against results_ here (safe as we are on main thread)
+                // to avoid unnecessary copying of placements for non-best results
             if (results_.empty() || results_[0].fitness > individual.fitness) {
                 NestResult result;
                 result.fitness = individual.fitness;
@@ -352,8 +350,18 @@ bool NestingEngine::step() {
                 result.individualIndex = static_cast<int>(i);
                 result.area = individual.area;
                 result.mergedLength = individual.mergedLength;
-                result.placements = individual.placements;  // Copy actual placements!
+                    result.placements = individual.placements;  // Copy actual placements! SAFE under lock
 
+                    newBetterResults.push_back(result);
+                }
+            }
+        }
+    });
+
+    // Process the collected results outside the lock
+    for (const auto& result : newBetterResults) {
+        // Re-check condition as we might have multiple better results
+        if (results_.empty() || results_[0].fitness > result.fitness) {
                 updateResults(result);
 
                 if (resultCallback_) {
@@ -361,7 +369,6 @@ bool NestingEngine::step() {
                 }
             }
         }
-    }
 
     return running_;
 }

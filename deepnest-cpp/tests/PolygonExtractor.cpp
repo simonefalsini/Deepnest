@@ -258,10 +258,23 @@ int main(int argc, char *argv[]) {
     QString svgFile = argv[1];
     bool testAllPairs = false;
 
-    // Check for --all-pairs option
+    // Check for options
+    int targetIdA = -1;
+    int targetIdB = -1;
+    double targetRotA = 0.0;
+    double targetRotB = 0.0;
+
     for (int i = 2; i < argc; i++) {
-        if (QString(argv[i]) == "--all-pairs") {
+        QString arg = argv[i];
+        if (arg == "--all-pairs") {
             testAllPairs = true;
+        } else if (arg == "--test-pair" && i + 2 < argc) {
+            targetIdA = QString(argv[++i]).toInt();
+            targetIdB = QString(argv[++i]).toInt();
+        } else if (arg == "--rotA" && i + 1 < argc) {
+            targetRotA = QString(argv[++i]).toDouble();
+        } else if (arg == "--rotB" && i + 1 < argc) {
+            targetRotB = QString(argv[++i]).toDouble();
         }
     }
 
@@ -431,12 +444,54 @@ int main(int argc, char *argv[]) {
             std::cout << "\n⚠️  Some tests failed or returned empty results" << std::endl;
         }
 
+    } else if (targetIdA != -1 && targetIdB != -1) {
+        // ==================================================
+        // TEST SPECIFIC PAIR WITH ROTATION
+        // ==================================================
+        std::cout << "\nTesting specific pair: A(id=" << targetIdA << ") vs B(id=" << targetIdB << ")" << std::endl;
+        std::cout << "Rotations: A=" << targetRotA << " deg, B=" << targetRotB << " deg" << std::endl;
+
+        Polygon* polyA = nullptr;
+        Polygon* polyB = nullptr;
+
+        for (auto& poly : polygons) {
+            if (poly.id == targetIdA) polyA = &poly;
+            if (poly.id == targetIdB) polyB = &poly;
+        }
+
+        if (!polyA || !polyB) {
+            std::cerr << "Error: Could not find one or both polygons" << std::endl;
+            return 1;
+        }
+
+        // Apply rotations
+        Polygon rotatedA = *polyA;
+        if (std::abs(targetRotA) > 1e-6) {
+            rotatedA = polyA->rotate(targetRotA);
+            rotatedA.id = polyA->id;
+        }
+
+        Polygon rotatedB = *polyB;
+        if (std::abs(targetRotB) > 1e-6) {
+            rotatedB = polyB->rotate(targetRotB);
+            rotatedB.id = polyB->id;
+        }
+
+        // Save rotated polygons
+        savePolygonToSVG(rotatedA, QString("polygon_%1_A_rot%2.svg").arg(targetIdA).arg(targetRotA));
+        savePolygonToSVG(rotatedB, QString("polygon_%1_B_rot%2.svg").arg(targetIdB).arg(targetRotB));
+
+        // Test NFP
+        testMinkowskiSum(rotatedA, rotatedB, false);
+        testOrbitalTracing(rotatedA, rotatedB, false);
+
     } else {
         // ==================================================
         // TEST ONLY PREDEFINED PROBLEMATIC PAIRS
         // ==================================================
         std::cout << "\nTesting predefined problematic pairs..." << std::endl;
         std::cout << "(Use --all-pairs to test all possible combinations)" << std::endl;
+        std::cout << "(Use --test-pair <idA> <idB> [--rotA <deg>] [--rotB <deg>] to test specific pair)" << std::endl;
 
         // Process each problematic pair
         for (const auto& pair : problematicPairs) {

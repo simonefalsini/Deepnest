@@ -137,6 +137,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 ? (360 / config_.rotations)
                 : 1;
 
+            // CRITICAL FIX: Create a base copy of the part to avoid cumulative rotation errors
+            // Repeatedly rotating the same polygon introduces floating-point drift
+            Polygon basePart = parts[i];
+            double rotationStep = (config_.rotations > 0) ? (360.0 / config_.rotations) : 0.0;
+
             for (int rotAttempt = 0; rotAttempt < maxRotationAttempts; rotAttempt++) {
                 // Debug logging for first part's first rotation attempt
                 if (placements.empty() && rotAttempt == 0) {
@@ -171,22 +176,35 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
                 // Try next rotation
                 if (rotAttempt < maxRotationAttempts - 1 && config_.rotations > 0) {
-                    double rotationStep = 360.0 / config_.rotations;
-                    Polygon rotated = part.rotate(rotationStep);
+                    // CRITICAL FIX: Rotate from the BASE part, not the current (already rotated) part
+                    // This prevents error accumulation
+                    double totalRotation = rotationStep * (rotAttempt + 1);
+                    Polygon rotated = basePart.rotate(totalRotation);
+
+                    // CRITICAL FIX: Clean the polygon using Clipper2 to remove self-intersections
+                    // or degenerate edges caused by floating-point rotation errors.
+                    std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(rotated.points);
+                    if (!cleanedPoints.empty()) {
+                        rotated.points = cleanedPoints;
+                    } else {
+                        // If cleaning fails (degenerate), skip this rotation
+                        continue;
+                    }
 
                     // CRITICAL FIX: DO NOT NORMALIZE - see above explanation
                     // Negative coordinates are expected and correct!
 
-                    rotated.rotation = part.rotation + rotationStep;
-                    rotated.source = part.source;
-                    rotated.id = part.id;
+                    rotated.rotation = basePart.rotation + totalRotation;
+                    rotated.source = basePart.source;
+                    rotated.id = basePart.id;
 
                     if (rotated.rotation >= 360.0) {
                         rotated.rotation = std::fmod(rotated.rotation, 360.0);
                     }
 
-                    part = rotated;
+                    // Update the part in the vector (and the reference 'part')
                     parts[i] = rotated;
+                    // Note: 'part' is a reference to parts[i], so it sees the update
                 }
             }
 
