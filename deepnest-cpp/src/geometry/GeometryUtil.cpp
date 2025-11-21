@@ -624,6 +624,16 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     for (auto& p : A) p.marked = false;
     for (auto& p : B) p.marked = false;
 
+    // DETAILED DUMP: Polygon coordinates after orientation correction
+    LOG_NFP("  Polygon A (CCW after correction):");
+    for (size_t i = 0; i < A.size(); i++) {
+        LOG_NFP("    A[" << i << "] = (" << A[i].x << ", " << A[i].y << ")");
+    }
+    LOG_NFP("  Polygon B (CCW after correction):");
+    for (size_t i = 0; i < B.size(); i++) {
+        LOG_NFP("    B[" << i << "] = (" << B[i].x << ", " << B[i].y << ")");
+    }
+
     std::vector<std::vector<Point>> nfpList;
 
     // Get initial start point
@@ -699,11 +709,24 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             // JavaScript lines 1504-1520
             auto touchingList = findTouchingContacts(A, B, offsetB);
 
-            LOG_NFP("    Iteration " << counter << ": touching contacts = " << touchingList.size());
+            LOG_NFP("    ============================================");
+            LOG_NFP("    ITERATION " << counter);
+            LOG_NFP("    offsetB: (" << offsetB.x << ", " << offsetB.y << ")");
+            LOG_NFP("    reference: (" << reference.x << ", " << reference.y << ")");
+            LOG_NFP("    touching contacts: " << touchingList.size());
 
             if (touchingList.empty()) {
                 LOG_NFP("    ERROR: No touching contacts found, breaking loop");
                 break;  // No touching contacts
+            }
+
+            // DETAILED DUMP: All touching contacts with polygon coords
+            for (size_t tc = 0; tc < touchingList.size(); tc++) {
+                const auto& touch = touchingList[tc];
+                LOG_NFP("    Touch[" << tc << "]: type=" << (int)touch.type
+                       << " A[" << touch.indexA << "]=(" << A[touch.indexA].x << "," << A[touch.indexA].y << ")"
+                       << " B[" << touch.indexB << "]=(" << B[touch.indexB].x << "," << B[touch.indexB].y << ")"
+                       << " B+offset=(" << (B[touch.indexB].x + offsetB.x) << "," << (B[touch.indexB].y + offsetB.y) << ")");
             }
 
             // STEP 2: Generate translation vectors from all touches
@@ -713,19 +736,19 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 // Mark vertex as touched
                 A[touch.indexA].marked = true;
 
-                LOG_NFP("    Touch type=" << (int)touch.type << " A[" << touch.indexA << "] B[" << touch.indexB << "]");
-
                 auto vectors = generateTranslationVectors(touch, A, B, offsetB);
 
-                for (const auto& v : vectors) {
-                    LOG_NFP("      Vector: (" << v.x << ", " << v.y << ") len=" << v.length()
-                           << " polygon=" << v.polygon);
+                LOG_NFP("    Touch A[" << touch.indexA << "] B[" << touch.indexB << "] generated " << vectors.size() << " vectors:");
+                for (size_t vi = 0; vi < vectors.size(); vi++) {
+                    const auto& v = vectors[vi];
+                    LOG_NFP("      [" << vi << "] (" << v.x << ", " << v.y << ") len=" << v.length()
+                           << " poly=" << v.polygon << " start=" << v.startIndex << " end=" << v.endIndex);
                 }
 
                 allVectors.insert(allVectors.end(), vectors.begin(), vectors.end());
             }
 
-            LOG_NFP("    Generated " << allVectors.size() << " translation vectors");
+            LOG_NFP("    Total vectors: " << allVectors.size());
             if (prevVector.has_value()) {
                 LOG_NFP("    prevVector: (" << prevVector->x << ", " << prevVector->y
                        << ") polygon=" << prevVector->polygon);
@@ -752,12 +775,21 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
 
                 double slideDistance;
                 double vecLength2 = vec.x * vec.x + vec.y * vec.y;
+                double vecLength = std::sqrt(vecLength2);
 
                 // JavaScript lines 1648-1651: if null or too large, use vector length
-                if (!slideOpt.has_value() || slideOpt.value() * slideOpt.value() > vecLength2) {
-                    slideDistance = std::sqrt(vecLength2);
+                if (!slideOpt.has_value()) {
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt is NULL → using vecLength=" << vecLength);
+                    slideDistance = vecLength;
+                }
+                else if (slideOpt.value() * slideOpt.value() > vecLength2) {
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
+                           << " too large (slideOpt²=" << (slideOpt.value() * slideOpt.value())
+                           << " > vecLength²=" << vecLength2 << ") → using vecLength=" << vecLength);
+                    slideDistance = vecLength;
                 }
                 else {
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") using slideOpt=" << slideOpt.value());
                     slideDistance = slideOpt.value();
                 }
 
@@ -847,10 +879,15 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             // JavaScript lines 1702-1705
             nfp.push_back(reference);
 
+            LOG_NFP("    Added point to NFP: (" << reference.x << ", " << reference.y << ")");
+            LOG_NFP("    NFP now has " << nfp.size() << " points");
+
             // Update offset for next iteration
             // JavaScript lines 1707-1708
             offsetB.x += bestVector->x;
             offsetB.y += bestVector->y;
+
+            LOG_NFP("    New offsetB: (" << offsetB.x << ", " << offsetB.y << ")");
 
             counter++;
         }

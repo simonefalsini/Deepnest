@@ -1,7 +1,33 @@
 # Orbital Tracing Bug Analysis - CRITICAL ISSUE
 
 ## Data: 2025-11-21
-## Status: ❌ UNRESOLVED
+## Status: ✅ ROOT CAUSE IDENTIFIED
+## Fix Status: ⚠️ IN PROGRESS
+
+---
+
+## ✅ ROOT CAUSE FOUND
+
+**BUG CRITICO**: `polygonSlideDistance()` in `GeometryUtilAdvanced.cpp:391` restituisce **SEMPRE NULL** per tutti i vettori di traduzione!
+
+### Sintomo
+```
+[SLIDE] Vector (8.877, 7.081) slideOpt is NULL → using vecLength=11.3552
+[SLIDE] Vector (-11.066, 2.529) slideOpt is NULL → using vecLength=11.3513
+[SLIDE] Vector (11.064, 2.528) slideOpt is NULL → using vecLength=11.3491
+```
+
+### Conseguenza
+L'algoritmo orbital tracing **seleziona sempre il vettore più lungo** invece del vettore con la slide distance corretta, causando loop prematuri e NFP distorte.
+
+### Causa Probabile
+La funzione `segmentDistance()` (chiamata da `polygonSlideDistance`) restituisce sempre `std::nullopt`, probabilmente a causa di:
+1. Condizioni di early-return troppo restrittive (righe 260-267)
+2. Possibile differenza nella gestione degli offset tra JavaScript e C++
+3. Possibile bug nel calcolo geometrico dei segmenti
+
+### Next Step
+Debuggare `segmentDistance()` in `GeometryUtilAdvanced.cpp:229` per capire quale condizione causa sempre il return null.
 
 ---
 
@@ -230,13 +256,16 @@ Ma l'orbital tracing VA RISOLTO per completezza.
 
 ## NEXT STEPS
 
-1. ✅ Documentare il problema (questo file)
-2. ⬜ Implementare debug logging dettagliato
-3. ⬜ Eseguire test JavaScript con stesso input
-4. ⬜ Confrontare esecuzione C++ vs JavaScript step-by-step
-5. ⬜ Identificare punto di divergenza
-6. ⬜ Implementare fix
-7. ⬜ Verificare che NFP orbital === NFP Minkowski (±1%)
+1. ✅ Documentare il problema
+2. ✅ Implementare debug logging dettagliato (`DEBUG_NFP=1`)
+3. ✅ Identificare root cause: `polygonSlideDistance()` restituisce sempre NULL
+4. ✅ Correggere PolygonExtractor per applicare traslazione B[0] (matching NFPCalculator)
+5. ⬜ **FIX CRITICO**: Debuggare e correggere `segmentDistance()` in GeometryUtilAdvanced.cpp:229
+   - Aggiungere logging per capire quale condizione restituisce sempre null
+   - Confrontare con JavaScript geometryutil.js:958
+   - Verificare gestione degli offset e calcoli geometrici
+6. ⬜ Ricompilare e testare con fix implementato
+7. ⬜ Verificare che NFP orbital === NFP Minkowski (overlap 99%)
 
 ---
 

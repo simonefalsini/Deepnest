@@ -95,30 +95,27 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
         return conservativeNFP;
     }
 
-    // DEBUG LOGGING - DISABLED for cleaner output
-    // static bool first_nfp_call = true;
-    // if (first_nfp_call && inside) {
-    //     std::cout << "\n=== NFPCalculator::computeNFP DEBUG (inside=" << inside << ") ===" << std::endl;
-    //     std::cout << "MinkowskiSum returned " << nfps.size() << " NFP(s)" << std::endl;
-    //     if (!nfps.empty()) {
-    //         std::cout << "NFP[0] first 4 points BEFORE translation: ";
-    //         for (size_t i = 0; i < std::min(size_t(4), nfps[0].points.size()); ++i) {
-    //             std::cout << "(" << nfps[0].points[i].x << "," << nfps[0].points[i].y << ") ";
-    //         }
-    //         std::cout << std::endl;
-    //         std::cout << "B.points[0] (translation): (" << B.points[0].x << "," << B.points[0].y << ")" << std::endl;
-    //     }
-    //     std::cout.flush();
-    // }
+    std::cerr << "  [MINK] MinkowskiSum returned " << nfps.size() << " NFP(s)" << std::endl;
 
     // If only one result, return it
     if (nfps.size() == 1) {
         Polygon result = nfps[0];
 
+        std::cerr << "  [MINK] NFP BEFORE translation (first 5 points):" << std::endl;
+        for (size_t i = 0; i < std::min(size_t(5), result.points.size()); i++) {
+            std::cerr << "    [" << i << "] (" << result.points[i].x << ", " << result.points[i].y << ")" << std::endl;
+        }
+
         // Translate by B's first point as in JavaScript code
         // (clipperNfp[i].x += B[0].x; clipperNfp[i].y += B[0].y;)
         if (!B.points.empty()) {
+            std::cerr << "  [MINK] Translating by B[0] = (" << B.points[0].x << ", " << B.points[0].y << ")" << std::endl;
             result = result.translate(B.points[0].x, B.points[0].y);
+        }
+
+        std::cerr << "  [MINK] NFP AFTER translation (first 5 points):" << std::endl;
+        for (size_t i = 0; i < std::min(size_t(5), result.points.size()); i++) {
+            std::cerr << "    [" << i << "] (" << result.points[i].x << ", " << result.points[i].y << ")" << std::endl;
         }
 
         // DEBUG LOGGING - DISABLED for cleaner output
