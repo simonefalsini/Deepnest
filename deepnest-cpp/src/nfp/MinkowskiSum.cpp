@@ -135,40 +135,41 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
     double Bmaxy = bbB.bottom();
     double Bminy = bbB.top();
 
-    double Cmaxx = Amaxx + Bmaxx;
-    double Cminx = Aminx + Bminx;
-    double Cmaxy = Amaxy + Bmaxy;
-    double Cminy = Aminy + Bminy;
+    // CRITICAL: During Minkowski convolution, intermediate values can be MUCH larger
+    // than the final result. The convolution creates combinations of segments that
+    // can produce very large intermediate coordinates before simplification.
+    //
+    // Instead of just looking at C = A + B, we need to consider the WORST CASE
+    // intermediate values during convolution operations.
+    //
+    // Conservative approach: Use the sum of absolute ranges of both polygons
+    double Awidth = std::max(std::fabs(Amaxx), std::fabs(Aminx));
+    double Aheight = std::max(std::fabs(Amaxy), std::fabs(Aminy));
+    double Bwidth = std::max(std::fabs(Bmaxx), std::fabs(Bminx));
+    double Bheight = std::max(std::fabs(Bmaxy), std::fabs(Bminy));
 
-    double maxxAbs = std::max(Cmaxx, std::fabs(Cminx));
-    double maxyAbs = std::max(Cmaxy, std::fabs(Cminy));
-    double maxda = std::max(maxxAbs, maxyAbs);
-
-    // CRITICAL FIX: Ensure individual polygon coordinates also fit in int range!
-    // If A is far negative and B is far positive, C (sum) might be near zero,
-    // resulting in a huge scale factor that causes A or B to overflow when converted.
-    maxda = std::max(maxda, std::fabs(Aminx));
-    maxda = std::max(maxda, std::fabs(Amaxx));
-    maxda = std::max(maxda, std::fabs(Aminy));
-    maxda = std::max(maxda, std::fabs(Amaxy));
-
-    maxda = std::max(maxda, std::fabs(Bminx));
-    maxda = std::max(maxda, std::fabs(Bmaxx));
-    maxda = std::max(maxda, std::fabs(Bminy));
-    maxda = std::max(maxda, std::fabs(Bmaxy));
+    // Maximum possible intermediate coordinate during convolution
+    // This accounts for operations like segment crossings, point combinations, etc.
+    double maxda = std::max({
+        Awidth + Bwidth,   // X dimension worst case
+        Aheight + Bheight, // Y dimension worst case
+        std::fabs(Aminx) + std::fabs(Bminx),
+        std::fabs(Amaxx) + std::fabs(Bmaxx),
+        std::fabs(Aminy) + std::fabs(Bminy),
+        std::fabs(Amaxy) + std::fabs(Bmaxy)
+    });
 
     if (maxda < 1.0) {
         maxda = 1.0;
     }
 
-    // Calculate scale factor
-    // REDUCED from 0.1 to 0.05 to prevent overflow in Minkowski convolution
-    // During convolution, intermediate coordinates can be much larger than input polygons
-    // The safer margin prevents "invalid comparator" exception in polySet.get()
+    // Calculate scale factor with VERY conservative margin
+    // Use 0.02 (2%) instead of 0.1 (10%) to leave 98% headroom for intermediate values
+    // This prevents "invalid comparator" exceptions during polySet.get()
     int maxi = std::numeric_limits<int>::max();
-    double scale = (0.05 * static_cast<double>(maxi)) / maxda;
+    double scale = (0.02 * static_cast<double>(maxi)) / maxda;
 
-    std::cerr << "[MINK-SCALE] maxda=" << maxda << " scale=" << scale << " (factor=0.05)" << std::endl;
+    std::cerr << "[MINK-SCALE] maxda=" << maxda << " scale=" << scale << " (factor=0.02 ultra-conservative)" << std::endl;
     std::cerr << "[MINK-SCALE] A bounds: [" << Aminx << "," << Amaxx << "] x [" << Aminy << "," << Amaxy << "]" << std::endl;
     std::cerr << "[MINK-SCALE] B bounds: [" << Bminx << "," << Bmaxx << "] x [" << Bminy << "," << Bmaxy << "]" << std::endl;
 
@@ -301,9 +302,6 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
     const Polygon& B,
     bool inner) {
 
-    // Calculate scale factor
-    double scale = calculateScale(A, B);
-
     // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
     // This applies to BOTH:
     // - Inner NFP (sheet boundary): sheet ⊖ part
@@ -330,22 +328,64 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         std::reverse(child.points.begin(), child.points.end());
     }
 
-    // Convert to Boost integer polygons
-        IntPolygonSet polySetA, polySetB, result;
+    // RETRY MECHANISM: Try with progressively smaller scale factors if overflow occurs
+    // Scale factors to try: 0.02, 0.01, 0.005, 0.002, 0.001
+    std::vector<double> scaleFactors = {0.02, 0.01, 0.005, 0.002, 0.001};
 
-        IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-        IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
+    for (size_t attempt = 0; attempt < scaleFactors.size(); ++attempt) {
+        double scaleFactor = scaleFactors[attempt];
+
+        try {
+            // Calculate scale with current factor
+            double scale = calculateScale(A, B);
+            // Override with retry factor if not first attempt
+            if (attempt > 0) {
+                BoundingBox bbA = A.bounds();
+                BoundingBox bbB = B_to_use.bounds();
+                double Awidth = std::max(std::fabs(bbA.right()), std::fabs(bbA.left()));
+                double Aheight = std::max(std::fabs(bbA.bottom()), std::fabs(bbA.top()));
+                double Bwidth = std::max(std::fabs(bbB.right()), std::fabs(bbB.left()));
+                double Bheight = std::max(std::fabs(bbB.bottom()), std::fabs(bbB.top()));
+                double maxda = std::max({Awidth + Bwidth, Aheight + Bheight});
+                if (maxda < 1.0) maxda = 1.0;
+                scale = (scaleFactor * static_cast<double>(std::numeric_limits<int>::max())) / maxda;
+                std::cerr << "[MINK-RETRY] Attempt " << (attempt+1) << " with factor=" << scaleFactor
+                         << " scale=" << scale << std::endl;
+            }
+
+            // Convert to Boost integer polygons
+            IntPolygonSet polySetA, polySetB, result;
+
+            IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
+            IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
 
             polySetA.insert(boostA);
             polySetB.insert(boostB);
 
-    // Compute Minkowski sum
+            // Compute Minkowski sum
             convolve_two_polygon_sets(result, polySetA, polySetB);
 
-    // Convert back to our Polygon type
-    std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
+            // Convert back to our Polygon type
+            std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
 
-    return nfps;
+            if (attempt > 0) {
+                std::cerr << "[MINK-RETRY] SUCCESS on attempt " << (attempt+1) << std::endl;
+            }
+
+            return nfps;
+
+        } catch (const std::exception& e) {
+            std::cerr << "[MINK-RETRY] Attempt " << (attempt+1) << " FAILED: " << e.what() << std::endl;
+            if (attempt == scaleFactors.size() - 1) {
+                std::cerr << "[MINK-RETRY] All retry attempts exhausted. Giving up." << std::endl;
+                throw;
+            }
+            // Continue to next attempt with smaller scale
+        }
+    }
+
+    // Should never reach here
+    return std::vector<Polygon>();
 }
 
 std::vector<std::vector<Polygon>> MinkowskiSum::calculateNFPBatch(
