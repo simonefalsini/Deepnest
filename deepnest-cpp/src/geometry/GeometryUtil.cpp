@@ -666,7 +666,15 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 // Mark vertex as touched
                 A[touch.indexA].marked = true;
 
+                LOG_NFP("    Touch type=" << (int)touch.type << " A[" << touch.indexA << "] B[" << touch.indexB << "]");
+
                 auto vectors = generateTranslationVectors(touch, A, B, offsetB);
+
+                for (const auto& v : vectors) {
+                    LOG_NFP("      Vector: (" << v.x << ", " << v.y << ") len=" << v.length()
+                           << " polygon=" << v.polygon);
+                }
+
                 allVectors.insert(allVectors.end(), vectors.begin(), vectors.end());
             }
 
@@ -686,6 +694,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 // Skip zero vectors and backtracking
                 // JavaScript lines 1624-1642
                 if (isBacktracking(vec, prevVector)) {
+                    LOG_NFP("      FILTERED backtrack: (" << vec.x << ", " << vec.y << ")");
                     filteredCount++;
                     continue;
                 }
@@ -704,6 +713,9 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 else {
                     slideDistance = slideOpt.value();
                 }
+
+                LOG_NFP("      Candidate: (" << vec.x << ", " << vec.y << ") slide=" << slideDistance
+                       << " polygon=" << vec.polygon);
 
                 // Select vector with MAXIMUM distance
                 // JavaScript lines 1653-1656
