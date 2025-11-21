@@ -671,16 +671,22 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             }
 
             LOG_NFP("    Generated " << allVectors.size() << " translation vectors");
+            if (prevVector) {
+                LOG_NFP("    prevVector: (" << prevVector->x << ", " << prevVector->y
+                       << ") polygon=" << prevVector->polygon);
+            }
 
             // STEP 3: Filter and select best vector
             // JavaScript lines 1620-1657
             TranslationVector* bestVector = nullptr;
             double maxDistance = 0.0;
+            int filteredCount = 0;
 
             for (auto& vec : allVectors) {
                 // Skip zero vectors and backtracking
                 // JavaScript lines 1624-1642
                 if (isBacktracking(vec, prevVector)) {
+                    filteredCount++;
                     continue;
                 }
 
@@ -707,7 +713,10 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 }
             }
 
-            LOG_NFP("    Best vector: maxDistance = " << maxDistance);
+            LOG_NFP("    Filtered " << filteredCount << " backtracking vectors");
+            LOG_NFP("    Best vector: (" << (bestVector ? bestVector->x : 0) << ", "
+                   << (bestVector ? bestVector->y : 0) << ") maxDistance = " << maxDistance
+                   << " polygon=" << (bestVector ? std::string(1, bestVector->polygon) : "?"));
 
             // JavaScript lines 1660-1664: check if valid vector found
             if (!bestVector || almostEqual(maxDistance, 0.0)) {
@@ -743,10 +752,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             // JavaScript lines 1679-1680
             reference.x += bestVector->x;
             reference.y += bestVector->y;
+            LOG_NFP("    New reference: (" << reference.x << ", " << reference.y << ")");
 
             // STEP 6: Check loop closure
             // JavaScript lines 1682-1700
             if (almostEqual(reference.x, startPoint.x) && almostEqual(reference.y, startPoint.y)) {
+                LOG_NFP("    Loop closed: returned to start point");
                 break;  // Completed loop
             }
 
@@ -756,6 +767,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             if (nfp.size() > 0) {
                 for (size_t i = 0; i < nfp.size() - 1; i++) {
                     if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
+                        LOG_NFP("    Loop closed: returned to point " << i << " ("
+                               << nfp[i].x << ", " << nfp[i].y << ")");
                         looped = true;
                         break;
                     }
