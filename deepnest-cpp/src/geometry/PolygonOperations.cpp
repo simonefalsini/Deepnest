@@ -98,11 +98,33 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     // Convert to Clipper path
     Path64 path = toClipperPath64(poly, scale);
 
-    // Simplify to remove self-intersections
-    Paths64 solution = SimplifyPaths<int64_t>({path}, scale * 0.0001);  // Small epsilon
+    // Check for degenerate polygon before processing
+    if (path.size() < 3) {
+        std::cerr << "WARNING: cleanPolygon received degenerate polygon after scaling (< 3 points)" << std::endl;
+        return {};
+    }
+
+    // CRITICAL FIX: Use more aggressive epsilon to handle spacing-induced self-intersections
+    // The original epsilon (0.0001 * scale) was too small for polygons with tight angles
+    // Increase to 0.01 * scale for better robustness
+    double epsilon = scale * 0.01;
+
+    // Simplify to remove self-intersections, collinear points, and tiny edges
+    Paths64 solution = SimplifyPaths<int64_t>({path}, epsilon);
 
     if (solution.empty()) {
-        return {};
+        std::cerr << "WARNING: cleanPolygon SimplifyPaths returned empty result" << std::endl;
+        std::cerr << "  Input polygon had " << poly.size() << " points" << std::endl;
+        std::cerr << "  Epsilon: " << epsilon << ", Scale: " << scale << std::endl;
+
+        // Last resort: Try with even larger epsilon (0.1 * scale)
+        solution = SimplifyPaths<int64_t>({path}, scale * 0.1);
+
+        if (solution.empty()) {
+            std::cerr << "  Even aggressive simplification failed, returning empty" << std::endl;
+            return {};
+        }
+        std::cerr << "  Aggressive simplification succeeded with " << solution.size() << " result(s)" << std::endl;
     }
 
     // Find the largest polygon (by area)
@@ -117,8 +139,22 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         }
     }
 
+    // Final validation before returning
+    if (biggest.size() < 3) {
+        std::cerr << "WARNING: cleanPolygon largest result has < 3 points" << std::endl;
+        return {};
+    }
+
     // Convert back
-    return fromClipperPath64(biggest, scale);
+    std::vector<Point> result = fromClipperPath64(biggest, scale);
+
+    // Validate result
+    if (result.size() < 3) {
+        std::cerr << "WARNING: cleanPolygon result invalid after conversion" << std::endl;
+        return {};
+    }
+
+    return result;
 }
 
 std::vector<Point> PolygonOperations::simplifyPolygon(

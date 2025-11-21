@@ -564,6 +564,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                                             bool searchEdges) {
     // Complete rewrite based on JavaScript geometryutil.js lines 1437-1727
     // This implementation follows the JavaScript algorithm exactly
+    //
+    // IMPORTANT: This function operates on OUTER BOUNDARIES ONLY.
+    // If polygons have holes (children), the caller must:
+    // 1. Ensure outer boundary has correct winding (CCW for stationary, CCW for moving in OUTSIDE mode)
+    // 2. Process each hole separately with INSIDE mode
+    // 3. Holes should have OPPOSITE winding to their parent (CW if parent is CCW)
 
     LOG_NFP("=== ORBITAL TRACING START ===");
     LOG_NFP("  A size: " << A_input.size() << " points");
@@ -580,30 +586,37 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     std::vector<Point> B = B_input;
 
     // CRITICAL: Ensure correct winding order for orbital tracing
-    // OUTSIDE NFP requires both polygons to be CCW
-    // INSIDE NFP requires A to be CW, B to be CCW
+    // OUTSIDE NFP (part-to-part): Both polygons must be CCW (positive area)
+    // INSIDE NFP (sheet boundary): A (container) must be CW, B (part) must be CCW
     double areaA = polygonArea(A);
     double areaB = polygonArea(B);
+
+    LOG_NFP("  Area A: " << areaA << " (winding: " << (areaA > 0 ? "CCW" : "CW") << ")");
+    LOG_NFP("  Area B: " << areaB << " (winding: " << (areaB > 0 ? "CCW" : "CW") << ")");
 
     if (!inside) {
         // OUTSIDE: Both must be CCW (positive area)
         if (areaA < 0) {
             LOG_NFP("  Correcting A orientation: CW → CCW");
             std::reverse(A.begin(), A.end());
+            areaA = -areaA;  // Update area after reversal
         }
         if (areaB < 0) {
             LOG_NFP("  Correcting B orientation: CW → CCW");
             std::reverse(B.begin(), B.end());
+            areaB = -areaB;  // Update area after reversal
         }
     } else {
-        // INSIDE: A must be CW (negative area), B must be CCW (positive area)
+        // INSIDE: A (container) must be CW (negative area), B (part) must be CCW (positive area)
         if (areaA > 0) {
-            LOG_NFP("  Correcting A orientation: CCW → CW");
+            LOG_NFP("  Correcting A (container) orientation: CCW → CW");
             std::reverse(A.begin(), A.end());
+            areaA = -areaA;  // Update area after reversal
         }
         if (areaB < 0) {
-            LOG_NFP("  Correcting B orientation: CW → CCW");
+            LOG_NFP("  Correcting B (part) orientation: CW → CCW");
             std::reverse(B.begin(), B.end());
+            areaB = -areaB;  // Update area after reversal
         }
     }
 
@@ -617,8 +630,10 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     std::optional<Point> startOpt;
 
     if (!inside) {
-        // OUTSIDE NFP: Try heuristic first, but verify with searchStartPoint
+        // OUTSIDE NFP: Use heuristic approach as initial guess
         // JavaScript lines 1447-1475
+        // For non-rotated polygons, this simple heuristic works:
+        // Place B's topmost point at A's bottommost point
         size_t minAindex = 0;
         double minAy = A[0].y;
         for (size_t i = 1; i < A.size(); i++) {
@@ -641,21 +656,14 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             A[minAindex].x - B[maxBindex].x,
             A[minAindex].y - B[maxBindex].y
         );
-        LOG_NFP("  Start point (heuristic): (" << heuristicStart.x << ", " << heuristicStart.y << ")");
 
-        // CRITICAL FIX: For rotated polygons, heuristic may find internal loop
-        // Use searchStartPoint to find point on external perimeter
-        startOpt = searchStartPoint(A, B, false, {});
-        if (startOpt.has_value()) {
-            LOG_NFP("  Start point (search - external): (" << startOpt->x << ", " << startOpt->y << ")");
-        } else {
-            // Fallback to heuristic if search fails
-            LOG_NFP("  WARNING: searchStartPoint failed, using heuristic");
-            startOpt = heuristicStart;
-        }
+        // Use heuristic as initial start point
+        // JavaScript doesn't validate this with searchStartPoint
+        startOpt = heuristicStart;
+        LOG_NFP("  Start point (heuristic): (" << startOpt->x << ", " << startOpt->y << ")");
     }
     else {
-        // INSIDE NFP: No reliable heuristic, use search
+        // INSIDE NFP: No reliable heuristic, MUST use search
         // JavaScript lines 1477-1479
         startOpt = searchStartPoint(A, B, true, {});
         if (startOpt.has_value()) {
@@ -815,13 +823,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 break;  // Completed loop
             }
 
-            // Check if we've returned to any previous point
+            // Check if we've returned to any previous point (besides start)
             // JavaScript lines 1688-1700
-            // TEMPORARY: Disabled to force closure only at start point
-            // This helps identify if the algorithm is following the correct path
+            // CRITICAL: This prevents infinite loops and detects premature closure
             bool looped = false;
-            /*
-            if (nfp.size() > 2 * std::max(A.size(), B.size())) {  // Only after visiting 2x more points than polygon vertices
+            if (nfp.size() > 0) {
+                // Check all previous points except the last one (current position)
                 for (size_t i = 0; i < nfp.size() - 1; i++) {
                     if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
                         LOG_NFP("    Loop closed: returned to point " << i << " ("
@@ -831,7 +838,6 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     }
                 }
             }
-            */
 
             if (looped) {
                 break;  // Completed loop

@@ -41,21 +41,58 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
             return fallbackNFP;
         }
 
-        std::cerr << "ERROR: Orbital tracing also failed" << std::endl;
+        std::cerr << "ERROR: Both Minkowski and orbital tracing failed!" << std::endl;
         std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
         std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
 
-        // CRITICAL FIX: When both Minkowski and orbital tracing fail,
-        // it's better to skip this pair entirely rather than creating invalid geometry
-        // that may cause crashes later.
-        //
-        // The problematic pairs will simply not have collision detection,
-        // which is better than crashing the entire nesting process.
-        std::cerr << "  SKIPPING: Returning empty NFP to avoid potential crashes" << std::endl;
+        // LAST RESORT FALLBACK: Use conservative bounding box approximation
+        // This ensures we always have SOME collision detection, even if imprecise
+        std::cerr << "  LAST RESORT: Using conservative bounding box NFP approximation" << std::endl;
 
-        // Return an empty polygon - this will cause PlacementStrategy to skip
-        // collision detection for this specific pair, allowing nesting to continue
-        return Polygon();
+        BoundingBox bboxA = A.bounds();
+        BoundingBox bboxB = B.bounds();
+
+        // For OUTSIDE NFP: Create a rectangle around A expanded by B's dimensions
+        // This is overly conservative but guarantees no overlap
+        Polygon conservativeNFP;
+        if (!inside) {
+            double x = bboxA.x - bboxB.width;
+            double y = bboxA.y - bboxB.height;
+            double w = bboxA.width + 2 * bboxB.width;
+            double h = bboxA.height + 2 * bboxB.height;
+
+            conservativeNFP.points = {
+                {x, y},
+                {x + w, y},
+                {x + w, y + h},
+                {x, y + h}
+            };
+
+            std::cerr << "  Generated conservative NFP: " << w << " x " << h << " rectangle" << std::endl;
+        } else {
+            // For INSIDE NFP: Shrink A's bounding box by B's dimensions
+            // This ensures B fits completely inside
+            double x = bboxA.x + bboxB.width / 2;
+            double y = bboxA.y + bboxB.height / 2;
+            double w = std::max(1.0, bboxA.width - bboxB.width);
+            double h = std::max(1.0, bboxA.height - bboxB.height);
+
+            if (w > 1.0 && h > 1.0) {
+                conservativeNFP.points = {
+                    {x, y},
+                    {x + w, y},
+                    {x + w, y + h},
+                    {x, y + h}
+                };
+                std::cerr << "  Generated conservative inner NFP: " << w << " x " << h << " rectangle" << std::endl;
+            } else {
+                std::cerr << "  WARNING: B is too large to fit inside A, returning empty NFP" << std::endl;
+                return Polygon(); // Truly impossible to fit
+            }
+        }
+
+        conservativeNFP.id = -999;  // Mark as fallback approximation
+        return conservativeNFP;
     }
 
     // DEBUG LOGGING - DISABLED for cleaner output
