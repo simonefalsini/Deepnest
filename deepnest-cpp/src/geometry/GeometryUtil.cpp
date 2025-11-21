@@ -748,8 +748,6 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 B[bestVector->endIndex].marked = true;
             }
 
-            prevVector = *bestVector;  // Copy the value, not the pointer!
-
             // STEP 4: Trim vector if needed
             // JavaScript lines 1672-1677
             double vecLength2 = bestVector->x * bestVector->x + bestVector->y * bestVector->y;
@@ -759,6 +757,9 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 bestVector->x *= scale;
                 bestVector->y *= scale;
             }
+
+            // Save prevVector AFTER trimming (so it matches the actual movement)
+            prevVector = *bestVector;
 
             // STEP 5: Move reference point
             // JavaScript lines 1679-1680
