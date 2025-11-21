@@ -2,6 +2,7 @@
 #include "../../include/deepnest/geometry/GeometryUtilAdvanced.h"
 #include "../../include/deepnest/geometry/OrbitalTypes.h"
 #include "../../include/deepnest/core/Polygon.h"
+#include "../../include/deepnest/DebugConfig.h"
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -564,7 +565,13 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     // Complete rewrite based on JavaScript geometryutil.js lines 1437-1727
     // This implementation follows the JavaScript algorithm exactly
 
+    LOG_NFP("=== ORBITAL TRACING START ===");
+    LOG_NFP("  A size: " << A_input.size() << " points");
+    LOG_NFP("  B size: " << B_input.size() << " points");
+    LOG_NFP("  Mode: " << (inside ? "INSIDE" : "OUTSIDE"));
+
     if (A_input.size() < 3 || B_input.size() < 3) {
+        LOG_NFP("  ERROR: Polygon has < 3 points");
         return {};
     }
 
@@ -606,16 +613,23 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             A[minAindex].x - B[maxBindex].x,
             A[minAindex].y - B[maxBindex].y
         );
+        LOG_NFP("  Start point (heuristic): (" << startOpt->x << ", " << startOpt->y << ")");
     }
     else {
         // INSIDE NFP: No reliable heuristic, use search
         // JavaScript lines 1477-1479
         startOpt = searchStartPoint(A, B, true, {});
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            LOG_NFP("  ERROR: No start point found!");
+        }
     }
 
     // Main loop: find all NFPs starting from different points
     // JavaScript lines 1483-1724
     while (startOpt.has_value()) {
+        LOG_NFP("  --- New NFP loop iteration ---");
         Point offsetB = startOpt.value();
 
         std::vector<Point> nfp;
@@ -638,7 +652,10 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             // JavaScript lines 1504-1520
             auto touchingList = findTouchingContacts(A, B, offsetB);
 
+            LOG_NFP("    Iteration " << counter << ": touching contacts = " << touchingList.size());
+
             if (touchingList.empty()) {
+                LOG_NFP("    ERROR: No touching contacts found, breaking loop");
                 break;  // No touching contacts
             }
 
@@ -652,6 +669,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 auto vectors = generateTranslationVectors(touch, A, B, offsetB);
                 allVectors.insert(allVectors.end(), vectors.begin(), vectors.end());
             }
+
+            LOG_NFP("    Generated " << allVectors.size() << " translation vectors");
 
             // STEP 3: Filter and select best vector
             // JavaScript lines 1620-1657
@@ -688,8 +707,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 }
             }
 
+            LOG_NFP("    Best vector: maxDistance = " << maxDistance);
+
             // JavaScript lines 1660-1664: check if valid vector found
             if (!bestVector || almostEqual(maxDistance, 0.0)) {
+                LOG_NFP("    ERROR: No valid vector found (bestVector=" << (bestVector ? "exists" : "null")
+                       << ", maxDistance=" << maxDistance << ")");
                 nfp.clear();  // Didn't close loop properly
                 break;
             }
@@ -758,7 +781,10 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
         // Add NFP if valid
         // JavaScript lines 1713-1715
         if (!nfp.empty() && nfp.size() >= 3) {
+            LOG_NFP("  ✓ Generated NFP with " << nfp.size() << " points");
             nfpList.push_back(nfp);
+        } else {
+            LOG_NFP("  ✗ NFP invalid: size = " << nfp.size());
         }
 
         if (!searchEdges) {
@@ -769,6 +795,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
         // JavaScript line 1722
         startOpt = searchStartPoint(A, B, inside, nfpList);
     }
+
+    LOG_NFP("=== ORBITAL TRACING COMPLETE: " << nfpList.size() << " NFPs generated ===");
 
     // JavaScript line 1726
     return nfpList;
