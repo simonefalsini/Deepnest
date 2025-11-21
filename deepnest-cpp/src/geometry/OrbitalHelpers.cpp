@@ -211,7 +211,7 @@ std::vector<TranslationVector> generateTranslationVectors(
  */
 bool isBacktracking(
     const TranslationVector& vec,
-    const TranslationVector* prevVector)
+    const std::optional<TranslationVector>& prevVector)
 {
     // JavaScript line 1624: if(vectors[i].x == 0 && vectors[i].y == 0)
     if (vec.isZero()) {
@@ -219,7 +219,7 @@ bool isBacktracking(
     }
 
     // If no previous vector, can't be backtracking
-    if (!prevVector) {
+    if (!prevVector.has_value()) {
         return false;
     }
 

@@ -407,7 +407,7 @@ namespace GeometryUtil {
      */
     bool isBacktracking(
         const TranslationVector& vec,
-        const TranslationVector* prevVector
+        const std::optional<TranslationVector>& prevVector
     );
 
 } // namespace GeometryUtil

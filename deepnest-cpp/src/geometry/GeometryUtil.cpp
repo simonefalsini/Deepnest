@@ -633,7 +633,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
         Point offsetB = startOpt.value();
 
         std::vector<Point> nfp;
-        TranslationVector* prevVector = nullptr;
+        std::optional<TranslationVector> prevVector;  // Changed from pointer to value
 
         // Reference point: B[0] translated by offset
         // JavaScript lines 1497-1500
@@ -671,7 +671,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
             }
 
             LOG_NFP("    Generated " << allVectors.size() << " translation vectors");
-            if (prevVector) {
+            if (prevVector.has_value()) {
                 LOG_NFP("    prevVector: (" << prevVector->x << ", " << prevVector->y
                        << ") polygon=" << prevVector->polygon);
             }
@@ -736,7 +736,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 B[bestVector->endIndex].marked = true;
             }
 
-            prevVector = bestVector;
+            prevVector = *bestVector;  // Copy the value, not the pointer!
 
             // STEP 4: Trim vector if needed
             // JavaScript lines 1672-1677
