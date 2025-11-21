@@ -88,10 +88,12 @@ void Individual::mutate(double mutationRate, int numRotations, unsigned int seed
 
     // Log first 15 mutations to see initial diversity, then every 100th
     if (mutationCount <= 15 || mutationCount % 100 == 0) {
+#if DEBUG_GA
         std::cout << "  Mutation #" << mutationCount << ": swaps=" << swapCount
                   << ", rotation_changes=" << rotationChangeCount
                   << ", prob=" << mutationProb << std::endl;
         std::cout.flush();
+#endif
     }
 
     // Reset fitness since individual has changed
