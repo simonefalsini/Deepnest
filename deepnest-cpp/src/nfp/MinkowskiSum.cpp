@@ -162,9 +162,15 @@ double MinkowskiSum::calculateScale(const Polygon& A, const Polygon& B) {
     }
 
     // Calculate scale factor
-    // Use 0.1 factor as in original code
+    // REDUCED from 0.1 to 0.05 to prevent overflow in Minkowski convolution
+    // During convolution, intermediate coordinates can be much larger than input polygons
+    // The safer margin prevents "invalid comparator" exception in polySet.get()
     int maxi = std::numeric_limits<int>::max();
-    double scale = (0.1 * static_cast<double>(maxi)) / maxda;
+    double scale = (0.05 * static_cast<double>(maxi)) / maxda;
+
+    std::cerr << "[MINK-SCALE] maxda=" << maxda << " scale=" << scale << " (factor=0.05)" << std::endl;
+    std::cerr << "[MINK-SCALE] A bounds: [" << Aminx << "," << Amaxx << "] x [" << Aminy << "," << Amaxy << "]" << std::endl;
+    std::cerr << "[MINK-SCALE] B bounds: [" << Bminx << "," << Bmaxx << "] x [" << Bminy << "," << Bmaxy << "]" << std::endl;
 
     return scale;
 }
@@ -174,9 +180,37 @@ IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double 
     std::vector<IntPoint> points;
     points.reserve(poly.points.size());
 
+    int maxi = std::numeric_limits<int>::max();
+    int mini = std::numeric_limits<int>::min();
+
     for (const auto& p : poly.points) {
-        int x = static_cast<int>(scale * p.x);
-        int y = static_cast<int>(scale * p.y);
+        double scaledX = scale * p.x;
+        double scaledY = scale * p.y;
+
+        // Check for overflow BEFORE casting and CLAMP to safe range
+        if (scaledX > static_cast<double>(maxi)) {
+            std::cerr << "[MINK-OVERFLOW] X overflow: p.x=" << p.x << " scale=" << scale
+                     << " scaled=" << scaledX << " max=" << maxi << " -> CLAMPING" << std::endl;
+            scaledX = static_cast<double>(maxi);
+        }
+        if (scaledX < static_cast<double>(mini)) {
+            std::cerr << "[MINK-OVERFLOW] X underflow: p.x=" << p.x << " scale=" << scale
+                     << " scaled=" << scaledX << " min=" << mini << " -> CLAMPING" << std::endl;
+            scaledX = static_cast<double>(mini);
+        }
+        if (scaledY > static_cast<double>(maxi)) {
+            std::cerr << "[MINK-OVERFLOW] Y overflow: p.y=" << p.y << " scale=" << scale
+                     << " scaled=" << scaledY << " max=" << maxi << " -> CLAMPING" << std::endl;
+            scaledY = static_cast<double>(maxi);
+        }
+        if (scaledY < static_cast<double>(mini)) {
+            std::cerr << "[MINK-OVERFLOW] Y underflow: p.y=" << p.y << " scale=" << scale
+                     << " scaled=" << scaledY << " min=" << mini << " -> CLAMPING" << std::endl;
+            scaledY = static_cast<double>(mini);
+        }
+
+        int x = static_cast<int>(scaledX);
+        int y = static_cast<int>(scaledY);
         points.push_back(IntPoint(x, y));
     }
 
@@ -240,7 +274,17 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
     const IntPolygonSet& polySet, double scale) {
 
     std::vector<IntPolygonWithHoles> boostPolygons;
-    polySet.get(boostPolygons);
+
+    try {
+        std::cerr << "[MINK-EXTRACT] Attempting to extract polygons from polygon set..." << std::endl;
+        polySet.get(boostPolygons);
+        std::cerr << "[MINK-EXTRACT] Successfully extracted " << boostPolygons.size() << " polygon(s)" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[MINK-ERROR] Exception in polySet.get(): " << e.what() << std::endl;
+        std::cerr << "[MINK-ERROR] This likely indicates integer overflow in Boost.Polygon" << std::endl;
+        std::cerr << "[MINK-ERROR] Scale factor was: " << scale << std::endl;
+        throw;
+    }
 
     std::vector<Polygon> result;
     result.reserve(boostPolygons.size());
