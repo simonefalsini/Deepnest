@@ -243,7 +243,6 @@ public:
      */
     void setResultCallback(ResultCallback callback);
 
-private:
     /**
      * @brief Apply spacing offset to a polygon
      *
@@ -252,6 +251,8 @@ private:
      * @return Offset polygon
      */
     static Polygon applySpacing(const Polygon& polygon, double offset, double curveTolerance);
+private:
+
 
     /**
      * @brief Evaluate a single individual

@@ -8,15 +8,14 @@
  * 3. Tests orbital tracing NFP calculation
  * 4. Exports debug information
  */
+#include "../include/deepnest/engine/NestingEngine.h"
 
 #include "SVGLoader.h"
-#include "../include/deepnest/core/Polygon.h"
 #include "../include/deepnest/nfp/MinkowskiSum.h"
 #include "../include/deepnest/geometry/GeometryUtil.h"
 #include "../include/deepnest/geometry/ConvexHull.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
-//#include "../include/deepnest/engine/NestingEngine.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -24,7 +23,6 @@
 #include <iostream>
 #include <vector>
 
-using namespace deepnest;
 
 // Known problematic pairs from test runs
 struct ProblematicPair {
@@ -44,7 +42,7 @@ std::vector<ProblematicPair> problematicPairs = {
 /**
  * Save a polygon to SVG file for visualization
  */
-bool savePolygonToSVG(const Polygon& poly, const QString& filename) {
+bool savePolygonToSVG(const deepnest::Polygon& poly, const QString& filename) {
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         std::cerr << "Failed to open " << filename.toStdString() << std::endl;
@@ -90,8 +88,8 @@ bool savePolygonToSVG(const Polygon& poly, const QString& filename) {
 /**
  * Save both polygons and their NFP result to combined SVG
  */
-bool savePairToSVG(const Polygon& polyA, const Polygon& polyB,
-                   const std::vector<Polygon>& nfps, const QString& filename) {
+bool savePairToSVG(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB,
+                   const std::vector<deepnest::Polygon>& nfps, const QString& filename) {
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
@@ -172,7 +170,7 @@ bool savePairToSVG(const Polygon& polyA, const Polygon& polyB,
 /**
  * Test Minkowski sum for a polygon pair
  */
-void testMinkowskiSum(const Polygon& polyA, const Polygon& polyB, bool inside) {
+void testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
     std::cout << "\n=== Testing Minkowski Sum ===" << std::endl;
     std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
@@ -192,7 +190,7 @@ void testMinkowskiSum(const Polygon& polyA, const Polygon& polyB, bool inside) {
     std::cout << std::endl;
 
     // Test Minkowski sum
-    auto nfps = MinkowskiSum::calculateNFP(polyA, polyB, inside);
+    auto nfps = deepnest::MinkowskiSum::calculateNFP(polyA, polyB, inside);
 
     if (nfps.empty()) {
         std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
@@ -213,14 +211,14 @@ void testMinkowskiSum(const Polygon& polyA, const Polygon& polyB, bool inside) {
 /**
  * Test orbital tracing for a polygon pair
  */
-void testOrbitalTracing(const Polygon& polyA, const Polygon& polyB, bool inside) {
+void testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
     std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
     std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
     // Test orbital tracing
-    auto nfpPoints = GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside, false);
+    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside, false);
 
     if (nfpPoints.empty() || nfpPoints[0].empty()) {
         std::cout << "  ❌ FAILED: Orbital tracing returned empty result" << std::endl;
@@ -231,9 +229,9 @@ void testOrbitalTracing(const Polygon& polyA, const Polygon& polyB, bool inside)
         }
 
         // Convert to Polygon for visualization
-        std::vector<Polygon> nfps;
+        std::vector<deepnest::Polygon> nfps;
         for (const auto& points : nfpPoints) {
-            Polygon nfp;
+            deepnest::Polygon nfp;
             nfp.points = points;
             nfps.push_back(nfp);
         }
@@ -318,32 +316,32 @@ int main(int argc, char *argv[]) {
     }
 
     // Convert shapes to polygons
-    std::vector<Polygon> polygons;
+    std::vector<deepnest::Polygon> polygons;
     for (int i = 0; i < static_cast<int>(result.shapes.size()); ++i) {
         QPainterPath shapePath = result.shapes[i].path;
         if (!result.shapes[i].transform.isIdentity()) {
             shapePath = result.shapes[i].transform.map(shapePath);
         }
 
-        Polygon poly = QtBoostConverter::fromQPainterPath(shapePath, i);
+        deepnest::Polygon poly = deepnest::QtBoostConverter::fromQPainterPath(shapePath, i);
         if (poly.isValid()) {
             // Apply Debug Transformations
-            Polygon processedPoly = poly;
+            deepnest::Polygon processedPoly = poly;
 
             // 1. Apply Spacing
             if (debugSpacing > 0) {
-//                processedPoly = deepnest::NestingEngine::applySpacing(processedPoly, debugSpacing);
+                processedPoly = deepnest::NestingEngine::applySpacing(processedPoly, debugSpacing, 0.3);
             }
 
             // 2. Apply Convex Hull
             if (useConvexHull) {
-                processedPoly.points = ConvexHull::computeHull(processedPoly.points);
+                processedPoly.points = deepnest::ConvexHull::computeHull(processedPoly.points);
                 processedPoly.children.clear(); // Hull has no holes
             }
 
             // 3. Apply Bounding Box
             if (useBoundingBox) {
-                BoundingBox box = processedPoly.bounds();
+                deepnest::BoundingBox box = processedPoly.bounds();
                 processedPoly.points = {
                     {box.x, box.y},
                     {box.x + box.width, box.y},
@@ -399,7 +397,7 @@ int main(int argc, char *argv[]) {
 
                 try {
                     // Test Minkowski sum (outer NFP)
-                    auto nfps = MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
+                    auto nfps = deepnest::MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
 
                     if (nfps.empty()) {
                         std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
@@ -425,9 +423,9 @@ int main(int argc, char *argv[]) {
         // Create sheet polygon (bounding rectangle of all polygons + margin)
         if (!polygons.empty()) {
             // Calculate combined bounding box
-            BoundingBox combinedBox = polygons[0].bounds();
+            deepnest::BoundingBox combinedBox = polygons[0].bounds();
             for (size_t i = 1; i < polygons.size(); i++) {
-                BoundingBox box = polygons[i].bounds();
+                deepnest::BoundingBox box = polygons[i].bounds();
                 combinedBox.x = std::min(combinedBox.x, box.x);
                 combinedBox.y = std::min(combinedBox.y, box.y);
                 double maxX = std::max(combinedBox.x + combinedBox.width, box.x + box.width);
@@ -444,7 +442,7 @@ int main(int argc, char *argv[]) {
             combinedBox.height += 2 * margin;
 
             // Create sheet polygon (rectangle)
-            Polygon sheet;
+            deepnest::Polygon sheet;
             sheet.id = 0;// "sheet";
             sheet.points.push_back({combinedBox.x, combinedBox.y});
             sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y});
@@ -467,7 +465,7 @@ int main(int argc, char *argv[]) {
 
                 try {
                     // Test Minkowski sum (inner NFP)
-                    auto nfps = MinkowskiSum::calculateNFP(sheet, polygons[i], true);
+                    auto nfps = deepnest::MinkowskiSum::calculateNFP(sheet, polygons[i], true);
 
                     if (nfps.empty()) {
                         std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
@@ -506,8 +504,8 @@ int main(int argc, char *argv[]) {
         std::cout << "\nTesting specific pair: A(id=" << targetIdA << ") vs B(id=" << targetIdB << ")" << std::endl;
         std::cout << "Rotations: A=" << targetRotA << " deg, B=" << targetRotB << " deg" << std::endl;
 
-        Polygon* polyA = nullptr;
-        Polygon* polyB = nullptr;
+        deepnest::Polygon* polyA = nullptr;
+        deepnest::Polygon* polyB = nullptr;
 
         for (auto& poly : polygons) {
             if (poly.id == targetIdA) polyA = &poly;
@@ -520,13 +518,13 @@ int main(int argc, char *argv[]) {
         }
 
         // Apply rotations
-        Polygon rotatedA = *polyA;
+        deepnest::Polygon rotatedA = *polyA;
         if (std::abs(targetRotA) > 1e-6) {
             rotatedA = polyA->rotate(targetRotA);
             rotatedA.id = polyA->id;
         }
 
-        Polygon rotatedB = *polyB;
+        deepnest::Polygon rotatedB = *polyB;
         if (std::abs(targetRotB) > 1e-6) {
             rotatedB = polyB->rotate(targetRotB);
             rotatedB.id = polyB->id;
@@ -556,8 +554,8 @@ int main(int argc, char *argv[]) {
             std::cout << "========================================" << std::endl;
 
             // Find polygons by ID
-            Polygon* polyA = nullptr;
-            Polygon* polyB = nullptr;
+            deepnest::Polygon* polyA = nullptr;
+            deepnest::Polygon* polyB = nullptr;
 
             for (auto& poly : polygons) {
                 if (poly.id == pair.idA) polyA = &poly;
