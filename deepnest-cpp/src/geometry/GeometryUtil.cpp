@@ -754,12 +754,17 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A,
         nfp.push_back(reference);
 
         // Check if reference is stuck (not moving)
-        if (almostEqualPoints(reference, lastReference, TOL)) {
+        // Use 10*TOL as threshold because movement of exactly TOL doesn't count as progress
+        double dx = reference.x - lastReference.x;
+        double dy = reference.y - lastReference.y;
+        double movementDist = std::sqrt(dx*dx + dy*dy);
+
+        if (movementDist < 10 * TOL) {
             stuckCounter++;
             if (stuckCounter >= 5) {
                 std::cerr << "    Iteration " << iterations << ": Reference stuck for " << stuckCounter
-                          << " iterations, breaking!" << std::endl;
-                std::cerr << "    This indicates polygonSlideDistance is returning 0 or TOL repeatedly" << std::endl;
+                          << " iterations (movement=" << movementDist << " < 10*TOL), breaking!" << std::endl;
+                std::cerr << "    Root cause: polygonSlideDistance returning nullopt or near-zero" << std::endl;
                 break;
             }
         } else {
