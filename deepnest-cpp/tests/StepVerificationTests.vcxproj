@@ -160,6 +160,10 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DeepnestLibTests.cpp" />
+    <ClCompile Include="FitnessTests.cpp" />
+    <ClCompile Include="GeneticAlgorithmTests.cpp" />
+    <ClCompile Include="JSComparisonTests.cpp" />
     <ClCompile Include="RandomShapeGenerator.cpp" />
     <ClCompile Include="SVGLoader.cpp" />
     <ClCompile Include="StepVerificationTests.cpp" />

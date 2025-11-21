@@ -794,6 +794,68 @@ void testStep26_PlacementTransformation() {
     TEST_END(26_PlacementTransformation, true, "Placement and transformation verification");
 }
 
+// ========== Step 27: Convex Hull Debug ==========
+void testStep27_ConvexHullDebug() {
+    TEST_START(27_ConvexHullDebug);
+
+    std::cout << "  Testing Convex Hull robustness..." << std::endl;
+    bool hullValid = true;
+
+    // Test 1: Collinear points
+    {
+        std::vector<Point> points = {
+            {0, 0}, {10, 0}, {5, 0}, {20, 0}
+        };
+        auto hull = ConvexHull::computeHull(points);
+        // Should reduce to 2 points (endpoints) or 3 if implementation keeps intermediate?
+        // DeepNest implementation pops intermediate collinear points.
+        // So it should be (0,0) and (20,0) - wait, it needs 3 points to form a polygon?
+        // If result has < 3 points, it returns input points?
+        // Let's check implementation:
+        // "if (sortedPoints.size() < 2) ... return hull;" (anchor + sorted) -> 2 points.
+        // If loop reduces to < 3 points?
+        // Graham scan usually produces a closed loop.
+        // DeepNest implementation returns points.
+        
+        std::cout << "    Collinear points: " << hull.size() << " points returned." << std::endl;
+        // We just want to ensure it doesn't crash.
+        hullValid &= !hull.empty();
+    }
+
+    // Test 2: Coincident points
+    {
+        std::vector<Point> points = {
+            {0, 0}, {0, 0}, {10, 10}, {10, 10}, {5, 5}
+        };
+        auto hull = ConvexHull::computeHull(points);
+        std::cout << "    Coincident points: " << hull.size() << " points returned." << std::endl;
+        hullValid &= !hull.empty();
+    }
+
+    // Test 3: Degenerate polygon (2 points)
+    {
+        std::vector<Point> points = {
+            {0, 0}, {10, 10}
+        };
+        auto hull = ConvexHull::computeHull(points);
+        std::cout << "    2 points: " << hull.size() << " points returned." << std::endl;
+        hullValid &= (hull.size() == 2);
+    }
+
+    // Test 4: Large set of random points (Stability check)
+    {
+        std::vector<Point> points;
+        for (int i = 0; i < 1000; i++) {
+            points.push_back(Point(rand() % 1000, rand() % 1000));
+        }
+        auto hull = ConvexHull::computeHull(points);
+        std::cout << "    1000 random points: " << hull.size() << " points in hull." << std::endl;
+        hullValid &= !hull.empty();
+    }
+
+    TEST_END(27_ConvexHullDebug, hullValid, "Convex Hull robustness checks");
+}
+
 // ========== Main Test Runner ==========
 int runTests() {
     std::cout << "========================================" << std::endl;
@@ -830,6 +892,7 @@ int runTests() {
     testStep24_RandomShapeGenerator();
     testStep25_BuildSystem();
     testStep26_PlacementTransformation();
+    testStep27_ConvexHullDebug();
 
     auto overallEnd = std::chrono::high_resolution_clock::now();
     double totalTime = std::chrono::duration<double, std::milli>(overallEnd - overallStart).count();
