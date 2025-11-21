@@ -29,7 +29,7 @@ NestingEngine::NestingEngine(const DeepNestConfig& config)
 NestingEngine::~NestingEngine() {
     LOG_MEMORY("NestingEngine destructor entered");
 
-    // CRITICAL FIX: Ensure clean shutdown to prevent crash and memory corruption
+    // Ensure clean shutdown to prevent crash and memory corruption
     LOG_NESTING("Calling stop() from destructor");
     stop();
 
@@ -83,7 +83,7 @@ void NestingEngine::initialize(
         throw std::invalid_argument("Sheets and sheetQuantities arrays must have same size");
     }
 
-    // PHASE 1: Safety check - should not be called while running
+    // Safety check - should not be called while running
     if (running_) {
         throw std::runtime_error("Cannot initialize while nesting is running. Call stop() first.");
     }
@@ -117,6 +117,11 @@ void NestingEngine::initialize(
             // Apply negative offset to sheets (shrink)
             if (config_.spacing > 0) {
                 sheet = applySpacing(sheet, -0.5 * config_.spacing);
+                
+                // If sheet became invalid/empty after spacing, skip it
+                if (sheet.points.size() < 3 || std::abs(sheet.area()) < 1e-6) {
+                    continue;
+                }
             }
 
             sheets_.push_back(sheet);
@@ -125,18 +130,6 @@ void NestingEngine::initialize(
 
     // Prepare parts with spacing (expand parts by spacing)
     // JavaScript uses +0.5*spacing for parts
-    // JavaScript: var adam = [];
-    //             for(i=0; i<parts.length; i++) {
-    //               if(!parts[i].sheet) {
-    //                 for(j=0; j<parts[i].quantity; j++) {
-    //                   var poly = cloneTree(parts[i].polygontree);
-    //                   poly.id = id;
-    //                   poly.source = i;
-    //                   adam.push(poly);
-    //                   id++;
-    //                 }
-    //               }
-    //             }
     int id = 0;
     for (size_t i = 0; i < parts.size(); ++i) {
         for (int q = 0; q < quantities[i]; ++q) {
@@ -147,6 +140,11 @@ void NestingEngine::initialize(
             // Apply positive offset to parts (expand)
             if (config_.spacing > 0) {
                 part = applySpacing(part, 0.5 * config_.spacing);
+                
+                // If part became invalid/empty after spacing, skip it
+                if (part.points.size() < 3 || std::abs(part.area()) < 1e-6) {
+                    continue;
+                }
             }
 
             parts_.push_back(part);
@@ -163,12 +161,12 @@ void NestingEngine::initialize(
                    std::abs(GeometryUtil::polygonArea(b.points));
         });
 
-    // PHASE 2 FIX: Create shared_ptr for GA instead of raw pointers
+    // Create shared_ptr for GA instead of raw pointers
     // This ensures parts stay alive even if parts_ vector is cleared during restart
     LOG_MEMORY("Creating shared_ptr partPointers_ for " << parts_.size() << " parts");
     partPointers_.clear();
     for (auto& part : parts_) {
-        // CRITICAL: Create shared_ptr copy of each polygon
+        // Create shared_ptr copy of each polygon
         // This prevents use-after-free when parts_ is cleared while threads are running
         partPointers_.push_back(std::make_shared<Polygon>(part));
     }
@@ -191,7 +189,7 @@ void NestingEngine::start(
         throw std::runtime_error("Must call initialize() before start()");
     }
 
-    // CRITICAL FIX: Recreate ParallelProcessor if it was previously stopped
+    // Recreate ParallelProcessor if it was previously stopped
     // A stopped processor cannot be reused (stopped_=true prevents new tasks)
     // This fixes the segfault when running nesting a second time
     if (!parallelProcessor_) {
@@ -221,20 +219,20 @@ void NestingEngine::stop() {
     if (parallelProcessor_) {
         LOG_THREAD("Stopping parallel processor");
 
-        // PHASE 1 FIX: Explicit stop with task queue flush
+        // Explicit stop with task queue flush
         // This now waits for all pending tasks to complete (see ParallelProcessor::stop())
         parallelProcessor_->stop();
 
-        // PHASE 1 FIX: Explicit wait to ensure all tasks completed
+        // Explicit wait to ensure all tasks completed
         LOG_THREAD("Waiting for all tasks to complete");
         parallelProcessor_->waitAll();
 
-        // CRITICAL FIX: Destroy the processor to force recreation on next start()
+        // Destroy the processor to force recreation on next start()
         // A stopped processor cannot be reused, so we must create a fresh one
         LOG_THREAD("Destroying parallel processor");
         parallelProcessor_.reset();
 
-        // PHASE 1 FIX: Small delay to ensure complete cleanup before destructor
+        // Small delay to ensure complete cleanup before destructor
         // This gives time for any remaining cleanup operations in threads
         LOG_THREAD("Waiting 50ms for complete cleanup");
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -280,18 +278,16 @@ bool NestingEngine::step() {
 
         // Log generation transition with fitness comparison
         const Individual& bestAfter = geneticAlgorithm_->getBestIndividual();
-        std::cout << "\n*** Generation " << genBefore << " -> " << geneticAlgorithm_->getCurrentGeneration()
-                  << ": Best fitness " << fitnessBefore;
+        LOG_GA("*** Generation " << genBefore << " -> " << geneticAlgorithm_->getCurrentGeneration()
+                  << ": Best fitness " << fitnessBefore);
         if (bestAfter.fitness < fitnessBefore) {
-            std::cout << " -> " << bestAfter.fitness << " (IMPROVED by "
-                      << (fitnessBefore - bestAfter.fitness) << ")";
+            LOG_GA(" -> " << bestAfter.fitness << " (IMPROVED by "
+                      << (fitnessBefore - bestAfter.fitness) << ")");
         } else if (bestAfter.fitness == fitnessBefore) {
-            std::cout << " (NO CHANGE)";
+            LOG_GA(" (NO CHANGE)");
         } else {
-            std::cout << " -> " << bestAfter.fitness << " (WORSE?!)";
+            LOG_GA(" -> " << bestAfter.fitness << " (WORSE?!)");
         }
-        std::cout << " ***" << std::endl;
-        std::cout.flush();
 
         // Report progress
         if (progressCallback_) {
@@ -310,7 +306,7 @@ bool NestingEngine::step() {
 
     // Launch parallel evaluations for unevaluated individuals
     // Note: ParallelProcessor::processPopulation handles the parallel execution
-    // CRITICAL FIX: Check if parallelProcessor_ exists (may be nullptr after stop())
+    // Check if parallelProcessor_ exists (may be nullptr after stop())
     if (!parallelProcessor_) {
         running_ = false;
         return false;
@@ -328,7 +324,7 @@ bool NestingEngine::step() {
     // and updates Individual.fitness directly. We need to check for new best results.
 
     // Check for best results and update
-    // CRITICAL FIX: Use executeLocked to safely read results from individuals
+    // Use executeLocked to safely read results from individuals
     // This prevents race conditions where worker threads are updating the individual
     // while we are trying to read its fitness or placements.
     std::vector<NestResult> newBetterResults;
@@ -441,20 +437,39 @@ Polygon NestingEngine::applySpacing(const Polygon& polygon, double offset) {
         PolygonOperations::offset(polygon.points, offset, 4.0, config_.curveTolerance);
 
     if (offsetResults.empty()) {
-        // Offset failed, return original
-        return polygon;
+        // Offset failed or polygon vanished (e.g. negative offset on small part)
+        // Return empty polygon to signal invalidity
+        Polygon emptyPoly = polygon;
+        emptyPoly.points.clear();
+        emptyPoly.children.clear();
+        return emptyPoly;
     }
 
     // Create new polygon with offset points
     Polygon result = polygon;
-    result.points = offsetResults[0];
+    
+    // Clean the result to ensure valid geometry (remove self-intersections)
+    // This matches the "clean shapes" strategy
+    std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(offsetResults[0]);
+    
+    if (cleanedPoints.size() < 3) {
+        // Invalid after cleaning
+        result.points.clear();
+        result.children.clear();
+        return result;
+    }
+    
+    result.points = cleanedPoints;
 
     // Handle children (holes) - they get opposite offset
     if (!polygon.children.empty()) {
         result.children.clear();
         for (const auto& child : polygon.children) {
             Polygon offsetChild = applySpacing(child, -offset);
-            result.children.push_back(offsetChild);
+            // Only add valid children
+            if (offsetChild.points.size() >= 3 && std::abs(offsetChild.area()) > 1e-6) {
+                result.children.push_back(offsetChild);
+            }
         }
     }
 

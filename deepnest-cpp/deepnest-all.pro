@@ -24,7 +24,8 @@ CONFIG += ordered
 SUBDIRS = \
     library \
     test_app \
-    verification_tests
+    consolidated_tests \
+    polygon_extractor
 
 # Library configuration
 library.file = deepnest.pro
@@ -33,6 +34,10 @@ library.file = deepnest.pro
 test_app.file = tests/TestApplication.pro
 test_app.depends = library
 
-# Verification tests configuration
-verification_tests.file = tests/StepVerificationTests.pro
-verification_tests.depends = library
+# Consolidated tests configuration
+consolidated_tests.file = tests/DeepnestLibTests.pro
+consolidated_tests.depends = library
+
+# Polygon extractor utility
+polygon_extractor.file = tests/PolygonExtractor.pro
+polygon_extractor.depends = library

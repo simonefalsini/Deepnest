@@ -46,8 +46,8 @@ unix {
 win32 {
     # Windows Boost paths - adjust as needed
     INCLUDEPATH += $$PWD/../../../boost
-    LIBS += -L$$PWD/../../../boost/lib64-msvc-14.1
-    LIBS += boost_thread-vc141-mt-x64-1_89.lib
+    LIBS += -L$$PWD/../../../boost/stage/lib
+    LIBS += "D:\buildOpencv\boost\stage\lib\libboost_thread-vc141-mt-x64-1_89.lib"
 }
 
 # Clipper2

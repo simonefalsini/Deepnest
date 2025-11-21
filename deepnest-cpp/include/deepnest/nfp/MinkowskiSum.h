@@ -53,7 +53,6 @@ public:
         bool inner = false
     );
 
-private:
     /**
      * @brief Calculate optimal scale factor for integer conversion
      *
@@ -65,6 +64,8 @@ private:
      * @return Scale factor to use
      */
     static double calculateScale(const Polygon& A, const Polygon& B);
+
+private:
 
     /**
      * @brief Convert polygon to Boost integer polygon

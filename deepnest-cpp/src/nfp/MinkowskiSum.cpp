@@ -272,7 +272,7 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
         point.x = -point.x;
         point.y = -point.y;
     }
-    // CRITICAL: Negating coordinates inverts the winding order!
+    // Negating coordinates inverts the winding order!
     // CCW becomes CW. We must reverse the point order to restore CCW winding.
     std::reverse(B_to_use.points.begin(), B_to_use.points.end());
 

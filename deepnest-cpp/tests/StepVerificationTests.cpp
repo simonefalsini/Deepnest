@@ -62,6 +62,8 @@
 
 using namespace deepnest;
 
+namespace StepVerificationTests {
+
 // Test result tracking
 struct TestResult {
     std::string stepName;
@@ -365,17 +367,13 @@ void testStep12_Individual() {
     config.setRotations(4);
 
     // Create test parts
-    std::vector<deepnest::Polygon> parts;
+    std::vector<PolygonPtr> parts;
     for (int i = 0; i < 5; i++) {
-        parts.push_back(deepnest::Polygon({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, i));
+        std::vector<Point> points = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+        parts.push_back(std::make_shared<deepnest::Polygon>(points, i));
     }
 
-    std::vector<deepnest::Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
-
-    Individual ind1(partPtrs, config, 12345);
+    Individual ind1(parts, config, 12345);
 
     // Test basic properties
     bool indValid = (ind1.placement.size() == 5);
@@ -398,17 +396,13 @@ void testStep13_Population() {
     Population pop(config, 12345);
 
     // Create test parts
-    std::vector<deepnest::Polygon> parts;
+    std::vector<PolygonPtr> parts;
     for (int i = 0; i < 5; i++) {
-        parts.push_back(deepnest::Polygon({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, i));
+        std::vector<Point> points = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+        parts.push_back(std::make_shared<deepnest::Polygon>(points, i));
     }
 
-    std::vector<deepnest::Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
-
-    pop.initialize(partPtrs);
+    pop.initialize(parts);
 
     bool popValid = (pop.size() == 10);
 
@@ -433,17 +427,13 @@ void testStep14_GeneticAlgorithm() {
     config.setRotations(4);
 
     // Create test parts
-    std::vector<deepnest::Polygon> parts;
+    std::vector<PolygonPtr> parts;
     for (int i = 0; i < 3; i++) {
-        parts.push_back(deepnest::Polygon({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, i));
+        std::vector<Point> points = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+        parts.push_back(std::make_shared<deepnest::Polygon>(points, i));
     }
 
-    std::vector<deepnest::Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
-
-    GeneticAlgorithm ga(partPtrs, config);
+    GeneticAlgorithm ga(parts, config);
 
     bool gaValid = (ga.getCurrentGeneration() == 0);
 
@@ -805,10 +795,9 @@ void testStep26_PlacementTransformation() {
 }
 
 // ========== Main Test Runner ==========
-int main() {
+int runTests() {
     std::cout << "========================================" << std::endl;
-    std::cout << "DeepNest C++ Step Verification Tests" << std::endl;
-    std::cout << "Testing all 25 conversion steps" << std::endl;
+    std::cout << "Step Verification Tests" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
 
@@ -846,8 +835,7 @@ int main() {
     double totalTime = std::chrono::duration<double, std::milli>(overallEnd - overallStart).count();
 
     // Print summary
-    std::cout << std::endl;
-    std::cout << "========================================" << std::endl;
+    std::cout << "\n========================================" << std::endl;
     std::cout << "Test Summary" << std::endl;
     std::cout << "========================================" << std::endl;
 
@@ -863,18 +851,24 @@ int main() {
         }
     }
 
-    std::cout << std::endl;
-    std::cout << "Total tests: " << testResults.size() << std::endl;
-    std::cout << "Passed: " << passed << std::endl;
+    std::cout << "\nTotal tests: " << testResults.size() << std::endl;
+    std::cout << "Passed: " << passed << " (" << std::fixed << std::setprecision(1)
+              << (100.0 * passed / testResults.size()) << "%)" << std::endl;
     std::cout << "Failed: " << failed << std::endl;
     std::cout << "Total time: " << std::fixed << std::setprecision(2) << totalTime << " ms" << std::endl;
     std::cout << std::endl;
 
     if (failed == 0) {
-        std::cout << "All steps verified successfully!" << std::endl;
+        std::cout << "\n✓ All step verification tests passed!" << std::endl;
         return 0;
     } else {
-        std::cout << "Some tests failed. Please review the output above." << std::endl;
+        std::cout << "\n✗ Some tests failed. Review output above." << std::endl;
         return 1;
     }
 }
+
+} // namespace StepVerificationTests
+
+#undef TEST_START
+#undef TEST_END
+#undef ASSERT_ALMOST_EQUAL

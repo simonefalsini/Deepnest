@@ -164,6 +164,9 @@
     <ClInclude Include="include\deepnest\geometry\OrbitalTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\deepnest\DebugConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include=".\build\moc\moc_predefs.h.cbt" />

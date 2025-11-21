@@ -23,5 +23,9 @@ SOURCES += PolygonExtractor.cpp \
 HEADERS += SVGLoader.h
 
 # Link against DeepNest library
-LIBS += -L../lib -ldeepnest
-LIBS += -lboost_thread -lboost_system -lboost_chrono
+LIBS += -L$$PWD/../lib -ldeepnest
+
+INCLUDEPATH += $$PWD/../../../boost
+LIBS += -L$$PWD/../../../boost/stage/lib
+#LIBS += libboost_thread-vc141-mt-gd-x64-1_89.lib
+

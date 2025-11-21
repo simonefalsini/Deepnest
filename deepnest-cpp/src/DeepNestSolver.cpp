@@ -1,4 +1,6 @@
 #include "../include/deepnest/DeepNestSolver.h"
+#include "../include/deepnest/geometry/GeometryUtil.h"
+#include "../include/deepnest/geometry/PolygonOperations.h"
 #include <stdexcept>
 #include <thread>
 #include <chrono>
@@ -98,14 +100,128 @@ void DeepNestSolver::addPart(const Polygon& polygon, int quantity, const std::st
     if (quantity < 1) {
         throw std::invalid_argument("Part quantity must be at least 1");
     }
-    parts_.push_back(PartSpec(polygon, quantity, name));
+
+    // Validate and simplify polygon
+    // Strategy:
+    // 1. Check basic validity (points >= 3)
+    // 2. Remove self-intersections (clean)
+    // 3. Simplify using configured tolerance
+    // 4. Check validity again
+
+    if (polygon.points.size() < 3) {
+        // Discard invalid polygon
+        return;
+    }
+
+    // Clean polygon (remove self-intersections)
+    // Use PolygonOperations::cleanPolygon which uses Clipper's SimplifyPolygon
+    std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(polygon.points);
+    
+    if (cleanedPoints.size() < 3) {
+        return;
+    }
+
+    // Simplify polygon using GeometryUtil::simplifyPolygon as requested
+    // Use configured curve tolerance
+    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+        cleanedPoints,
+        config_.curveTolerance
+    );
+
+    if (simplifiedPoints.size() < 3) {
+        return;
+    }
+
+    // Create new polygon with simplified points
+    Polygon simplifiedPoly = polygon;
+    simplifiedPoly.points = simplifiedPoints;
+
+    // Also process holes if any
+    if (!simplifiedPoly.children.empty()) {
+        std::vector<Polygon> validHoles;
+        for (const auto& hole : simplifiedPoly.children) {
+            if (hole.points.size() < 3) continue;
+
+            std::vector<Point> cleanedHole = PolygonOperations::cleanPolygon(hole.points);
+            if (cleanedHole.size() < 3) continue;
+
+            std::vector<Point> simplifiedHole = GeometryUtil::simplifyPolygon(
+                cleanedHole,
+                config_.curveTolerance
+            );
+
+            if (simplifiedHole.size() >= 3) {
+                Polygon newHole = hole;
+                newHole.points = simplifiedHole;
+                validHoles.push_back(newHole);
+            }
+        }
+        simplifiedPoly.children = validHoles;
+    }
+
+    // Final check for area
+    if (std::abs(simplifiedPoly.area()) < 1e-6) {
+        return;
+    }
+
+    parts_.push_back(PartSpec(simplifiedPoly, quantity, name));
 }
 
 void DeepNestSolver::addSheet(const Polygon& polygon, int quantity, const std::string& name) {
     if (quantity < 1) {
         throw std::invalid_argument("Sheet quantity must be at least 1");
     }
-    sheets_.push_back(SheetSpec(polygon, quantity, name));
+
+    // Validate and simplify polygon (same strategy as parts)
+    if (polygon.points.size() < 3) {
+        return;
+    }
+
+    std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(polygon.points);
+    if (cleanedPoints.size() < 3) {
+        return;
+    }
+
+    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+        cleanedPoints,
+        config_.curveTolerance
+    );
+
+    if (simplifiedPoints.size() < 3) {
+        return;
+    }
+
+    Polygon simplifiedPoly = polygon;
+    simplifiedPoly.points = simplifiedPoints;
+
+    // Process holes
+    if (!simplifiedPoly.children.empty()) {
+        std::vector<Polygon> validHoles;
+        for (const auto& hole : simplifiedPoly.children) {
+            if (hole.points.size() < 3) continue;
+
+            std::vector<Point> cleanedHole = PolygonOperations::cleanPolygon(hole.points);
+            if (cleanedHole.size() < 3) continue;
+
+            std::vector<Point> simplifiedHole = GeometryUtil::simplifyPolygon(
+                cleanedHole,
+                config_.curveTolerance
+            );
+
+            if (simplifiedHole.size() >= 3) {
+                Polygon newHole = hole;
+                newHole.points = simplifiedHole;
+                validHoles.push_back(newHole);
+            }
+        }
+        simplifiedPoly.children = validHoles;
+    }
+
+    if (std::abs(simplifiedPoly.area()) < 1e-6) {
+        return;
+    }
+
+    sheets_.push_back(SheetSpec(simplifiedPoly, quantity, name));
 }
 
 void DeepNestSolver::clearParts() {

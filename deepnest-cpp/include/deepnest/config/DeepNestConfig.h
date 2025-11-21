@@ -56,7 +56,8 @@ public:
      * by line segments. Lower values = more segments = higher precision
      */
     double curveTolerance;
-
+    double getCurveTolerance(){return curveTolerance;};
+    void setCurveTolerance(double Tolerance){curveTolerance = Tolerance;};
     /**
      * @brief Spacing between parts in the nest (in same units as input)
      */

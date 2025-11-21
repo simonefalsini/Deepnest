@@ -35,6 +35,8 @@
 
 using namespace deepnest;
 
+namespace FitnessTests {
+
 // Test result tracking
 struct TestResult {
     std::string testName;
@@ -409,7 +411,7 @@ void test_TotalSheetAreaCalculation() {
 }
 
 // ========== Main Test Runner ==========
-int main() {
+int runTests() {
     std::cout << "========================================" << std::endl;
     std::cout << "FASE 4.1: Fitness Component Tests" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -461,3 +463,11 @@ int main() {
         return 1;
     }
 }
+
+} // namespace FitnessTests
+
+#undef ASSERT_NEAR
+#undef TEST_CASE
+#undef EXPECT_NEAR
+#undef EXPECT_GT
+#undef EXPECT_LT

@@ -20,24 +20,26 @@ void Population::initialize(const std::vector<std::shared_ptr<Polygon>>& parts) 
     if (parts.empty()) {
         throw std::invalid_argument("Parts list cannot be empty");
     }
-
+#ifdef DEBUG_GA
     std::cout << "\n=== POPULATION INITIALIZATION ===" << std::endl;
     std::cout << "Creating population of " << config_.populationSize
               << " individuals from " << parts.size() << " parts" << std::endl;
     std::cout << "Mutation rate: " << config_.mutationRate << " (probability)" << std::endl;
+#endif
 
     // Create first individual "adam" with parts in given order and random rotations
     // JavaScript: this.population = [{placement: adam, rotation: angles}];
     // PHASE 2: Individual constructor now accepts shared_ptr
     Individual adam(parts, config_, rng_());
     individuals_.push_back(adam);
-
+#ifdef DEBUG_GA
     std::cout << "Adam created with rotations: ";
     for (size_t i = 0; i < std::min(size_t(5), adam.rotation.size()); ++i) {
         std::cout << adam.rotation[i] << "° ";
     }
     if (adam.rotation.size() > 5) std::cout << "...";
     std::cout << std::endl;
+#endif
 
     // Fill rest of population with mutated versions of adam
     // JavaScript: while(this.population.length < config.populationSize)
@@ -45,7 +47,7 @@ void Population::initialize(const std::vector<std::shared_ptr<Polygon>>& parts) 
         Individual mutant = adam.clone();
         mutant.mutate(config_.mutationRate, config_.rotations, rng_());
         individuals_.push_back(mutant);
-
+#ifdef DEBUG_GA
         // Show first mutant's rotations to verify diversity
         if (individuals_.size() == 2) {
             std::cout << "First mutant rotations: ";
@@ -55,11 +57,13 @@ void Population::initialize(const std::vector<std::shared_ptr<Polygon>>& parts) 
             if (mutant.rotation.size() > 5) std::cout << "...";
             std::cout << std::endl;
         }
+#endif
     }
-
+#ifdef DEBUG_GA
     std::cout << "Population initialized with " << individuals_.size() << " individuals" << std::endl;
     std::cout << "=== END INITIALIZATION ===" << std::endl;
     std::cout.flush();
+#endif
 }
 
 std::pair<Individual, Individual> Population::crossover(
@@ -79,7 +83,9 @@ std::pair<Individual, Individual> Population::crossover(
     // GA DEBUG: Log crossover cutpoint
     static bool first_crossover = true;
     if (first_crossover) {
+#ifdef DEBUG_GA
         std::cout << "  Crossover cutpoint: " << cutpoint << " out of " << parent1.placement.size() << " parts" << std::endl;
+#endif
         first_crossover = false;
     }
 
@@ -175,6 +181,7 @@ void Population::nextGeneration() {
     }
 
     // GA DEBUG: Log population fitness BEFORE sorting
+#ifdef DEBUG_GA
     std::cout << "\n=== GA: nextGeneration() START ===" << std::endl;
     std::cout << "Population fitness values BEFORE sort: ";
     for (size_t i = 0; i < std::min(size_t(5), individuals_.size()); ++i) {
@@ -182,14 +189,17 @@ void Population::nextGeneration() {
     }
     if (individuals_.size() > 5) std::cout << "...";
     std::cout << std::endl;
+#endif
 
     // Sort by fitness (lower is better)
     // JavaScript: this.population.sort(function(a, b){ return a.fitness - b.fitness; });
     sortByFitness();
 
     // GA DEBUG: Log best fitness after sort
+#ifdef DEBUG_GA
     std::cout << "AFTER sort - Best fitness: " << individuals_[0].fitness
               << ", Worst fitness: " << individuals_[individuals_.size()-1].fitness << std::endl;
+#endif
 
     // Create new population starting with best individual (elitism)
     // JavaScript: var newpopulation = [this.population[0]];
@@ -206,10 +216,12 @@ void Population::nextGeneration() {
         Individual female = selectWeightedRandom(&male);
 
         // GA DEBUG: Log selected parents (only for first child)
+#ifdef DEBUG_GA
         if (childCount == 0) {
             std::cout << "First crossover: Male fitness=" << male.fitness
                       << ", Female fitness=" << female.fitness << std::endl;
         }
+#endif
 
         // Crossover to produce two children
         // JavaScript: var children = this.mate(male, female);
@@ -229,10 +241,11 @@ void Population::nextGeneration() {
             childCount++;
         }
     }
-
+#ifdef DEBUG_GA
     std::cout << "Created " << childCount << " new children (+ 1 elite = " << newPopulation.size() << " total)" << std::endl;
     std::cout << "=== GA: nextGeneration() END ===" << std::endl;
     std::cout.flush();
+#endif
 
     // Replace old population with new one
     individuals_ = newPopulation;

@@ -57,7 +57,7 @@ void ParallelProcessor::stop() {
     LOG_THREAD("Calling ioContext_.stop()");
     ioContext_.stop();
 
-    // CRITICAL: Wait for ALL threads to COMPLETELY finish their current tasks
+    // Wait for ALL threads to COMPLETELY finish their current tasks
     // This ensures no thread is still executing code that references PlacementWorker, etc.
     threads_.join_all();
 
@@ -88,7 +88,7 @@ void ParallelProcessor::processPopulation(
     PlacementWorker& worker,
     int maxConcurrent
 ) {
-    // CRITICAL FIX: Protect the entire task selection and submission process
+    // Protect the entire task selection and submission process
     // This prevents race conditions where:
     // 1. Multiple threads try to process the same individual
     // 2. The 'processing' flag is read/written concurrently without protection
@@ -170,15 +170,14 @@ void ParallelProcessor::processPopulation(
                 originalIndividual.placements = result.placements;
                 originalIndividual.processing = false;
 
-                        // GA DEBUG: Log fitness evaluation (first 10 individuals only to avoid spam)
+                        // Log fitness evaluation (first 10 individuals only to avoid spam)
                         static int evalCount = 0;
                         evalCount++;
                         if (evalCount <= 10) {
-                            std::cout << "  [Eval #" << evalCount << "] Individual[" << index
+                            LOG_GA("[Eval #" << evalCount << "] Individual[" << index
                                       << "] fitness=" << result.fitness
                                       << ", area=" << result.area
-                                      << ", merged=" << result.mergedLength << std::endl;
-                            std::cout.flush();
+                                      << ", merged=" << result.mergedLength);
                         }
                     }
             });

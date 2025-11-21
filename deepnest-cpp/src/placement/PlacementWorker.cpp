@@ -42,11 +42,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     //               rotated.push(r);
     //             }
     //             parts = rotated;
+#ifdef PLACEMENTDEBUG
     std::cout << "\n=== PLACEMENT START ===" << std::endl;
     std::cout << "Number of parts to place: " << parts.size() << std::endl;
     std::cout << "Number of sheets: " << sheets.size() << std::endl;
     std::cout.flush();
-
+#endif
     std::vector<Polygon> rotatedParts;
     for (size_t idx = 0; idx < parts.size(); ++idx) {
         auto& part = parts[idx];
@@ -90,7 +91,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         std::vector<Polygon> placed;
         std::vector<Placement> placements;
 
-        // CRITICAL FIX 1.3: Accumulator for minarea component of fitness
         // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
         double minarea_accumulator = 0.0;
 
@@ -103,9 +103,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
         totalSheetArea += sheetArea;
-        // CRITICAL FIX 1.1: Add full sheet area as penalty (matches JavaScript background.js:848)
         // JavaScript: fitness += sheetarea;
-        // This is the primary differentiator between solutions - heavily penalizes opening new sheets
         fitness += sheetArea;
 
         // JavaScript: for(i=0; i<parts.length; i++)
@@ -137,8 +135,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 ? (360 / config_.rotations)
                 : 1;
 
-            // CRITICAL FIX: Create a base copy of the part to avoid cumulative rotation errors
-            // Repeatedly rotating the same polygon introduces floating-point drift
             Polygon basePart = parts[i];
             double rotationStep = (config_.rotations > 0) ? (360.0 / config_.rotations) : 0.0;
 
@@ -176,13 +172,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
                 // Try next rotation
                 if (rotAttempt < maxRotationAttempts - 1 && config_.rotations > 0) {
-                    // CRITICAL FIX: Rotate from the BASE part, not the current (already rotated) part
-                    // This prevents error accumulation
                     double totalRotation = rotationStep * (rotAttempt + 1);
                     Polygon rotated = basePart.rotate(totalRotation);
 
-                    // CRITICAL FIX: Clean the polygon using Clipper2 to remove self-intersections
-                    // or degenerate edges caused by floating-point rotation errors.
                     std::vector<Point> cleanedPoints = PolygonOperations::cleanPolygon(rotated.points);
                     if (!cleanedPoints.empty()) {
                         rotated.points = cleanedPoints;
@@ -190,9 +182,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                         // If cleaning fails (degenerate), skip this rotation
                         continue;
                     }
-
-                    // CRITICAL FIX: DO NOT NORMALIZE - see above explanation
-                    // Negative coordinates are expected and correct!
 
                     rotated.rotation = basePart.rotation + totalRotation;
                     rotated.source = basePart.source;
@@ -230,10 +219,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 double minX = std::numeric_limits<double>::max();
                 double minY = std::numeric_limits<double>::max();
 
-                // CRITICAL FIX: Use part.points[0] NOT bbox.min!
-                // NFPCalculator translates innerNFP by B.points[0] (see NFPCalculator.cpp:30)
-                // We MUST subtract the SAME value to cancel the translation
-                // Using bbox.min (0,0) doesn't cancel the points[0] offset!
                 Point partRef(part.points[0].x, part.points[0].y);
 
                 // DEBUG LOGGING for first placement
@@ -507,7 +492,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             //               }
             //             }
             // Extract candidate positions and find best one
-            // CRITICAL FIX: Pass part to subtract reference point from NFP points
             std::vector<Point> candidatePositions = extractCandidatePositions(finalNfp, part);
 
             if (candidatePositions.empty()) {
@@ -521,7 +505,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 placedForStrategy.push_back(toPlacedPart(placed[j], placements[j]));
             }
 
-            // CRITICAL FIX 1.3: Use strategy to find best position and get area metric
+            // Use strategy to find best position and get area metric
             // LINE MERGE INTEGRATION: Pass config to enable line merge bonus calculation
             BestPositionResult positionResult = strategy_->findBestPosition(
                 part,
@@ -531,14 +515,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             );
 
             // JavaScript: if(position) { placed.push(path); placements.push(position); }
-            // CRITICAL FIX: Accept ANY valid position, including (0,0)!
-            // The old condition rejected (0,0) which is a perfectly valid placement
             if (!candidatePositions.empty()) {
                 position = Placement(positionResult.position, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
 
-                // CRITICAL FIX 1.3: Accumulate minarea for fitness calculation
                 minarea_accumulator += positionResult.area;
 
                 // Remove from parts list
@@ -557,7 +538,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         if (!placements.empty()) {
             // Calculate bounds fitness (minwidth/binarea)
             // JavaScript: if(minwidth) { fitness += minwidth/binarea; }
-            // This is CRITICAL for GA evolution - rewards compact placements
             std::vector<Point> allPlacedPoints;
 
             // Collect all points from placed parts with their placements applied
@@ -579,9 +559,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 BoundingBox bounds = BoundingBox::fromPoints(allPlacedPoints);
                 double boundsWidth = bounds.width;
 
-                // CRITICAL FIX 1.3: Add both components of fitness formula
                 // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
-                // This is CRITICAL for GA - minarea is the primary placement quality metric
                 fitness += (boundsWidth / sheetArea) + minarea_accumulator;
             }
 
@@ -592,9 +570,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         }
     }
 
-    // CRITICAL FIX 1.2: Apply massive penalty for unplaced parts (matches JavaScript background.js:1167)
     // JavaScript: fitness += 100000000*(Math.abs(GeometryUtil.polygonArea(parts[i]))/totalsheetarea);
-    // This heavily penalizes solutions that don't place all parts
     double totalSheetAreaSafe = std::max(totalSheetArea, 1.0); // Avoid division by zero
     for (const auto& part : parts) {
         double partArea = std::abs(GeometryUtil::polygonArea(part.points));

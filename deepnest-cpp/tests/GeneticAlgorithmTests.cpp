@@ -39,6 +39,8 @@
 
 using namespace deepnest;
 
+namespace GATests {
+
 // Test result tracking
 struct TestResult {
     std::string testName;
@@ -91,8 +93,8 @@ std::vector<TestResult> results;
     }
 
 // Helper function to create test parts
-std::vector<Polygon> createTestParts(int count, int seed = 12345) {
-    std::vector<Polygon> parts;
+std::vector<PolygonPtr> createTestParts(int count, int seed = 12345) {
+    std::vector<PolygonPtr> parts;
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> sizeDist(20.0, 50.0);
 
@@ -104,24 +106,22 @@ std::vector<Polygon> createTestParts(int count, int seed = 12345) {
             {0, 0}, {width, 0}, {width, height}, {0, height}
         };
 
-        Polygon part(points, i);
-        parts.push_back(part);
+        parts.push_back(std::make_shared<deepnest::Polygon>(points, i));
     }
 
     return parts;
 }
 
 // Helper function to create test sheets
-std::vector<Polygon> createTestSheets(int count, double width = 500.0, double height = 300.0) {
-    std::vector<Polygon> sheets;
+std::vector<PolygonPtr> createTestSheets(int count, double width = 500.0, double height = 300.0) {
+    std::vector<PolygonPtr> sheets;
 
     for (int i = 0; i < count; i++) {
         std::vector<Point> points = {
             {0, 0}, {width, 0}, {width, height}, {0, height}
         };
 
-        Polygon sheet(points, 100 + i);
-        sheets.push_back(sheet);
+        sheets.push_back(std::make_shared<deepnest::Polygon>(points, 100 + i));
     }
 
     return sheets;
@@ -170,15 +170,11 @@ void test_PopulationInitialization() {
     config.setMutationRate(50);
 
     // Create test parts
-    std::vector<Polygon> parts = createTestParts(5);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(5);
 
     // Initialize population
     Population pop(config, 12345);
-    pop.initialize(partPtrs);
+    pop.initialize(parts);
 
     EXPECT_TRUE(pop.size() == 10, "Population size is 10");
 
@@ -210,14 +206,10 @@ void test_MutationCreatesDiversity() {
     DeepNestConfig& config = DeepNestConfig::getInstance();
     config.setRotations(4);
 
-    std::vector<Polygon> parts = createTestParts(10);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(10);
 
     // Create individual
-    Individual original(partPtrs, config, 12345);
+    Individual original(parts, config, 12345);
 
     // Create copies and mutate with different rates
     std::vector<Individual> mutated;
@@ -282,14 +274,10 @@ void test_PopulationSorting() {
     config.setPopulationSize(10);
     config.setRotations(4);
 
-    std::vector<Polygon> parts = createTestParts(3);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(3);
 
     Population pop(config, 12345);
-    pop.initialize(partPtrs);
+    pop.initialize(parts);
 
     // Assign random fitness values (descending)
     for (size_t i = 0; i < pop.size(); i++) {
@@ -327,13 +315,9 @@ void test_IndividualCloning() {
     DeepNestConfig& config = DeepNestConfig::getInstance();
     config.setRotations(4);
 
-    std::vector<Polygon> parts = createTestParts(5);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(5);
 
-    Individual original(partPtrs, config, 12345);
+    Individual original(parts, config, 12345);
     original.fitness = 12345.67;
 
     Individual clone = original.clone();
@@ -383,13 +367,9 @@ void test_FitnessResetAfterMutation() {
     DeepNestConfig& config = DeepNestConfig::getInstance();
     config.setRotations(4);
 
-    std::vector<Polygon> parts = createTestParts(5);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(5);
 
-    Individual ind(partPtrs, config, 12345);
+    Individual ind(parts, config, 12345);
 
     // Set fitness
     ind.fitness = 12345.67;
@@ -410,13 +390,9 @@ void test_GAGenerationCount() {
     config.setPopulationSize(5);
     config.setRotations(4);
 
-    std::vector<Polygon> parts = createTestParts(3);
-    std::vector<Polygon*> partPtrs;
-    for (auto& p : parts) {
-        partPtrs.push_back(&p);
-    }
+    std::vector<PolygonPtr> parts = createTestParts(3);
 
-    GeneticAlgorithm ga(partPtrs, config);
+    GeneticAlgorithm ga(parts, config);
 
     EXPECT_TRUE(ga.getCurrentGeneration() == 0, "Initial generation is 0");
 
@@ -425,7 +401,7 @@ void test_GAGenerationCount() {
 }
 
 // ========== Main Test Runner ==========
-int main() {
+int runTests() {
     std::cout << "========================================" << std::endl;
     std::cout << "FASE 4.2: Genetic Algorithm Tests" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -470,3 +446,10 @@ int main() {
         return 1;
     }
 }
+
+} // namespace GATests
+
+#undef TEST_CASE
+#undef EXPECT_TRUE
+#undef EXPECT_GT
+#undef EXPECT_LT

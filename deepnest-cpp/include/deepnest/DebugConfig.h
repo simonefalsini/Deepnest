@@ -36,7 +36,7 @@
  * Use for debugging NFP calculation issues.
  */
 #ifndef DEBUG_NFP
-#define DEBUG_NFP 1
+#define DEBUG_NFP 0
 #endif
 
 /**
@@ -68,7 +68,7 @@
  * Use for debugging overall nesting process.
  */
 #ifndef DEBUG_NESTING
-#define DEBUG_NESTING 1
+#define DEBUG_NESTING 0
 #endif
 
 /**
@@ -85,7 +85,7 @@
  * **CRITICAL for diagnosing protection faults and crashes on stop/exit.**
  */
 #ifndef DEBUG_THREADS
-#define DEBUG_THREADS 1
+#define DEBUG_THREADS 0
 #endif
 
 /**
@@ -102,7 +102,7 @@
  * **CRITICAL for diagnosing protection faults and access violations.**
  */
 #ifndef DEBUG_MEMORY
-#define DEBUG_MEMORY 1
+#define DEBUG_MEMORY 0
 #endif
 
 /**

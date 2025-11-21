@@ -233,7 +233,7 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         return result;
     }
 
-    // CRITICAL FIX: Simplify path BEFORE conversion to remove degenerate geometries
+    // Simplify path BEFORE conversion to remove degenerate geometries
     // and redundant curve control points that cause Boost.Polygon scanline failures
     // Step 1: Set proper fill rule for complex paths
     QPainterPath cleanPath = path;
@@ -260,7 +260,7 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         pathPoints.push_back(Point::fromQt(qpt));
     }
 
-    // CRITICAL FIX: Apply Ramer-Douglas-Peucker simplification
+    // Apply Ramer-Douglas-Peucker simplification
     // This matches the original DeepNest JavaScript implementation (simplify.js)
     // Tolerance of 2.0 matches the JavaScript svgparser.js configuration
     // This properly handles curve-to-line conversion artifacts and removes redundant points
@@ -303,7 +303,7 @@ std::vector<Polygon> Polygon::extractFromQPainterPath(const QPainterPath& path) 
     // QPainterPath can contain multiple disconnected subpaths
     // We need to extract each one as a separate polygon
 
-    // CRITICAL FIX: Apply same cleaning as fromQPainterPath for consistency
+    // Apply same cleaning as fromQPainterPath for consistency
     QPainterPath cleanPath = path;
     cleanPath.setFillRule(Qt::WindingFill);
     cleanPath = cleanPath.simplified();

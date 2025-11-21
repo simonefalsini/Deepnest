@@ -36,6 +36,8 @@
 
 using namespace deepnest;
 
+namespace JSComparisonTests {
+
 // Test result tracking
 struct TestResult {
     std::string testName;
@@ -271,13 +273,11 @@ void test_RotationAngleGeneration() {
         }
 
         // Generate some random rotations and verify they match valid angles
-        std::vector<Polygon> parts;
-        parts.push_back(Polygon({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, 0));
+        std::vector<PolygonPtr> parts;
+        std::vector<Point> points = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+        parts.push_back(std::make_shared<Polygon>(points, 0));
 
-        std::vector<Polygon*> partPtrs;
-        partPtrs.push_back(&parts[0]);
-
-        Individual ind(partPtrs, config, 12345);
+        Individual ind(parts, config, 12345);
 
         // Check rotation value is one of the valid angles
         bool validRotation = false;
@@ -429,7 +429,7 @@ void test_ConfigurationDefaults() {
 }
 
 // ========== Main Test Runner ==========
-int main() {
+int runTests() {
     std::cout << "========================================" << std::endl;
     std::cout << "FASE 4.3: JavaScript Comparison Tests" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -483,3 +483,9 @@ int main() {
         return 1;
     }
 }
+
+} // namespace JSComparisonTests
+
+#undef TEST_CASE
+#undef EXPECT_NEAR
+#undef EXPECT_TRUE
