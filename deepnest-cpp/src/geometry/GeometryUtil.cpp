@@ -579,6 +579,34 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     std::vector<Point> A = A_input;
     std::vector<Point> B = B_input;
 
+    // CRITICAL: Ensure correct winding order for orbital tracing
+    // OUTSIDE NFP requires both polygons to be CCW
+    // INSIDE NFP requires A to be CW, B to be CCW
+    double areaA = polygonArea(A);
+    double areaB = polygonArea(B);
+
+    if (!inside) {
+        // OUTSIDE: Both must be CCW (positive area)
+        if (areaA < 0) {
+            LOG_NFP("  Correcting A orientation: CW → CCW");
+            std::reverse(A.begin(), A.end());
+        }
+        if (areaB < 0) {
+            LOG_NFP("  Correcting B orientation: CW → CCW");
+            std::reverse(B.begin(), B.end());
+        }
+    } else {
+        // INSIDE: A must be CW (negative area), B must be CCW (positive area)
+        if (areaA > 0) {
+            LOG_NFP("  Correcting A orientation: CCW → CW");
+            std::reverse(A.begin(), A.end());
+        }
+        if (areaB < 0) {
+            LOG_NFP("  Correcting B orientation: CW → CCW");
+            std::reverse(B.begin(), B.end());
+        }
+    }
+
     // Initialize marked flags (used to track visited vertices)
     for (auto& p : A) p.marked = false;
     for (auto& p : B) p.marked = false;
