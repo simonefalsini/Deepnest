@@ -817,9 +817,10 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
 
             // Check if we've returned to any previous point
             // JavaScript lines 1688-1700
-            // MODIFICATION: Only allow this if we have traced enough of the perimeter
-            // to avoid premature loop closure on partial paths
+            // TEMPORARY: Disabled to force closure only at start point
+            // This helps identify if the algorithm is following the correct path
             bool looped = false;
+            /*
             if (nfp.size() > 2 * std::max(A.size(), B.size())) {  // Only after visiting 2x more points than polygon vertices
                 for (size_t i = 0; i < nfp.size() - 1; i++) {
                     if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
@@ -830,6 +831,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     }
                 }
             }
+            */
 
             if (looped) {
                 break;  // Completed loop
