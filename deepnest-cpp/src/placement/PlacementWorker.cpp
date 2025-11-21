@@ -2,9 +2,11 @@
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/Transformation.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
+#include "../../include/deepnest/placement/MergeDetection.h"
 #include <algorithm>
 #include <limits>
 #include <cmath>
+#include <map>
 
 namespace deepnest {
 
@@ -144,11 +146,11 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 #ifdef PLACEMENTDEBUG
                     std::cout << "\n=== NFP CALCULATION DEBUG ===" << std::endl;
                     std::cout << "  Sheet first 4 points: ";
-#endif
+
                     for (size_t p = 0; p < std::min(size_t(4), sheet.points.size()); ++p) {
                         std::cout << "(" << sheet.points[p].x << "," << sheet.points[p].y << ") ";
                     }
-#ifdef PLACEMENTDEBUG
+
                     std::cout << std::endl;
                     std::cout << "  Part first 4 points: ";
 
@@ -160,9 +162,17 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
  #endif 
                 }
 
-                auto innerNfps = nfpCalculator_.getInnerNFP(sheet, part);
-                if (!innerNfps.empty()) {
-                    innerNfp = innerNfps[0]; // Use first NFP polygon
+                try {
+                    auto innerNfps = nfpCalculator_.getInnerNFP(sheet, part);
+                    if (!innerNfps.empty()) {
+                        innerNfp = innerNfps[0]; // Use first NFP polygon
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "CRITICAL ERROR: getInnerNFP failed: " << e.what() << std::endl;
+                    continue;
+                } catch (...) {
+                    std::cerr << "CRITICAL ERROR: getInnerNFP failed with unknown exception" << std::endl;
+                    continue;
                 }
 
                 if (!innerNfp.points.empty()) {
@@ -330,11 +340,25 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                           << ") vs current part (id=" << part.id << ")" << std::endl;
 #endif
                 // JavaScript: nfp = getOuterNfp(placed[j], part);
-                Polygon outerNfp = nfpCalculator_.getOuterNFP(placed[j], part, false);
+                Polygon outerNfp;
+                try {
+                    outerNfp = nfpCalculator_.getOuterNFP(placed[j], part, false);
+                } catch (const std::exception& e) {
+                    std::cerr << "CRITICAL ERROR: getOuterNFP failed for placed part " << placed[j].id 
+                              << " vs " << part.id << ": " << e.what() << std::endl;
+                    error = true;
+                    break;
+                } catch (...) {
+                    std::cerr << "CRITICAL ERROR: getOuterNFP failed with unknown exception" << std::endl;
+                    error = true;
+                    break;
+                }
+
 #ifdef PLACEMENTDEBUG
                 std::cerr << "    Result: " << (outerNfp.points.empty() ? "EMPTY" : std::to_string(outerNfp.points.size()) + " points") << std::endl;
 #endif
                 if (outerNfp.points.empty()) {
+                    std::cerr << "ERROR: getOuterNFP returned empty polygon" << std::endl;
                     error = true;
                     break;
                 }
@@ -579,16 +603,29 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
     // Calculate total merged length
     // JavaScript: totalMerged = ... (calculated in separate loop)
-    totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
+    if (config_.mergeLines) {
+        totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
+        // JavaScript: fitness -= totalMerged * config.mergeLines;
+        // Note: config.mergeLines is a boolean in C++, but in JS it seemed to be used as a weight?
+        // Checking JS: if(config.mergeLines) { ... fitness -= merged * config.mergeLines; }
+        // Wait, if mergeLines is boolean true (1), it subtracts length.
+        // If it's a weight, it should be a double.
+        // Let's assume it's a boolean flag enabling the feature, and we subtract the length directly
+        // or use a weight if defined.
+        // Looking at DeepNestConfig, mergeLines is likely a boolean.
+        // If so, we subtract totalMerged.
+        fitness -= totalMerged;
+    }
 
     // GA DEBUG: Log fitness calculation with CORRECTED formulas (FIX 1.1, 1.2, 1.3)
     static int placementCount = 0;
     if (placementCount < 3) {  // Log first 3 placements only
+#ifdef PLACEMENTDEBUG
         std::cout << "\n=== PLACEMENT RESULT #" << placementCount << " (CORRECTED FITNESS) ===" << std::endl;
         std::cout << "  Sheets used: " << allPlacements.size() << std::endl;
         std::cout << "  Total sheet area: " << totalSheetArea << std::endl;
         std::cout << "  Unplaced parts: " << parts.size() << std::endl;
-
+#endif
         // Calculate fitness breakdown with CORRECTED formulas
         double sheetAreaPenalty = 0.0;
         for (const auto& placements : allPlacements) {
@@ -604,13 +641,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         // Remaining is bounds+minarea component
         double boundsAndMinarea = fitness - sheetAreaPenalty - unplacedPenalty;
-
+#ifdef PLACEMENTDEBUG
         std::cout << "  FINAL FITNESS: " << fitness << std::endl;
         std::cout << "    = sheet area penalty (" << sheetAreaPenalty << ")"
                   << " + bounds+minarea (" << boundsAndMinarea << ")"
                   << " + unplaced penalty (" << unplacedPenalty << ")" << std::endl;
         std::cout << "  [NOTE: Should be >> 1.0 if fixes working. Typical range: 100k-10M]" << std::endl;
         std::cout.flush();
+#endif
         placementCount++;
     }
 
@@ -683,23 +721,69 @@ double PlacementWorker::calculateTotalMergedLength(
     const std::vector<std::vector<Placement>>& allPlacements,
     const std::vector<Polygon>& originalParts
 ) const {
-    // This is a simplified version - full implementation would:
-    // 1. For each sheet's placements
-    // 2. Transform parts to their placed positions
-    // 3. Call MergeDetection::calculateMergedLength
-    // 4. Sum up total merged length
-
     double totalMerged = 0.0;
 
-    // JavaScript: for each sheet in allplacements
-    //   for each part in sheet
-    //     transform part to placement position
-    //     calculate merged length with all other placed parts
-    //   totalMerged += sheet merged length
+    // Map part ID to Polygon for quick lookup
+    std::map<int, Polygon> partMap;
+    for (const auto& part : originalParts) {
+        partMap[part.id] = part;
+    }
 
-    // For now, return 0 - this would be expanded in full implementation
-    // The complexity is that we need to track which original part each
-    // placement refers to, transform it, and check for merges
+    for (const auto& sheetPlacements : allPlacements) {
+        std::vector<Polygon> placedPolygons;
+        
+        for (const auto& placement : sheetPlacements) {
+            auto it = partMap.find(placement.id);
+            if (it != partMap.end()) {
+                // Create a copy of the part to transform
+                Polygon placedPart = it->second;
+                
+                // Rotate (if not already rotated in originalParts, but originalParts here ARE rotated)
+                // In placeParts, we passed 'rotatedParts' to this function.
+                // So the parts in partMap are already rotated to their placement rotation?
+                // Let's check placeParts:
+                // "parts = rotatedParts;" -> yes, 'parts' passed to this function are the rotated ones.
+                // However, 'allPlacements' contains the rotation used.
+                // If 'originalParts' are already rotated, we just need to translate.
+                
+                // Wait, 'rotatedParts' in placeParts has the INITIAL rotation.
+                // But during placement, parts might be rotated further?
+                // No, in the current logic:
+                // "parts[i] = rotated;" updates the part in the list.
+                // And "placed.push_back(part);" pushes the rotated part.
+                // So 'originalParts' passed here (which is 'rotatedParts' from placeParts) 
+                // contains the parts AS THEY WERE PLACED (rotation-wise).
+                
+                // Translate to placed position
+                for (auto& p : placedPart.points) {
+                    p.x += placement.position.x;
+                    p.y += placement.position.y;
+                }
+                
+                // Also translate children
+                for (auto& child : placedPart.children) {
+                    for (auto& p : child.points) {
+                        p.x += placement.position.x;
+                        p.y += placement.position.y;
+                    }
+                }
+                
+                // Calculate merged length with already placed parts on this sheet
+                // We check the new part against all previously placed parts
+                MergeDetection::MergeResult result = MergeDetection::calculateMergedLength(
+                    placedPolygons,
+                    placedPart,
+                    0.1, // minLength (arbitrary small value)
+                    config_.curveTolerance // tolerance
+                );
+                
+                totalMerged += result.totalLength;
+                
+                // Add to placed polygons for next iterations
+                placedPolygons.push_back(placedPart);
+            }
+        }
+    }
 
     return totalMerged;
 }
