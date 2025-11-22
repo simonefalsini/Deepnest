@@ -11,6 +11,80 @@
 namespace deepnest {
 namespace GeometryUtil {
 
+// ========== Integer Geometry (for precision) ==========
+
+/**
+ * @brief Integer point for exact geometric calculations
+ *
+ * Using integer coordinates eliminates floating-point precision issues:
+ * - slideDistance == 0 is exactly 0 (not ≈ 0)
+ * - No accumulation of rounding errors
+ * - Same approach as MinkowskiSum
+ */
+struct IntPoint {
+    int64_t x, y;
+    bool marked;  // For orbital tracing
+
+    IntPoint() : x(0), y(0), marked(false) {}
+    IntPoint(int64_t x_, int64_t y_, bool marked_ = false) : x(x_), y(y_), marked(marked_) {}
+
+    // Convert from double Point
+    static IntPoint fromDouble(const Point& p) {
+        return IntPoint(static_cast<int64_t>(p.x), static_cast<int64_t>(p.y), p.marked);
+    }
+
+    // Convert to double Point
+    Point toDouble() const {
+        Point p(static_cast<double>(x), static_cast<double>(y));
+        p.marked = marked;
+        return p;
+    }
+
+    // Vector operations
+    IntPoint operator+(const IntPoint& other) const {
+        return IntPoint(x + other.x, y + other.y);
+    }
+
+    IntPoint operator-(const IntPoint& other) const {
+        return IntPoint(x - other.x, y - other.y);
+    }
+
+    // Dot product
+    int64_t dot(const IntPoint& other) const {
+        return x * other.x + y * other.y;
+    }
+
+    // Cross product (for 2D, returns z-component)
+    int64_t cross(const IntPoint& other) const {
+        return x * other.y - y * other.x;
+    }
+
+    // Squared length (to avoid sqrt)
+    int64_t lengthSquared() const {
+        return x * x + y * y;
+    }
+};
+
+// Convert vector of Points to IntPoints
+std::vector<IntPoint> toIntPoints(const std::vector<Point>& points) {
+    std::vector<IntPoint> result;
+    result.reserve(points.size());
+    for (const auto& p : points) {
+        result.push_back(IntPoint::fromDouble(p));
+    }
+    return result;
+}
+
+// Convert vector of IntPoints to Points
+std::vector<Point> toDoublePoints(const std::vector<IntPoint>& points) {
+    std::vector<Point> result;
+    result.reserve(points.size());
+    for (const auto& p : points) {
+        result.push_back(p.toDouble());
+    }
+    return result;
+}
+
 // ========== Basic Utility Functions ==========
 
 bool almostEqualPoints(const Point& a, const Point& b, double tolerance) {
@@ -815,13 +889,21 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     slideDistance = vecLength;
                 }
                 else {
-                    // CRITICAL FIX: Use slideOpt value directly, even if it's near zero.
-                    // Previously, we used vecLength when slideOpt≈0, but this causes infinite loops:
-                    // - Vector gets selected based on large edge length
-                    // - But actual movement is limited by tiny slideOpt value
-                    // - Reference point barely moves, loop doesn't close
-                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") using slideOpt=" << slideOpt.value());
-                    slideDistance = slideOpt.value();
+                    // INTEGER MATH FIX: Use integer comparison to check if slideOpt is exactly zero
+                    // This eliminates floating-point precision issues (slideDistance ≈ 0 but not == 0)
+                    // When polygons are touching, slideOpt should be exactly 0 (not 1.4679e-05)
+                    int64_t slideOptInt = static_cast<int64_t>(std::round(slideOpt.value()));
+
+                    if (slideOptInt == 0 && vecLength > TOL) {
+                        // REAB ILITATA! When already touching (slide=0 EXACTLY), use vector length to continue along edge
+                        LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
+                               << " rounds to 0 (already touching) → using vecLength=" << vecLength);
+                        slideDistance = vecLength;
+                    }
+                    else {
+                        LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") using slideOpt=" << slideOpt.value());
+                        slideDistance = slideOpt.value();
+                    }
                 }
 
                 LOG_NFP("      Candidate: (" << vec.x << ", " << vec.y << ") slide=" << slideDistance
