@@ -276,13 +276,34 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(
 
     std::vector<IntPolygonWithHoles> boostPolygons;
 
+    // First, try to get polygon count without extracting (if possible)
+    std::cerr << "[MINK-EXTRACT] Attempting to extract polygons from polygon set..." << std::endl;
+    std::cerr << "[MINK-EXTRACT] Scale factor: " << scale << std::endl;
+
     try {
-        std::cerr << "[MINK-EXTRACT] Attempting to extract polygons from polygon set..." << std::endl;
         polySet.get(boostPolygons);
         std::cerr << "[MINK-EXTRACT] Successfully extracted " << boostPolygons.size() << " polygon(s)" << std::endl;
+
+        // Log point count for each polygon
+        for (size_t i = 0; i < boostPolygons.size(); ++i) {
+            size_t pointCount = 0;
+            for (auto it = begin_points(boostPolygons[i]); it != end_points(boostPolygons[i]); ++it) {
+                pointCount++;
+            }
+            std::cerr << "[MINK-EXTRACT] Polygon[" << i << "]: " << pointCount << " points" << std::endl;
+            if (pointCount > 200) {
+                std::cerr << "[MINK-WARNING] Polygon has excessive point count (" << pointCount
+                         << "), may indicate overflow or degenerate geometry" << std::endl;
+            }
+        }
     } catch (const std::exception& e) {
-        std::cerr << "[MINK-ERROR] Exception in polySet.get(): " << e.what() << std::endl;
+        std::cerr << "[MINK-ERROR] std::exception in polySet.get(): " << e.what() << std::endl;
         std::cerr << "[MINK-ERROR] This likely indicates integer overflow in Boost.Polygon" << std::endl;
+        std::cerr << "[MINK-ERROR] Scale factor was: " << scale << std::endl;
+        throw;
+    } catch (...) {
+        std::cerr << "[MINK-ERROR] UNKNOWN exception in polySet.get() (not std::exception)" << std::endl;
+        std::cerr << "[MINK-ERROR] This is likely an overflow in Boost.Polygon comparator" << std::endl;
         std::cerr << "[MINK-ERROR] Scale factor was: " << scale << std::endl;
         throw;
     }
