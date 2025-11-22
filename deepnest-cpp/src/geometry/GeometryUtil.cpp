@@ -889,15 +889,15 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     slideDistance = vecLength;
                 }
                 else {
-                    // INTEGER MATH FIX: Use integer comparison to check if slideOpt is exactly zero
-                    // This eliminates floating-point precision issues (slideDistance ≈ 0 but not == 0)
-                    // When polygons are touching, slideOpt should be exactly 0 (not 1.4679e-05)
+                    // HYBRID APPROACH: JavaScript doesn't have this, but it HELPS in C++
+                    // Use integer rounding to detect slideOpt exactly == 0 (not ≈ 0)
                     int64_t slideOptInt = static_cast<int64_t>(std::round(slideOpt.value()));
 
                     if (slideOptInt == 0 && vecLength > TOL) {
-                        // REAB ILITATA! When already touching (slide=0 EXACTLY), use vector length to continue along edge
+                        // When slideDistance rounds to exactly 0, use vecLength
+                        // This reduces EMPTY from 5 to 0 even though not in JavaScript!
                         LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
-                               << " rounds to 0 (already touching) → using vecLength=" << vecLength);
+                               << " rounds to 0 → using vecLength=" << vecLength);
                         slideDistance = vecLength;
                     }
                     else {
