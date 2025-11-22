@@ -814,12 +814,12 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                            << " > vecLength²=" << vecLength2 << ") → using vecLength=" << vecLength);
                     slideDistance = vecLength;
                 }
-                else if (almostEqual(slideOpt.value(), 0.0) && vecLength > TOL) {
-                    // When already touching (slide=0), use vector length to continue along edge
-                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt≈0 (already touching) → using vecLength=" << vecLength);
-                    slideDistance = vecLength;
-                }
                 else {
+                    // CRITICAL FIX: Use slideOpt value directly, even if it's near zero.
+                    // Previously, we used vecLength when slideOpt≈0, but this causes infinite loops:
+                    // - Vector gets selected based on large edge length
+                    // - But actual movement is limited by tiny slideOpt value
+                    // - Reference point barely moves, loop doesn't close
                     LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") using slideOpt=" << slideOpt.value());
                     slideDistance = slideOpt.value();
                 }

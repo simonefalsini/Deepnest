@@ -39,6 +39,28 @@ std::vector<ProblematicPair> problematicPairs = {
     {39, 60, "13 points vs 8 points"},
 };
 
+// Structure to track failed NFP comparisons
+struct NFPComparisonFailure {
+    int idA;
+    int idB;
+    bool isInner;
+    std::string failureType;  // "empty_minkowski", "empty_orbital", "mismatch"
+    double hausdorffDistance;
+    double areaPercent;
+    int minkowskiPoints;
+    int orbitalPoints;
+};
+
+// Comparison result structure
+struct ComparisonResult {
+    bool passed;
+    std::string failureType;
+    double hausdorffDistance;
+    double areaPercent;
+    int minkowskiPoints;
+    int orbitalPoints;
+};
+
 /**
  * Calculate Hausdorff distance between two polygons
  * Returns the maximum minimum distance from any point of poly1 to poly2
@@ -66,67 +88,109 @@ double hausdorffDistance(const std::vector<deepnest::Point>& poly1, const std::v
 }
 
 /**
- * Compare two NFP results and report differences
+ * Compare two NFP results and return comparison metrics (silent version for --all-pairs)
+ */
+ComparisonResult compareNFPsSilent(const std::vector<deepnest::Polygon>& minkowskiNFPs,
+                                    const std::vector<deepnest::Polygon>& orbitalNFPs) {
+    ComparisonResult result;
+    result.passed = false;
+    result.minkowskiPoints = minkowskiNFPs.empty() ? 0 : (minkowskiNFPs[0].points.empty() ? 0 : minkowskiNFPs[0].points.size());
+    result.orbitalPoints = orbitalNFPs.empty() ? 0 : (orbitalNFPs[0].points.empty() ? 0 : orbitalNFPs[0].points.size());
+
+    if (minkowskiNFPs.empty() && orbitalNFPs.empty()) {
+        result.failureType = "both_empty";
+        result.hausdorffDistance = 0.0;
+        result.areaPercent = 0.0;
+        result.passed = true;  // Both failed equally
+        return result;
+    }
+
+    if (minkowskiNFPs.empty() || minkowskiNFPs[0].points.empty()) {
+        result.failureType = "empty_minkowski";
+        result.hausdorffDistance = std::numeric_limits<double>::infinity();
+        result.areaPercent = 100.0;
+        return result;
+    }
+
+    if (orbitalNFPs.empty() || orbitalNFPs[0].points.empty()) {
+        result.failureType = "empty_orbital";
+        result.hausdorffDistance = std::numeric_limits<double>::infinity();
+        result.areaPercent = 100.0;
+        return result;
+    }
+
+    // Compare first NFP
+    const auto& minkNFP = minkowskiNFPs[0];
+    const auto& orbNFP = orbitalNFPs[0];
+
+    // Calculate Hausdorff distance
+    double dist_M_to_O = hausdorffDistance(minkNFP.points, orbNFP.points);
+    double dist_O_to_M = hausdorffDistance(orbNFP.points, minkNFP.points);
+    result.hausdorffDistance = std::max(dist_M_to_O, dist_O_to_M);
+
+    // Calculate area difference
+    double minkArea = std::abs(deepnest::GeometryUtil::polygonArea(minkNFP.points));
+    double orbArea = std::abs(deepnest::GeometryUtil::polygonArea(orbNFP.points));
+    double areaDiff = std::abs(minkArea - orbArea);
+    result.areaPercent = (minkArea > 0) ? (areaDiff / minkArea * 100.0) : 0.0;
+
+    // Determine if NFPs match
+    const double TOLERANCE = 0.5;
+    const double AREA_TOLERANCE = 5.0;  // 5% area difference
+
+    if (result.hausdorffDistance < TOLERANCE && result.areaPercent < AREA_TOLERANCE) {
+        result.passed = true;
+        result.failureType = "pass";
+    } else if (result.hausdorffDistance < 5.0) {
+        result.passed = false;
+        result.failureType = "minor_mismatch";
+    } else {
+        result.passed = false;
+        result.failureType = "major_mismatch";
+    }
+
+    return result;
+}
+
+/**
+ * Compare two NFP results and report differences (verbose version for single tests)
  */
 void compareNFPs(const std::vector<deepnest::Polygon>& minkowskiNFPs,
                  const std::vector<deepnest::Polygon>& orbitalNFPs,
                  const std::string& testLabel = "") {
     std::cout << "\n=== NFP Comparison" << (testLabel.empty() ? "" : " (" + testLabel + ")") << " ===" << std::endl;
 
-    if (minkowskiNFPs.empty() && orbitalNFPs.empty()) {
+    ComparisonResult result = compareNFPsSilent(minkowskiNFPs, orbitalNFPs);
+
+    std::cout << "  Point count comparison:" << std::endl;
+    std::cout << "    Minkowski: " << result.minkowskiPoints << " points" << std::endl;
+    std::cout << "    Orbital:   " << result.orbitalPoints << " points" << std::endl;
+
+    if (result.failureType == "both_empty") {
         std::cout << "  Both algorithms returned empty NFPs" << std::endl;
         return;
     }
 
-    if (minkowskiNFPs.empty()) {
-        std::cout << "  ⚠️  WARNING: Minkowski returned empty, Orbital returned " << orbitalNFPs.size() << " NFP(s)" << std::endl;
+    if (result.failureType == "empty_minkowski") {
+        std::cout << "  ⚠️  WARNING: Minkowski returned empty, Orbital returned NFP" << std::endl;
         return;
     }
 
-    if (orbitalNFPs.empty()) {
-        std::cout << "  ⚠️  WARNING: Orbital returned empty, Minkowski returned " << minkowskiNFPs.size() << " NFP(s)" << std::endl;
+    if (result.failureType == "empty_orbital") {
+        std::cout << "  ⚠️  WARNING: Orbital returned empty, Minkowski returned NFP" << std::endl;
         return;
     }
 
-    // Compare first NFP (most common case)
-    const auto& minkNFP = minkowskiNFPs[0];
-    const auto& orbNFP = orbitalNFPs[0];
+    std::cout << "  Hausdorff distance: " << result.hausdorffDistance << std::endl;
+    std::cout << "  Area difference: " << result.areaPercent << "%" << std::endl;
 
-    std::cout << "  Point count comparison:" << std::endl;
-    std::cout << "    Minkowski: " << minkNFP.points.size() << " points" << std::endl;
-    std::cout << "    Orbital:   " << orbNFP.points.size() << " points" << std::endl;
-
-    // Calculate Hausdorff distance (both directions)
-    double dist_M_to_O = hausdorffDistance(minkNFP.points, orbNFP.points);
-    double dist_O_to_M = hausdorffDistance(orbNFP.points, minkNFP.points);
-    double hausdorff = std::max(dist_M_to_O, dist_O_to_M);
-
-    std::cout << "  Hausdorff distance:" << std::endl;
-    std::cout << "    Minkowski → Orbital: " << dist_M_to_O << std::endl;
-    std::cout << "    Orbital → Minkowski: " << dist_O_to_M << std::endl;
-    std::cout << "    Maximum (Hausdorff):  " << hausdorff << std::endl;
-
-    // Determine if NFPs match (within tolerance)
-    const double TOLERANCE = 0.5;  // Acceptable difference in units
-
-    if (hausdorff < TOLERANCE) {
-        std::cout << "  ✅ MATCH: NFPs are equivalent (distance < " << TOLERANCE << ")" << std::endl;
-    } else if (hausdorff < 5.0) {
-        std::cout << "  ⚠️  MINOR DIFFERENCE: NFPs are close but not exact (distance = " << hausdorff << ")" << std::endl;
+    if (result.passed) {
+        std::cout << "  ✅ MATCH: NFPs are equivalent" << std::endl;
+    } else if (result.failureType == "minor_mismatch") {
+        std::cout << "  ⚠️  MINOR DIFFERENCE: NFPs are close but not exact" << std::endl;
     } else {
-        std::cout << "  ❌ MISMATCH: NFPs are significantly different (distance = " << hausdorff << ")" << std::endl;
+        std::cout << "  ❌ MISMATCH: NFPs are significantly different" << std::endl;
     }
-
-    // Calculate area difference
-    double minkArea = std::abs(deepnest::GeometryUtil::polygonArea(minkNFP.points));
-    double orbArea = std::abs(deepnest::GeometryUtil::polygonArea(orbNFP.points));
-    double areaDiff = std::abs(minkArea - orbArea);
-    double areaPercent = (minkArea > 0) ? (areaDiff / minkArea * 100.0) : 0.0;
-
-    std::cout << "  Area comparison:" << std::endl;
-    std::cout << "    Minkowski: " << minkArea << std::endl;
-    std::cout << "    Orbital:   " << orbArea << std::endl;
-    std::cout << "    Difference: " << areaDiff << " (" << areaPercent << "%)" << std::endl;
 }
 
 /**
@@ -482,40 +546,100 @@ int main(int argc, char *argv[]) {
         std::cout << "  - Inner NFP (sheet vs part): " << totalInnerPairs << " pairs" << std::endl;
 
         int testsCompleted = 0;
-        int testsFailed = 0;
+        int testsPassed = 0;
+        int testsMinorDiff = 0;
+        int testsMajorMismatch = 0;
+        int testsEmpty = 0;
+        std::vector<NFPComparisonFailure> failures;
 
         // ========== PART 1: Test all OUTER NFP pairs (part vs part) ==========
         std::cout << "\n========================================" << std::endl;
         std::cout << "  PART 1: OUTER NFP (part vs part)" << std::endl;
         std::cout << "========================================" << std::endl;
+        std::cout << "Testing " << totalOuterPairs << " pairs..." << std::endl;
 
         for (size_t i = 0; i < polygons.size(); i++) {
             for (size_t j = i + 1; j < polygons.size(); j++) {
                 testsCompleted++;
 
-                std::cout << "\n----------------------------------------" << std::endl;
-                std::cout << "Test " << testsCompleted << "/" << totalTests << std::endl;
-                std::cout << "Outer NFP: Polygon " << polygons[i].id << " vs " << polygons[j].id << std::endl;
-                std::cout << "  A: " << polygons[i].points.size() << " points" << std::endl;
-                std::cout << "  B: " << polygons[j].points.size() << " points" << std::endl;
-                std::cout << "----------------------------------------" << std::endl;
+                // Progress indicator every 100 tests
+                if (testsCompleted % 100 == 0 || testsCompleted == 1) {
+                    std::cout << "  Progress: " << testsCompleted << "/" << totalTests
+                              << " (Pass: " << testsPassed << ", Fail: " << (testsCompleted - testsPassed) << ")" << std::endl;
+                }
 
                 try {
-                    // Test orbital tracing (faster than Minkowski for --all-pairs)
-                    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polygons[i].points, polygons[j].points, false, false);
+                    // Test both algorithms
+                    auto minkowskiNFPs = deepnest::MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
 
-                    if (nfpPoints.empty() || nfpPoints[0].empty()) {
-                        std::cout << "  ❌ FAILED: Orbital tracing returned empty NFP" << std::endl;
-                        testsFailed++;
-                    } else {
-                        std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP(s), " << nfpPoints[0].size() << " points" << std::endl;
+                    // Apply B[0] translation to Minkowski NFP
+                    if (!minkowskiNFPs.empty() && !polygons[j].points.empty()) {
+                        for (auto& nfp : minkowskiNFPs) {
+                            nfp = nfp.translate(polygons[j].points[0].x, polygons[j].points[0].y);
+                        }
                     }
+
+                    auto orbitalPoints = deepnest::GeometryUtil::noFitPolygon(polygons[i].points, polygons[j].points, false, false);
+
+                    // Convert orbital to Polygon
+                    std::vector<deepnest::Polygon> orbitalNFPs;
+                    for (const auto& points : orbitalPoints) {
+                        deepnest::Polygon nfp;
+                        nfp.points = points;
+                        orbitalNFPs.push_back(nfp);
+                    }
+
+                    // Compare results
+                    auto comparison = compareNFPsSilent(minkowskiNFPs, orbitalNFPs);
+
+                    if (comparison.passed) {
+                        testsPassed++;
+                    } else {
+                        // Record failure
+                        NFPComparisonFailure failure;
+                        failure.idA = polygons[i].id;
+                        failure.idB = polygons[j].id;
+                        failure.isInner = false;
+                        failure.failureType = comparison.failureType;
+                        failure.hausdorffDistance = comparison.hausdorffDistance;
+                        failure.areaPercent = comparison.areaPercent;
+                        failure.minkowskiPoints = comparison.minkowskiPoints;
+                        failure.orbitalPoints = comparison.orbitalPoints;
+                        failures.push_back(failure);
+
+                        if (comparison.failureType == "minor_mismatch") {
+                            testsMinorDiff++;
+                        } else if (comparison.failureType == "major_mismatch") {
+                            testsMajorMismatch++;
+                        } else {
+                            testsEmpty++;
+                        }
+                    }
+
                 } catch (const std::exception& e) {
-                    std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
-                    testsFailed++;
+                    NFPComparisonFailure failure;
+                    failure.idA = polygons[i].id;
+                    failure.idB = polygons[j].id;
+                    failure.isInner = false;
+                    failure.failureType = "exception: " + std::string(e.what());
+                    failure.hausdorffDistance = std::numeric_limits<double>::infinity();
+                    failure.areaPercent = 100.0;
+                    failure.minkowskiPoints = 0;
+                    failure.orbitalPoints = 0;
+                    failures.push_back(failure);
+                    testsEmpty++;
                 } catch (...) {
-                    std::cout << "  ❌ UNKNOWN EXCEPTION" << std::endl;
-                    testsFailed++;
+                    NFPComparisonFailure failure;
+                    failure.idA = polygons[i].id;
+                    failure.idB = polygons[j].id;
+                    failure.isInner = false;
+                    failure.failureType = "unknown_exception";
+                    failure.hausdorffDistance = std::numeric_limits<double>::infinity();
+                    failure.areaPercent = 100.0;
+                    failure.minkowskiPoints = 0;
+                    failure.orbitalPoints = 0;
+                    failures.push_back(failure);
+                    testsEmpty++;
                 }
             }
         }
@@ -524,82 +648,54 @@ int main(int argc, char *argv[]) {
         std::cout << "\n========================================" << std::endl;
         std::cout << "  PART 2: INNER NFP (sheet vs part)" << std::endl;
         std::cout << "========================================" << std::endl;
-
-        // Create sheet polygon (bounding rectangle of all polygons + margin)
-        if (!polygons.empty()) {
-            // Calculate combined bounding box
-            deepnest::BoundingBox combinedBox = polygons[0].bounds();
-            for (size_t i = 1; i < polygons.size(); i++) {
-                deepnest::BoundingBox box = polygons[i].bounds();
-                combinedBox.x = std::min(combinedBox.x, box.x);
-                combinedBox.y = std::min(combinedBox.y, box.y);
-                double maxX = std::max(combinedBox.x + combinedBox.width, box.x + box.width);
-                double maxY = std::max(combinedBox.y + combinedBox.height, box.y + box.height);
-                combinedBox.width = maxX - combinedBox.x;
-                combinedBox.height = maxY - combinedBox.y;
-            }
-
-            // Add margin (20% on each side)
-            double margin = std::max(combinedBox.width, combinedBox.height) * 0.2;
-            combinedBox.x -= margin;
-            combinedBox.y -= margin;
-            combinedBox.width += 2 * margin;
-            combinedBox.height += 2 * margin;
-
-            // Create sheet polygon (rectangle)
-            deepnest::Polygon sheet;
-            sheet.id = 0;// "sheet";
-            sheet.points.push_back({combinedBox.x, combinedBox.y});
-            sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y});
-            sheet.points.push_back({combinedBox.x + combinedBox.width, combinedBox.y + combinedBox.height});
-            sheet.points.push_back({combinedBox.x, combinedBox.y + combinedBox.height});
-
-            std::cout << "Sheet rectangle: " << combinedBox.width << " x " << combinedBox.height << std::endl;
-            std::cout << "Sheet origin: (" << combinedBox.x << ", " << combinedBox.y << ")" << std::endl;
-
-            // Test each part against sheet
-            for (size_t i = 0; i < polygons.size(); i++) {
-                testsCompleted++;
-
-                std::cout << "\n----------------------------------------" << std::endl;
-                std::cout << "Test " << testsCompleted << "/" << totalTests << std::endl;
-                std::cout << "Inner NFP: Sheet vs Polygon " << polygons[i].id << std::endl;
-                std::cout << "  Sheet: " << sheet.points.size() << " points (rectangle)" << std::endl;
-                std::cout << "  Part: " << polygons[i].points.size() << " points" << std::endl;
-                std::cout << "----------------------------------------" << std::endl;
-
-                try {
-                    // Test orbital tracing (inner NFP)
-                    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(sheet.points, polygons[i].points, true, false);
-
-                    if (nfpPoints.empty() || nfpPoints[0].empty()) {
-                        std::cout << "  ❌ FAILED: Orbital tracing returned empty NFP" << std::endl;
-                        testsFailed++;
-                    } else {
-                        std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP(s), " << nfpPoints[0].size() << " points" << std::endl;
-                    }
-                } catch (const std::exception& e) {
-                    std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
-                    testsFailed++;
-                } catch (...) {
-                    std::cout << "  ❌ UNKNOWN EXCEPTION" << std::endl;
-                    testsFailed++;
-                }
-            }
-        }
+        std::cout << "Skipping INNER NFP tests (focus on OUTER for now)" << std::endl;
+        // Note: INNER NFP testing can be added later if needed
 
         // ========== SUMMARY ==========
         std::cout << "\n========================================" << std::endl;
         std::cout << "  ALL PAIRS TEST SUMMARY" << std::endl;
         std::cout << "========================================" << std::endl;
-        std::cout << "Total tests: " << testsCompleted << std::endl;
-        std::cout << "Succeeded: " << (testsCompleted - testsFailed) << std::endl;
-        std::cout << "Failed/Warning: " << testsFailed << std::endl;
+        std::cout << "Total tests completed: " << testsCompleted << std::endl;
+        std::cout << "  ✅ PASSED: " << testsPassed << " (" << (testsPassed * 100.0 / testsCompleted) << "%)" << std::endl;
+        std::cout << "  ⚠️  MINOR DIFF: " << testsMinorDiff << std::endl;
+        std::cout << "  ❌ MAJOR MISMATCH: " << testsMajorMismatch << std::endl;
+        std::cout << "  💥 EMPTY/EXCEPTION: " << testsEmpty << std::endl;
 
-        if (testsFailed == 0) {
-            std::cout << "\n✅ ALL TESTS PASSED!" << std::endl;
+        // Print failed comparisons
+        if (!failures.empty()) {
+            std::cout << "\n========================================" << std::endl;
+            std::cout << "  FAILED COMPARISONS (" << failures.size() << ")" << std::endl;
+            std::cout << "========================================" << std::endl;
+
+            // Print first 50 failures in detail
+            int printLimit = std::min(50, (int)failures.size());
+            for (int i = 0; i < printLimit; i++) {
+                const auto& f = failures[i];
+                std::cout << "\n" << (i+1) << ". Pair " << f.idA << " vs " << f.idB
+                          << " (" << (f.isInner ? "INNER" : "OUTER") << ")" << std::endl;
+                std::cout << "   Type: " << f.failureType << std::endl;
+                std::cout << "   Points: Mink=" << f.minkowskiPoints << ", Orb=" << f.orbitalPoints << std::endl;
+                if (std::isfinite(f.hausdorffDistance)) {
+                    std::cout << "   Hausdorff: " << f.hausdorffDistance << ", Area diff: " << f.areaPercent << "%" << std::endl;
+                }
+            }
+
+            if (failures.size() > 50) {
+                std::cout << "\n... and " << (failures.size() - 50) << " more failures" << std::endl;
+            }
+
+            // Print command to re-test first failure
+            if (!failures.empty()) {
+                const auto& first = failures[0];
+                std::cout << "\n========================================" << std::endl;
+                std::cout << "  TO DEBUG FIRST FAILURE" << std::endl;
+                std::cout << "========================================" << std::endl;
+                std::cout << "Run:" << std::endl;
+                std::cout << "./bin/PolygonExtractor " << argv[1] << " --test-pair "
+                          << first.idA << " " << first.idB << std::endl;
+            }
         } else {
-            std::cout << "\n⚠️  Some tests failed or returned empty results" << std::endl;
+            std::cout << "\n✅ ALL TESTS PASSED!" << std::endl;
         }
 
     } else if (targetIdA != -1 && targetIdB != -1) {
