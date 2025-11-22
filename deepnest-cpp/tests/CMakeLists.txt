@@ -42,3 +42,35 @@ install(TARGETS PolygonExtractor
 )
 
 message(STATUS "PolygonExtractor test tool configured")
+
+# ===== GeometryValidationTests =====
+add_executable(GeometryValidationTests
+    GeometryValidationTests.cpp
+)
+
+target_include_directories(GeometryValidationTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(GeometryValidationTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(GeometryValidationTests PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(GeometryValidationTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Install target
+install(TARGETS GeometryValidationTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "GeometryValidationTests configured")
