@@ -53,54 +53,41 @@ public:
         bool inner = false
     );
 
-    /**
-     * @brief Calculate optimal scale factor for integer conversion
-     *
-     * Boost.Polygon's Minkowski functions work with integers,
-     * so we need to scale floating point coordinates appropriately.
-     *
-     * @param A First polygon
-     * @param B Second polygon
-     * @return Scale factor to use
-     */
-    static double calculateScale(const Polygon& A, const Polygon& B);
-
 private:
 
     /**
      * @brief Convert polygon to Boost integer polygon
      *
+     * Converts double coordinates to integer by direct truncation.
+     * Assumes input polygons are in reasonable coordinate ranges.
+     *
      * @param poly Input polygon
-     * @param scale Scale factor
      * @return Boost polygon with integer coordinates
      */
     static boost::polygon::polygon_with_holes_data<int> toBoostIntPolygon(
-        const Polygon& poly,
-        double scale
+        const Polygon& poly
     );
 
     /**
      * @brief Convert Boost integer polygon back to our Polygon
      *
+     * Converts integer coordinates back to doubles.
+     *
      * @param boostPoly Boost polygon with integer coordinates
-     * @param scale Scale factor used for conversion
      * @return Our Polygon with floating point coordinates
      */
     static Polygon fromBoostIntPolygon(
-        const boost::polygon::polygon_with_holes_data<int>& boostPoly,
-        double scale
+        const boost::polygon::polygon_with_holes_data<int>& boostPoly
     );
 
     /**
      * @brief Extract polygons from Boost polygon set
      *
      * @param polySet Boost polygon set
-     * @param scale Scale factor
      * @return Vector of our Polygons
      */
     static std::vector<Polygon> fromBoostPolygonSet(
-        const boost::polygon::polygon_set_data<int>& polySet,
-        double scale
+        const boost::polygon::polygon_set_data<int>& polySet
     );
 };
 

@@ -95,47 +95,15 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
         return conservativeNFP;
     }
 
-    std::cerr << "  [MINK] MinkowskiSum returned " << nfps.size() << " NFP(s)" << std::endl;
-
     // If only one result, return it
     if (nfps.size() == 1) {
         Polygon result = nfps[0];
 
-        std::cerr << "  [MINK] NFP BEFORE translation (first 5 points):" << std::endl;
-        for (size_t i = 0; i < std::min(size_t(5), result.points.size()); i++) {
-            std::cerr << "    [" << i << "] (" << result.points[i].x << ", " << result.points[i].y << ")" << std::endl;
-        }
-
         // Translate by B's first point as in JavaScript code
         // (clipperNfp[i].x += B[0].x; clipperNfp[i].y += B[0].y;)
         if (!B.points.empty()) {
-            std::cerr << "  [MINK] Translating by B[0] = (" << B.points[0].x << ", " << B.points[0].y << ")" << std::endl;
             result = result.translate(B.points[0].x, B.points[0].y);
         }
-
-        std::cerr << "  [MINK] NFP AFTER translation (first 5 points):" << std::endl;
-        for (size_t i = 0; i < std::min(size_t(5), result.points.size()); i++) {
-            std::cerr << "    [" << i << "] (" << result.points[i].x << ", " << result.points[i].y << ")" << std::endl;
-        }
-
-        // DEBUG LOGGING - DISABLED for cleaner output
-        // if (first_nfp_call && inside) {
-        //     std::cout << "NFP[0] first 4 points AFTER translation: ";
-        //     for (size_t i = 0; i < std::min(size_t(4), result.points.size()); ++i) {
-        //         std::cout << "(" << result.points[i].x << "," << result.points[i].y << ") ";
-        //     }
-        //     std::cout << std::endl;
-        //     std::cout << "NFP[0] children count: " << result.children.size() << std::endl;
-        //     if (!result.children.empty()) {
-        //         std::cout << "NFP[0].children[0] first 4 points: ";
-        //         for (size_t i = 0; i < std::min(size_t(4), result.children[0].points.size()); ++i) {
-        //             std::cout << "(" << result.children[0].points[i].x << "," << result.children[0].points[i].y << ") ";
-        //         }
-        //         std::cout << std::endl;
-        //     }
-        //     std::cout.flush();
-        //     first_nfp_call = false;
-        // }
 
         return result;
     }

@@ -210,14 +210,6 @@ void testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& p
             std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
         }
 
-        // DEBUG: Print ALL points of first NFP
-        if (!nfps.empty() && !nfps[0].points.empty()) {
-            std::cout << "  [DEBUG] Minkowski NFP[0] ALL " << nfps[0].points.size() << " points:" << std::endl;
-            for (size_t i = 0; i < nfps[0].points.size(); ++i) {
-                std::cout << "    [" << i << "] (" << nfps[0].points[i].x << ", " << nfps[0].points[i].y << ")" << std::endl;
-            }
-        }
-
         // Save combined visualization
         QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
                           .arg(polyA.id).arg(polyB.id);
