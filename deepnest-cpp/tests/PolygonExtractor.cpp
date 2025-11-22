@@ -501,14 +501,14 @@ int main(int argc, char *argv[]) {
                 std::cout << "----------------------------------------" << std::endl;
 
                 try {
-                    // Test Minkowski sum (outer NFP)
-                    auto nfps = deepnest::MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
+                    // Test orbital tracing (faster than Minkowski for --all-pairs)
+                    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polygons[i].points, polygons[j].points, false, false);
 
-                    if (nfps.empty()) {
-                        std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
+                    if (nfpPoints.empty() || nfpPoints[0].empty()) {
+                        std::cout << "  ❌ FAILED: Orbital tracing returned empty NFP" << std::endl;
                         testsFailed++;
                     } else {
-                        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP(s) generated" << std::endl;
+                        std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP(s), " << nfpPoints[0].size() << " points" << std::endl;
                     }
                 } catch (const std::exception& e) {
                     std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
@@ -569,14 +569,14 @@ int main(int argc, char *argv[]) {
                 std::cout << "----------------------------------------" << std::endl;
 
                 try {
-                    // Test Minkowski sum (inner NFP)
-                    auto nfps = deepnest::MinkowskiSum::calculateNFP(sheet, polygons[i], true);
+                    // Test orbital tracing (inner NFP)
+                    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(sheet.points, polygons[i].points, true, false);
 
-                    if (nfps.empty()) {
-                        std::cout << "  ⚠️  WARNING: Returned empty NFP" << std::endl;
+                    if (nfpPoints.empty() || nfpPoints[0].empty()) {
+                        std::cout << "  ❌ FAILED: Orbital tracing returned empty NFP" << std::endl;
                         testsFailed++;
                     } else {
-                        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP(s) generated" << std::endl;
+                        std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP(s), " << nfpPoints[0].size() << " points" << std::endl;
                     }
                 } catch (const std::exception& e) {
                     std::cout << "  ❌ EXCEPTION: " << e.what() << std::endl;
