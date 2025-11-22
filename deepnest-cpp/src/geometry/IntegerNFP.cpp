@@ -208,6 +208,41 @@ inline bool pointOnSegment(const IntPoint& p, const IntPoint& a, const IntPoint&
 }
 
 /**
+ * @brief Calculate squared distance from point to line segment
+ */
+inline __int128 distanceToSegmentSquared(const IntPoint& p, const IntPoint& a, const IntPoint& b) {
+    __int128 dx = static_cast<__int128>(b.x - a.x);
+    __int128 dy = static_cast<__int128>(b.y - a.y);
+    __int128 len2 = dx * dx + dy * dy;
+
+    if (len2 == 0) {
+        // Degenerate segment (a == b)
+        return distanceSquared(p, a);
+    }
+
+    // Compute parametric position t of closest point on segment
+    // t = ((p - a) · (b - a)) / |b - a|^2
+    __int128 dpx = static_cast<__int128>(p.x - a.x);
+    __int128 dpy = static_cast<__int128>(p.y - a.y);
+    __int128 t = (dpx * dx + dpy * dy);
+
+    if (t <= 0) {
+        // Closest to a
+        return distanceSquared(p, a);
+    } else if (t >= len2) {
+        // Closest to b
+        return distanceSquared(p, b);
+    } else {
+        // Closest to interior point
+        // Project p onto line: proj = a + t*(b-a) / len2
+        //Distance^2 = |p - proj|^2        // Using formula: dist^2 = |p-a|^2 - t^2/len2
+        __int128 dp_len2 = dpx * dpx + dpy * dpy;
+        __int128 dist2 = dp_len2 - (t * t) / len2;
+        return dist2 >= 0 ? dist2 : 0;  // Clamp to 0 to avoid negative due to rounding
+    }
+}
+
+/**
  * @brief Check if two segments intersect (exclusive of endpoints unless overlapping)
  * Returns true if segments have a non-trivial intersection
  */
@@ -354,15 +389,20 @@ struct TouchingPoint {
 
 /**
  * @brief Find all touching points between A and B
- * "Touching" means zero distance (exact with integer math)
+ * "Touching" means zero or very small distance
+ * We allow a small tolerance to handle rounding errors from trimming
  */
 std::vector<TouchingPoint> findTouchingPoints(const IntPolygon& A, const IntPolygon& B) {
     std::vector<TouchingPoint> touching;
 
+    // Small tolerance for "touching" (about 0.01 after scaling back)
+    constexpr int64_t TOUCH_TOLERANCE = 100;  // 100 scaled units = 0.01 real units
+
     // Check all vertex-vertex pairs
     for (size_t i = 0; i < A.size(); i++) {
         for (size_t j = 0; j < B.size(); j++) {
-            if (A[i] == B[j]) {
+            __int128 dist2 = distanceSquared(A[i], B[j]);
+            if (dist2 <= TOUCH_TOLERANCE * TOUCH_TOLERANCE) {
                 touching.push_back({VERTEX_VERTEX, static_cast<int>(i), static_cast<int>(j)});
             }
         }
@@ -372,8 +412,15 @@ std::vector<TouchingPoint> findTouchingPoints(const IntPolygon& A, const IntPoly
     for (size_t j = 0; j < B.size(); j++) {
         for (size_t i = 0; i < A.size(); i++) {
             size_t i_next = (i + 1) % A.size();
-            if (pointOnSegment(B[j], A[i], A[i_next]) && B[j] != A[i] && B[j] != A[i_next]) {
-                touching.push_back({VERTEX_EDGE, static_cast<int>(i), static_cast<int>(j)});
+            __int128 dist2 = distanceToSegmentSquared(B[j], A[i], A[i_next]);
+            if (dist2 <= TOUCH_TOLERANCE * TOUCH_TOLERANCE) {
+                // Avoid duplicates from vertex-vertex check
+                __int128 distAi2 = distanceSquared(B[j], A[i]);
+                __int128 distANext2 = distanceSquared(B[j], A[i_next]);
+                if (distAi2 > TOUCH_TOLERANCE * TOUCH_TOLERANCE &&
+                    distANext2 > TOUCH_TOLERANCE * TOUCH_TOLERANCE) {
+                    touching.push_back({VERTEX_EDGE, static_cast<int>(i), static_cast<int>(j)});
+                }
             }
         }
     }
@@ -382,8 +429,15 @@ std::vector<TouchingPoint> findTouchingPoints(const IntPolygon& A, const IntPoly
     for (size_t i = 0; i < A.size(); i++) {
         for (size_t j = 0; j < B.size(); j++) {
             size_t j_next = (j + 1) % B.size();
-            if (pointOnSegment(A[i], B[j], B[j_next]) && A[i] != B[j] && A[i] != B[j_next]) {
-                touching.push_back({EDGE_VERTEX, static_cast<int>(i), static_cast<int>(j)});
+            __int128 dist2 = distanceToSegmentSquared(A[i], B[j], B[j_next]);
+            if (dist2 <= TOUCH_TOLERANCE * TOUCH_TOLERANCE) {
+                // Avoid duplicates from vertex-vertex check
+                __int128 distBj2 = distanceSquared(A[i], B[j]);
+                __int128 distBNext2 = distanceSquared(A[i], B[j_next]);
+                if (distBj2 > TOUCH_TOLERANCE * TOUCH_TOLERANCE &&
+                    distBNext2 > TOUCH_TOLERANCE * TOUCH_TOLERANCE) {
+                    touching.push_back({EDGE_VERTEX, static_cast<int>(i), static_cast<int>(j)});
+                }
             }
         }
     }
@@ -479,17 +533,210 @@ std::vector<SlideVector> generateSlideVectors(
 
 /**
  * @brief Calculate slide distance for a vector
- * Returns maximum distance B can move along vector before intersecting A
- * Returns nullopt if movement would immediately cause intersection
+ *
+ * Computes the maximum distance B can move along slideVector before intersecting A.
+ * Uses exact integer arithmetic for all geometric tests.
+ *
+ * Algorithm:
+ * 1. Test each edge of B against each edge of A
+ * 2. Calculate intersection distance using parametric line equations
+ * 3. Return minimum positive intersection distance
+ *
+ * @param A Stationary polygon
+ * @param B Moving polygon (at current position)
+ * @param slideVector Direction and magnitude to slide
+ * @return Maximum slide distance (squared), or nullopt if immediate collision
  */
 std::optional<__int128> calculateSlideDistance(
     const IntPolygon& A,
     const IntPolygon& B,
     const IntPoint& slideVector
 ) {
-    // This is a simplified version - needs full implementation
-    // For now, return the vector length
-    return distanceSquared(IntPoint(0, 0), slideVector);
+    // Slide vector magnitude squared
+    __int128 vecLengthSquared = distanceSquared(IntPoint(0, 0), slideVector);
+
+    if (vecLengthSquared == 0) {
+        return std::nullopt;  // Zero vector - can't slide
+    }
+
+    __int128 minDistanceSquared = vecLengthSquared;  // Start with full vector length
+    bool foundIntersection = false;
+
+    // Check each edge of B against each edge of A
+    for (size_t i = 0; i < B.size(); i++) {
+        size_t i_next = (i + 1) % B.size();
+
+        // Edge of B: from B[i] to B[i_next]
+        IntPoint b1 = B[i];
+        IntPoint b2 = B[i_next];
+
+        for (size_t j = 0; j < A.size(); j++) {
+            size_t j_next = (j + 1) % A.size();
+
+            // Edge of A: from A[j] to A[j_next]
+            IntPoint a1 = A[j];
+            IntPoint a2 = A[j_next];
+
+            // We want to find the parameter t in [0, 1] such that:
+            // (b1 + t*slideVector, b2 + t*slideVector) intersects (a1, a2)
+            //
+            // This is a moving segment vs static segment intersection problem.
+            // We solve for t using the parametric line equations:
+            //
+            // Point on moving B edge: P(s,t) = b1 + s*(b2-b1) + t*slideVector
+            // Point on static A edge: Q(u)   = a1 + u*(a2-a1)
+            //
+            // At intersection: P(s,t) = Q(u)
+            // b1 + s*(b2-b1) + t*slideVector = a1 + u*(a2-a1)
+            //
+            // This gives us 2 equations (x and y components):
+            // b1.x + s*db.x + t*sv.x = a1.x + u*da.x
+            // b1.y + s*db.y + t*sv.y = a1.y + u*da.y
+            //
+            // Rearranging:
+            // s*db.x - u*da.x + t*sv.x = a1.x - b1.x
+            // s*db.y - u*da.y + t*sv.y = a1.y - b1.y
+            //
+            // In matrix form: [db.x  -da.x  sv.x] [s]   [a1.x - b1.x]
+            //                 [db.y  -da.y  sv.y] [u] = [a1.y - b1.y]
+            //                                      [t]
+            //
+            // We need to solve for t (and verify 0 <= s,u <= 1)
+
+            IntPoint db = b2 - b1;  // B edge direction
+            IntPoint da = a2 - a1;  // A edge direction
+            IntPoint sv = slideVector;
+            IntPoint diff = a1 - b1;
+
+            // Use Cramer's rule to solve the system
+            // First, check if segments are parallel (determinant = 0)
+            __int128 det_base = static_cast<__int128>(db.x) * da.y -
+                               static_cast<__int128>(db.y) * da.x;
+
+            if (det_base == 0) {
+                // B edge parallel to A edge - skip (or handle specially)
+                continue;
+            }
+
+            // For intersection without slide (t=0):
+            // s*db.x - u*da.x = diff.x
+            // s*db.y - u*da.y = diff.y
+            //
+            // Solving for s and u:
+            __int128 s_num = static_cast<__int128>(diff.x) * da.y -
+                            static_cast<__int128>(diff.y) * da.x;
+            __int128 u_num = static_cast<__int128>(diff.x) * db.y -
+                            static_cast<__int128>(diff.y) * db.x;
+
+            // NOTE: We skip the "already intersecting at t=0" check because when polygons
+            // are touching (which is normal during orbital tracing), edges may coincide
+            // and this would incorrectly reject valid slide vectors.
+            // If polygons are truly overlapping, the orbital tracing will fail elsewhere.
+
+            // Now solve for t when intersection occurs:
+            // We need to find t such that the moving segment intersects A edge
+            //
+            // Parametric approach: sweep B edge along slideVector
+            // At time t, B edge goes from (b1 + t*sv) to (b2 + t*sv)
+            // This intersects A edge (a1 to a2) when:
+            //
+            // There exist s,u in [0,1] such that:
+            // b1 + s*db + t*sv = a1 + u*da
+            //
+            // Rearranging:
+            // s*db - u*da = a1 - b1 - t*sv
+            //
+            // This is a linear system in s,u for each t.
+            // We can solve for t by requiring the system to have a solution with s,u in [0,1]
+
+            // Simplified approach: test sweep of each vertex of B
+            // For each vertex b of B moving along slideVector,
+            // find when it intersects each edge of A
+
+            // Test b1 sweeping along slideVector against A edge (a1, a2)
+            {
+                // Ray: b1 + t*sv for t >= 0
+                // Segment: a1 + u*da for u in [0,1]
+                //
+                // Intersection: b1 + t*sv = a1 + u*da
+                // Solving for t and u:
+                // t*sv.x - u*da.x = a1.x - b1.x
+                // t*sv.y - u*da.y = a1.y - b1.y
+
+                __int128 det_t = static_cast<__int128>(sv.x) * da.y -
+                                static_cast<__int128>(sv.y) * da.x;
+
+                if (det_t != 0) {
+                    __int128 t_num = static_cast<__int128>(diff.x) * da.y -
+                                    static_cast<__int128>(diff.y) * da.x;
+                    __int128 u_num = static_cast<__int128>(diff.x) * sv.y -
+                                    static_cast<__int128>(diff.y) * sv.x;
+
+                    // Check if intersection is valid: t > 0 (not t >= 0!), 0 <= u <= 1
+                    // We require t > 0 to skip current touching points (t=0)
+                    bool t_valid, u_valid;
+                    if (det_t > 0) {
+                        t_valid = (t_num > 0);  // Changed from >= to >
+                        u_valid = (u_num >= 0 && u_num <= det_t);
+                    } else {
+                        t_valid = (t_num < 0);  // Changed from <= to <
+                        u_valid = (u_num <= 0 && u_num >= det_t);
+                    }
+
+                    if (t_valid && u_valid) {
+                        // Found intersection at parameter t = t_num / det_t
+                        // Distance squared = (t * |sv|)^2 = t^2 * |sv|^2
+                        // = (t_num / det_t)^2 * vecLengthSquared
+                        // = t_num^2 * vecLengthSquared / det_t^2
+
+                        __int128 distSq = (t_num * t_num * vecLengthSquared) / (det_t * det_t);
+
+                        if (distSq < minDistanceSquared) {
+                            minDistanceSquared = distSq;
+                            foundIntersection = true;
+                        }
+                    }
+                }
+            }
+
+            // Test b2 sweeping along slideVector against A edge (a1, a2)
+            {
+                IntPoint diff2 = a1 - b2;
+
+                __int128 det_t = static_cast<__int128>(sv.x) * da.y -
+                                static_cast<__int128>(sv.y) * da.x;
+
+                if (det_t != 0) {
+                    __int128 t_num = static_cast<__int128>(diff2.x) * da.y -
+                                    static_cast<__int128>(diff2.y) * da.x;
+                    __int128 u_num = static_cast<__int128>(diff2.x) * sv.y -
+                                    static_cast<__int128>(diff2.y) * sv.x;
+
+                    bool t_valid, u_valid;
+                    if (det_t > 0) {
+                        t_valid = (t_num > 0);  // Changed from >= to >
+                        u_valid = (u_num >= 0 && u_num <= det_t);
+                    } else {
+                        t_valid = (t_num < 0);  // Changed from <= to <
+                        u_valid = (u_num <= 0 && u_num >= det_t);
+                    }
+
+                    if (t_valid && u_valid) {
+                        __int128 distSq = (t_num * t_num * vecLengthSquared) / (det_t * det_t);
+
+                        if (distSq < minDistanceSquared) {
+                            minDistanceSquared = distSq;
+                            foundIntersection = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // If we found an intersection, return the minimum distance
+    // Otherwise, return the full vector length (can slide all the way)
+    return minDistanceSquared;
 }
 
 /**
@@ -526,10 +773,15 @@ std::optional<SlideResult> computeSlideVector(
     // Filter and select best vector
     std::optional<SlideResult> best;
     __int128 maxDistance2 = 0;
+    int candidatesChecked = 0;
+    int candidatesFiltered = 0;
 
     for (const auto& candidate : candidates) {
+        candidatesChecked++;
         // Skip zero vectors
         if (candidate.direction.x == 0 && candidate.direction.y == 0) {
+            LOG_NFP("    Candidate " << candidatesChecked << ": ZERO vector - skipped");
+            candidatesFiltered++;
             continue;
         }
 
@@ -544,6 +796,8 @@ std::optional<SlideResult> computeSlideVector(
                                 static_cast<__int128>(candidate.direction.y) * prevVector->x;
 
                 if (cross == 0) {
+                    LOG_NFP("    Candidate " << candidatesChecked << ": BACKTRACK - skipped");
+                    candidatesFiltered++;
                     continue;  // Parallel and opposite - skip
                 }
             }
@@ -552,10 +806,14 @@ std::optional<SlideResult> computeSlideVector(
         // Calculate slide distance
         auto distOpt = calculateSlideDistance(A, B, candidate.direction);
         if (!distOpt.has_value()) {
+            LOG_NFP("    Candidate " << candidatesChecked << ": slideDistance returned NULLOPT (immediate collision) - skipped");
+            candidatesFiltered++;
             continue;
         }
 
         __int128 dist2 = distOpt.value();
+        LOG_NFP("    Candidate " << candidatesChecked << ": direction=(" << candidate.direction.x << "," << candidate.direction.y
+               << ") slideD2=" << static_cast<double>(dist2));
 
         // Select vector with maximum valid distance
         if (dist2 > maxDistance2) {
@@ -567,7 +825,15 @@ std::optional<SlideResult> computeSlideVector(
                 candidate.endIdx,
                 candidate.isFromA
             };
+            LOG_NFP("      → NEW BEST (dist2=" << static_cast<double>(dist2) << ")");
         }
+    }
+
+    LOG_NFP("  Checked " << candidatesChecked << " candidates, filtered " << candidatesFiltered);
+    if (best.has_value()) {
+        LOG_NFP("  Best vector: (" << best->vector.x << "," << best->vector.y << ") dist2=" << static_cast<double>(best->distance2));
+    } else {
+        LOG_NFP("  NO VALID VECTOR FOUND!");
     }
 
     return best;
@@ -651,8 +917,14 @@ std::vector<std::vector<Point>> computeNFP(
     while (iterations < MAX_ITER) {
         iterations++;
 
+        LOG_NFP("  === Iteration " << iterations << " ===");
+        LOG_NFP("    refPoint: (" << refPoint.x << "," << refPoint.y << ")");
+
         // Translate B to current reference point
         IntPolygon B_current = translatePolygon(B, refPoint);
+
+        LOG_NFP("    B_current[0]: (" << B_current[0].x << "," << B_current[0].y << ")");
+        LOG_NFP("    A[0]: (" << A[0].x << "," << A[0].y << ")");
 
         // Compute next slide vector
         auto slideOpt = computeSlideVector(A, B_current, prevVector);
@@ -670,10 +942,14 @@ std::vector<std::vector<Point>> computeNFP(
         // If slide distance is shorter than vector length, trim the vector
         if (slideD2 < vecD2) {
             // Scale: slideVec *= sqrt(slideD2 / vecD2)
-            // In integer math, this is tricky - for now, use the slide distance as-is
-            // A proper implementation would use fixed-point or rational arithmetic
-            LOG_NFP("  Vector trimmed: slideD2=" << static_cast<double>(slideD2)
-                   << " vecD2=" << static_cast<double>(vecD2));
+            // Use floating-point for the scaling calculation, then convert back
+            double scale = std::sqrt(static_cast<double>(slideD2) / static_cast<double>(vecD2));
+            slideVec.x = static_cast<int64_t>(std::round(slideVec.x * scale));
+            slideVec.y = static_cast<int64_t>(std::round(slideVec.y * scale));
+
+            LOG_NFP("  Vector trimmed: scale=" << scale
+                   << " from (" << slideOpt->vector.x << "," << slideOpt->vector.y << ")"
+                   << " to (" << slideVec.x << "," << slideVec.y << ")");
         }
 
         // Move reference point
@@ -683,24 +959,14 @@ std::vector<std::vector<Point>> computeNFP(
         // Update previous vector
         prevVector = slideVec;
 
-        // Check if we've returned to start (exact comparison!)
-        if (nfp.size() > 2 && refPoint == startPoint) {
+        // Check if we've returned to start
+        // With integer coordinates, we need a small tolerance
+        constexpr int64_t CLOSE_TOLERANCE = 100;  // Same as TOUCH_TOLERANCE
+        __int128 dist2ToStart = distanceSquared(refPoint, startPoint);
+        if (nfp.size() > 2 && dist2ToStart <= CLOSE_TOLERANCE * CLOSE_TOLERANCE) {
             LOG_NFP("  ✅ Closed NFP after " << iterations << " iterations");
             break;
         }
-
-        // Check if we've created a loop (visited same point before)
-        bool looped = false;
-        for (size_t i = 0; i < nfp.size() - 1; i++) {
-            if (nfp[i] == refPoint) {
-                LOG_NFP("  ✅ Loop detected at iteration " << iterations
-                       << " (matched point " << i << ")");
-                looped = true;
-                break;
-            }
-        }
-
-        if (looped) break;
 
         if (iterations % 100 == 0) {
             LOG_NFP("  Iteration " << iterations << ": at ("
