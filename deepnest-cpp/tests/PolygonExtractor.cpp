@@ -13,6 +13,7 @@
 #include "SVGLoader.h"
 #include "../include/deepnest/nfp/MinkowskiSum.h"
 #include "../include/deepnest/geometry/GeometryUtil.h"
+#include "../include/deepnest/geometry/RobustNFP.h"  // ROBUST NFP using Minkowski
 #include "../include/deepnest/geometry/ConvexHull.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
 #include "../include/deepnest/converters/QtBoostConverter.h"
@@ -383,8 +384,8 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
-    // Test orbital tracing
-    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside, false);
+    // Test ROBUST NFP (using Minkowski Sum - proven mathematics!)
+    auto nfpPoints = deepnest::RobustNFP::calculate(polyA.points, polyB.points, inside);
 
     std::vector<deepnest::Polygon> nfps;
 
@@ -579,7 +580,8 @@ int main(int argc, char *argv[]) {
                         }
                     }
 
-                    auto orbitalPoints = deepnest::GeometryUtil::noFitPolygon(polygons[i].points, polygons[j].points, false, false);
+                    // Use ROBUST NFP (Minkowski-based, mathematically proven!)
+                    auto orbitalPoints = deepnest::RobustNFP::calculate(polygons[i].points, polygons[j].points, false);
 
                     // Convert orbital to Polygon
                     std::vector<deepnest::Polygon> orbitalNFPs;
