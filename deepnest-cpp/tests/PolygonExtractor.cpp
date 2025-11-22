@@ -40,6 +40,96 @@ std::vector<ProblematicPair> problematicPairs = {
 };
 
 /**
+ * Calculate Hausdorff distance between two polygons
+ * Returns the maximum minimum distance from any point of poly1 to poly2
+ */
+double hausdorffDistance(const std::vector<deepnest::Point>& poly1, const std::vector<deepnest::Point>& poly2) {
+    if (poly1.empty() || poly2.empty()) {
+        return std::numeric_limits<double>::infinity();
+    }
+
+    double maxDist = 0.0;
+
+    // For each point in poly1, find minimum distance to any point in poly2
+    for (const auto& p1 : poly1) {
+        double minDist = std::numeric_limits<double>::infinity();
+        for (const auto& p2 : poly2) {
+            double dx = p1.x - p2.x;
+            double dy = p1.y - p2.y;
+            double dist = std::sqrt(dx * dx + dy * dy);
+            minDist = std::min(minDist, dist);
+        }
+        maxDist = std::max(maxDist, minDist);
+    }
+
+    return maxDist;
+}
+
+/**
+ * Compare two NFP results and report differences
+ */
+void compareNFPs(const std::vector<deepnest::Polygon>& minkowskiNFPs,
+                 const std::vector<deepnest::Polygon>& orbitalNFPs,
+                 const std::string& testLabel = "") {
+    std::cout << "\n=== NFP Comparison" << (testLabel.empty() ? "" : " (" + testLabel + ")") << " ===" << std::endl;
+
+    if (minkowskiNFPs.empty() && orbitalNFPs.empty()) {
+        std::cout << "  Both algorithms returned empty NFPs" << std::endl;
+        return;
+    }
+
+    if (minkowskiNFPs.empty()) {
+        std::cout << "  ⚠️  WARNING: Minkowski returned empty, Orbital returned " << orbitalNFPs.size() << " NFP(s)" << std::endl;
+        return;
+    }
+
+    if (orbitalNFPs.empty()) {
+        std::cout << "  ⚠️  WARNING: Orbital returned empty, Minkowski returned " << minkowskiNFPs.size() << " NFP(s)" << std::endl;
+        return;
+    }
+
+    // Compare first NFP (most common case)
+    const auto& minkNFP = minkowskiNFPs[0];
+    const auto& orbNFP = orbitalNFPs[0];
+
+    std::cout << "  Point count comparison:" << std::endl;
+    std::cout << "    Minkowski: " << minkNFP.points.size() << " points" << std::endl;
+    std::cout << "    Orbital:   " << orbNFP.points.size() << " points" << std::endl;
+
+    // Calculate Hausdorff distance (both directions)
+    double dist_M_to_O = hausdorffDistance(minkNFP.points, orbNFP.points);
+    double dist_O_to_M = hausdorffDistance(orbNFP.points, minkNFP.points);
+    double hausdorff = std::max(dist_M_to_O, dist_O_to_M);
+
+    std::cout << "  Hausdorff distance:" << std::endl;
+    std::cout << "    Minkowski → Orbital: " << dist_M_to_O << std::endl;
+    std::cout << "    Orbital → Minkowski: " << dist_O_to_M << std::endl;
+    std::cout << "    Maximum (Hausdorff):  " << hausdorff << std::endl;
+
+    // Determine if NFPs match (within tolerance)
+    const double TOLERANCE = 0.5;  // Acceptable difference in units
+
+    if (hausdorff < TOLERANCE) {
+        std::cout << "  ✅ MATCH: NFPs are equivalent (distance < " << TOLERANCE << ")" << std::endl;
+    } else if (hausdorff < 5.0) {
+        std::cout << "  ⚠️  MINOR DIFFERENCE: NFPs are close but not exact (distance = " << hausdorff << ")" << std::endl;
+    } else {
+        std::cout << "  ❌ MISMATCH: NFPs are significantly different (distance = " << hausdorff << ")" << std::endl;
+    }
+
+    // Calculate area difference
+    double minkArea = std::abs(deepnest::GeometryUtil::polygonArea(minkNFP.points));
+    double orbArea = std::abs(deepnest::GeometryUtil::polygonArea(orbNFP.points));
+    double areaDiff = std::abs(minkArea - orbArea);
+    double areaPercent = (minkArea > 0) ? (areaDiff / minkArea * 100.0) : 0.0;
+
+    std::cout << "  Area comparison:" << std::endl;
+    std::cout << "    Minkowski: " << minkArea << std::endl;
+    std::cout << "    Orbital:   " << orbArea << std::endl;
+    std::cout << "    Difference: " << areaDiff << " (" << areaPercent << "%)" << std::endl;
+}
+
+/**
  * Save a polygon to SVG file for visualization
  */
 bool savePolygonToSVG(const deepnest::Polygon& poly, const QString& filename) {
@@ -170,7 +260,7 @@ bool savePairToSVG(const deepnest::Polygon& polyA, const deepnest::Polygon& poly
 /**
  * Test Minkowski sum for a polygon pair
  */
-void testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
+std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
     std::cout << "\n=== Testing Minkowski Sum ===" << std::endl;
     std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
@@ -216,12 +306,14 @@ void testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& p
         savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
+
+    return nfps;
 }
 
 /**
  * Test orbital tracing for a polygon pair
  */
-void testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
+std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
     std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
     std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
@@ -229,6 +321,8 @@ void testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon&
 
     // Test orbital tracing
     auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside, false);
+
+    std::vector<deepnest::Polygon> nfps;
 
     if (nfpPoints.empty() || nfpPoints[0].empty()) {
         std::cout << "  ❌ FAILED: Orbital tracing returned empty result" << std::endl;
@@ -239,7 +333,6 @@ void testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon&
         }
 
         // Convert to Polygon for visualization
-        std::vector<deepnest::Polygon> nfps;
         for (const auto& points : nfpPoints) {
             deepnest::Polygon nfp;
             nfp.points = points;
@@ -251,6 +344,8 @@ void testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon&
         savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
+
+    return nfps;
 }
 
 int main(int argc, char *argv[]) {
@@ -545,8 +640,11 @@ int main(int argc, char *argv[]) {
         savePolygonToSVG(rotatedB, QString("polygon_%1_B_rot%2.svg").arg(targetIdB).arg(targetRotB));
 
         // Test NFP
-        testMinkowskiSum(rotatedA, rotatedB, false);
-        testOrbitalTracing(rotatedA, rotatedB, false);
+        auto minkowskiNFPs = testMinkowskiSum(rotatedA, rotatedB, false);
+        auto orbitalNFPs = testOrbitalTracing(rotatedA, rotatedB, false);
+
+        // Compare results
+        compareNFPs(minkowskiNFPs, orbitalNFPs, "Pair " + std::to_string(targetIdA) + " vs " + std::to_string(targetIdB));
 
     } else {
         // ==================================================
@@ -582,8 +680,11 @@ int main(int argc, char *argv[]) {
             savePolygonToSVG(*polyB, QString("polygon_%1_B.svg").arg(pair.idB));
 
             // Test both algorithms with OUTSIDE mode (part-to-part collision)
-            testMinkowskiSum(*polyA, *polyB, false);
-            testOrbitalTracing(*polyA, *polyB, false);
+            auto minkowskiNFPs = testMinkowskiSum(*polyA, *polyB, false);
+            auto orbitalNFPs = testOrbitalTracing(*polyA, *polyB, false);
+
+            // Compare results
+            compareNFPs(minkowskiNFPs, orbitalNFPs, "Pair " + std::to_string(pair.idA) + " vs " + std::to_string(pair.idB));
         }
     }
 

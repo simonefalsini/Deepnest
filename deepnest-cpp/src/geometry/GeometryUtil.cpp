@@ -660,37 +660,42 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     std::optional<Point> startOpt;
 
     if (!inside) {
-        // OUTSIDE NFP: Use heuristic approach as initial guess
-        // JavaScript lines 1447-1475
-        // For non-rotated polygons, this simple heuristic works:
-        // Place B's topmost point at A's bottommost point
-        size_t minAindex = 0;
-        double minAy = A[0].y;
-        for (size_t i = 1; i < A.size(); i++) {
-            if (A[i].y < minAy) {
-                minAy = A[i].y;
-                minAindex = i;
+        // OUTSIDE NFP: Use searchStartPoint for robust start point detection
+        // The simple heuristic (topmost B at bottommost A) only works for non-rotated polygons
+        // For rotated or complex polygons, we need proper search
+        startOpt = searchStartPoint(A, B, false, {});
+
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            // Fallback to heuristic if search fails
+            LOG_NFP("  WARNING: searchStartPoint failed for OUTER NFP, using heuristic");
+            size_t minAindex = 0;
+            double minAy = A[0].y;
+            for (size_t i = 1; i < A.size(); i++) {
+                if (A[i].y < minAy) {
+                    minAy = A[i].y;
+                    minAindex = i;
+                }
             }
-        }
 
-        size_t maxBindex = 0;
-        double maxBy = B[0].y;
-        for (size_t i = 1; i < B.size(); i++) {
-            if (B[i].y > maxBy) {
-                maxBy = B[i].y;
-                maxBindex = i;
+            size_t maxBindex = 0;
+            double maxBy = B[0].y;
+            for (size_t i = 1; i < B.size(); i++) {
+                if (B[i].y > maxBy) {
+                    maxBy = B[i].y;
+                    maxBindex = i;
+                }
             }
+
+            Point heuristicStart(
+                A[minAindex].x - B[maxBindex].x,
+                A[minAindex].y - B[maxBindex].y
+            );
+
+            startOpt = heuristicStart;
+            LOG_NFP("  Start point (heuristic fallback): (" << startOpt->x << ", " << startOpt->y << ")");
         }
-
-        Point heuristicStart(
-            A[minAindex].x - B[maxBindex].x,
-            A[minAindex].y - B[maxBindex].y
-        );
-
-        // Use heuristic as initial start point
-        // JavaScript doesn't validate this with searchStartPoint
-        startOpt = heuristicStart;
-        LOG_NFP("  Start point (heuristic): (" << startOpt->x << ", " << startOpt->y << ")");
     }
     else {
         // INSIDE NFP: No reliable heuristic, MUST use search
