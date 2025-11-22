@@ -798,7 +798,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                 double vecLength2 = vec.x * vec.x + vec.y * vec.y;
                 double vecLength = std::sqrt(vecLength2);
 
-                // JavaScript lines 1648-1651: if null or too large, use vector length
+                // JavaScript lines 1648-1651: if null, too large, or ~0, use vector length
                 if (!slideOpt.has_value()) {
                     LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt is NULL → using vecLength=" << vecLength);
                     slideDistance = vecLength;
@@ -807,6 +807,11 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                     LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
                            << " too large (slideOpt²=" << (slideOpt.value() * slideOpt.value())
                            << " > vecLength²=" << vecLength2 << ") → using vecLength=" << vecLength);
+                    slideDistance = vecLength;
+                }
+                else if (almostEqual(slideOpt.value(), 0.0) && vecLength > TOL) {
+                    // When already touching (slide=0), use vector length to continue along edge
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt≈0 (already touching) → using vecLength=" << vecLength);
                     slideDistance = vecLength;
                 }
                 else {

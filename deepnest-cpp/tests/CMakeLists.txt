@@ -133,3 +133,30 @@ set_target_properties(SearchStartPointDebug PROPERTIES
 )
 
 message(STATUS "SearchStartPointDebug configured")
+
+# ===== NFPDebug =====
+add_executable(NFPDebug
+    NFPDebug.cpp
+)
+
+target_include_directories(NFPDebug PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(NFPDebug
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(NFPDebug PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(NFPDebug PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+message(STATUS "NFPDebug configured")
