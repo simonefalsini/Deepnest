@@ -184,8 +184,8 @@ double polygonArea(const std::vector<Point>& polygon) {
 }
 
 bool intersect(const std::vector<Point>& A, const std::vector<Point>& B) {
-    // This is a simplified version - the full implementation is quite complex
-    // For now, we check segment-segment intersections
+    // Check for proper segment-segment intersections
+    // Excludes "touching" cases where segments share endpoints
 
     for (size_t i = 0; i < A.size(); i++) {
         size_t nexti = (i == A.size() - 1) ? 0 : i + 1;
@@ -201,6 +201,24 @@ bool intersect(const std::vector<Point>& A, const std::vector<Point>& B) {
             // Check for segment intersection
             auto intersection = lineIntersect(a1, a2, b1, b2, false);
             if (intersection.has_value()) {
+                const Point& p = intersection.value();
+
+                // Exclude "touching" cases where intersection is at an endpoint of either segment
+                // This allows polygons to touch at vertices without being considered intersecting
+                // For NFP, we need to allow:
+                // 1. Vertex-to-vertex touching (both endpoints)
+                // 2. Vertex-to-edge touching (one endpoint, one interior point)
+                bool isA1 = almostEqualPoints(p, a1);
+                bool isA2 = almostEqualPoints(p, a2);
+                bool isB1 = almostEqualPoints(p, b1);
+                bool isB2 = almostEqualPoints(p, b2);
+
+                // If intersection is at an endpoint of EITHER segment, it's just touching
+                if (isA1 || isA2 || isB1 || isB2) {
+                    continue;  // Skip this touching case
+                }
+
+                // This is a proper intersection (crossing) - segments cross in their interiors
                 return true;
             }
         }
@@ -635,6 +653,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     }
 
     std::vector<std::vector<Point>> nfpList;
+    int nfpCounter = 0;
+    const int MAX_NFPS = 10;  // Safety limit to prevent infinite loops
 
     // Get initial start point
     std::optional<Point> startOpt;
@@ -685,8 +705,9 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
 
     // Main loop: find all NFPs starting from different points
     // JavaScript lines 1483-1724
-    while (startOpt.has_value()) {
-        LOG_NFP("  --- New NFP loop iteration ---");
+    while (startOpt.has_value() && nfpCounter < MAX_NFPS) {
+        nfpCounter++;
+        LOG_NFP("  --- New NFP loop iteration " << nfpCounter << " ---");
         Point offsetB = startOpt.value();
 
         std::vector<Point> nfp;

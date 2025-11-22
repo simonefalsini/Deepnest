@@ -106,3 +106,30 @@ install(TARGETS NFPValidationTests
 )
 
 message(STATUS "NFPValidationTests configured")
+
+# ===== SearchStartPointDebug =====
+add_executable(SearchStartPointDebug
+    SearchStartPointDebug.cpp
+)
+
+target_include_directories(SearchStartPointDebug PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(SearchStartPointDebug
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(SearchStartPointDebug PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(SearchStartPointDebug PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+message(STATUS "SearchStartPointDebug configured")
