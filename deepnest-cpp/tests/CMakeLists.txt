@@ -74,3 +74,35 @@ install(TARGETS GeometryValidationTests
 )
 
 message(STATUS "GeometryValidationTests configured")
+
+# ===== NFPValidationTests =====
+add_executable(NFPValidationTests
+    NFPValidationTests.cpp
+)
+
+target_include_directories(NFPValidationTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(NFPValidationTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(NFPValidationTests PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(NFPValidationTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Install target
+install(TARGETS NFPValidationTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "NFPValidationTests configured")
