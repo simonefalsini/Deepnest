@@ -93,6 +93,9 @@
     <ClCompile Include="src\geometry\OrbitalHelpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\geometry\IntegerNFP.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\deepnest\core\BoundingBox.h">

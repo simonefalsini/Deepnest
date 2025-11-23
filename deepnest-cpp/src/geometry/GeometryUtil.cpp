@@ -648,8 +648,389 @@ std::vector<Point> linearize(const Point& p1, const Point& p2,
 // and polygonHull) are now implemented in GeometryUtilAdvanced.cpp to keep file sizes
 // manageable and improve code organization.
 
-// PHASE 3.2: Integer-Based Orbital NFP Implementation
-// This provides a fallback when Minkowski sum fails
+// PHASE 3.2: Complete Orbital-Based noFitPolygon implementation
+// This provides a fallback when Minkowski sum fails or for validation
+// Reference: geometryutil.js:1437-1727 (noFitPolygon function)
+#ifndef INTNFP
+std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
+                                            const std::vector<Point>& B_input,
+                                            bool inside,
+                                            bool searchEdges) {
+    // Complete rewrite based on JavaScript geometryutil.js lines 1437-1727
+    // This implementation follows the JavaScript algorithm exactly
+    //
+    // IMPORTANT: This function operates on OUTER BOUNDARIES ONLY.
+    // If polygons have holes (children), the caller must:
+    // 1. Ensure outer boundary has correct winding (CCW for stationary, CCW for moving in OUTSIDE mode)
+    // 2. Process each hole separately with INSIDE mode
+    // 3. Holes should have OPPOSITE winding to their parent (CW if parent is CCW)
+
+    LOG_NFP("=== ORBITAL TRACING START ===");
+    LOG_NFP("  A size: " << A_input.size() << " points");
+    LOG_NFP("  B size: " << B_input.size() << " points");
+    LOG_NFP("  Mode: " << (inside ? "INSIDE" : "OUTSIDE"));
+
+    if (A_input.size() < 3 || B_input.size() < 3) {
+        LOG_NFP("  ERROR: Polygon has < 3 points");
+        return {};
+    }
+
+    // Make working copies that we can modify
+    std::vector<Point> A = A_input;
+    std::vector<Point> B = B_input;
+
+    // CRITICAL: Ensure correct winding order for orbital tracing
+    // OUTSIDE NFP (part-to-part): Both polygons must be CCW (positive area)
+    // INSIDE NFP (sheet boundary): A (container) must be CW, B (part) must be CCW
+    double areaA = polygonArea(A);
+    double areaB = polygonArea(B);
+
+    LOG_NFP("  Area A: " << areaA << " (winding: " << (areaA > 0 ? "CCW" : "CW") << ")");
+    LOG_NFP("  Area B: " << areaB << " (winding: " << (areaB > 0 ? "CCW" : "CW") << ")");
+
+    if (!inside) {
+        // OUTSIDE: Both must be CCW (positive area)
+        if (areaA < 0) {
+            LOG_NFP("  Correcting A orientation: CW → CCW");
+            std::reverse(A.begin(), A.end());
+            areaA = -areaA;  // Update area after reversal
+        }
+        if (areaB < 0) {
+            LOG_NFP("  Correcting B orientation: CW → CCW");
+            std::reverse(B.begin(), B.end());
+            areaB = -areaB;  // Update area after reversal
+        }
+    } else {
+        // INSIDE: A (container) must be CW (negative area), B (part) must be CCW (positive area)
+        if (areaA > 0) {
+            LOG_NFP("  Correcting A (container) orientation: CCW → CW");
+            std::reverse(A.begin(), A.end());
+            areaA = -areaA;  // Update area after reversal
+        }
+        if (areaB < 0) {
+            LOG_NFP("  Correcting B (part) orientation: CW → CCW");
+            std::reverse(B.begin(), B.end());
+            areaB = -areaB;  // Update area after reversal
+        }
+    }
+
+    // Initialize marked flags (used to track visited vertices)
+    for (auto& p : A) p.marked = false;
+    for (auto& p : B) p.marked = false;
+
+    // DETAILED DUMP: Polygon coordinates after orientation correction
+    LOG_NFP("  Polygon A (CCW after correction):");
+    for (size_t i = 0; i < A.size(); i++) {
+        LOG_NFP("    A[" << i << "] = (" << A[i].x << ", " << A[i].y << ")");
+    }
+    LOG_NFP("  Polygon B (CCW after correction):");
+    for (size_t i = 0; i < B.size(); i++) {
+        LOG_NFP("    B[" << i << "] = (" << B[i].x << ", " << B[i].y << ")");
+    }
+
+    std::vector<std::vector<Point>> nfpList;
+    int nfpCounter = 0;
+    const int MAX_NFPS = 10;  // Safety limit to prevent infinite loops
+
+    // Get initial start point
+    std::optional<Point> startOpt;
+
+    if (!inside) {
+        // OUTSIDE NFP: Use searchStartPoint for robust start point detection
+        // The simple heuristic (topmost B at bottommost A) only works for non-rotated polygons
+        // For rotated or complex polygons, we need proper search
+        startOpt = searchStartPoint(A, B, false, {});
+
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            // Fallback to heuristic if search fails
+            LOG_NFP("  WARNING: searchStartPoint failed for OUTER NFP, using heuristic");
+            size_t minAindex = 0;
+            double minAy = A[0].y;
+            for (size_t i = 1; i < A.size(); i++) {
+                if (A[i].y < minAy) {
+                    minAy = A[i].y;
+                    minAindex = i;
+                }
+            }
+
+            size_t maxBindex = 0;
+            double maxBy = B[0].y;
+            for (size_t i = 1; i < B.size(); i++) {
+                if (B[i].y > maxBy) {
+                    maxBy = B[i].y;
+                    maxBindex = i;
+                }
+            }
+
+            Point heuristicStart(
+                A[minAindex].x - B[maxBindex].x,
+                A[minAindex].y - B[maxBindex].y
+            );
+
+            startOpt = heuristicStart;
+            LOG_NFP("  Start point (heuristic fallback): (" << startOpt->x << ", " << startOpt->y << ")");
+        }
+    }
+    else {
+        // INSIDE NFP: No reliable heuristic, MUST use search
+        // JavaScript lines 1477-1479
+        startOpt = searchStartPoint(A, B, true, {});
+        if (startOpt.has_value()) {
+            LOG_NFP("  Start point (search): (" << startOpt->x << ", " << startOpt->y << ")");
+        } else {
+            LOG_NFP("  ERROR: No start point found!");
+        }
+    }
+
+    // Main loop: find all NFPs starting from different points
+    // JavaScript lines 1483-1724
+    while (startOpt.has_value() && nfpCounter < MAX_NFPS) {
+        nfpCounter++;
+        LOG_NFP("  --- New NFP loop iteration " << nfpCounter << " ---");
+        Point offsetB = startOpt.value();
+
+        std::vector<Point> nfp;
+        std::optional<TranslationVector> prevVector;  // Changed from pointer to value
+
+        // Reference point: B[0] translated by offset
+        // JavaScript lines 1497-1500
+        Point reference(B[0].x + offsetB.x, B[0].y + offsetB.y);
+        Point startPoint = reference;
+
+        nfp.push_back(reference);
+
+        int counter = 0;
+        int maxIterations = 10 * (A.size() + B.size());
+
+        // Main orbital tracing loop
+        // JavaScript lines 1503-1711
+        while (counter < maxIterations) {
+            // STEP 1: Find all touching contacts
+            // JavaScript lines 1504-1520
+            auto touchingList = findTouchingContacts(A, B, offsetB);
+
+            LOG_NFP("    ============================================");
+            LOG_NFP("    ITERATION " << counter);
+            LOG_NFP("    offsetB: (" << offsetB.x << ", " << offsetB.y << ")");
+            LOG_NFP("    reference: (" << reference.x << ", " << reference.y << ")");
+            LOG_NFP("    touching contacts: " << touchingList.size());
+
+            if (touchingList.empty()) {
+                LOG_NFP("    ERROR: No touching contacts found, breaking loop");
+                break;  // No touching contacts
+            }
+
+            // DETAILED DUMP: All touching contacts with polygon coords
+            for (size_t tc = 0; tc < touchingList.size(); tc++) {
+                const auto& touch = touchingList[tc];
+                LOG_NFP("    Touch[" << tc << "]: type=" << (int)touch.type
+                       << " A[" << touch.indexA << "]=(" << A[touch.indexA].x << "," << A[touch.indexA].y << ")"
+                       << " B[" << touch.indexB << "]=(" << B[touch.indexB].x << "," << B[touch.indexB].y << ")"
+                       << " B+offset=(" << (B[touch.indexB].x + offsetB.x) << "," << (B[touch.indexB].y + offsetB.y) << ")");
+            }
+
+            // STEP 2: Generate translation vectors from all touches
+            // JavaScript lines 1522-1616
+            std::vector<TranslationVector> allVectors;
+            for (const auto& touch : touchingList) {
+                // Mark vertex as touched
+                A[touch.indexA].marked = true;
+
+                auto vectors = generateTranslationVectors(touch, A, B, offsetB);
+
+                LOG_NFP("    Touch A[" << touch.indexA << "] B[" << touch.indexB << "] generated " << vectors.size() << " vectors:");
+                for (size_t vi = 0; vi < vectors.size(); vi++) {
+                    const auto& v = vectors[vi];
+                    LOG_NFP("      [" << vi << "] (" << v.x << ", " << v.y << ") len=" << v.length()
+                           << " poly=" << v.polygon << " start=" << v.startIndex << " end=" << v.endIndex);
+                }
+
+                allVectors.insert(allVectors.end(), vectors.begin(), vectors.end());
+            }
+
+            LOG_NFP("    Total vectors: " << allVectors.size());
+            if (prevVector.has_value()) {
+                LOG_NFP("    prevVector: (" << prevVector->x << ", " << prevVector->y
+                       << ") polygon=" << prevVector->polygon);
+            }
+
+            // STEP 3: Filter and select best vector
+            // JavaScript lines 1620-1657
+            TranslationVector* bestVector = nullptr;
+            double maxDistance = 0.0;
+            int filteredCount = 0;
+
+            for (auto& vec : allVectors) {
+                // Skip zero vectors and backtracking
+                // JavaScript lines 1624-1642
+                if (isBacktracking(vec, prevVector)) {
+                    LOG_NFP("      FILTERED backtrack: (" << vec.x << ", " << vec.y << ")");
+                    filteredCount++;
+                    continue;
+                }
+
+                // Calculate slide distance
+                // JavaScript line 1645
+                auto slideOpt = polygonSlideDistance(A, B, Point(vec.x, vec.y), true);
+
+                double slideDistance;
+                double vecLength2 = vec.x * vec.x + vec.y * vec.y;
+                double vecLength = std::sqrt(vecLength2);
+
+                // JavaScript lines 1648-1651: if null, too large, or ~0, use vector length
+                if (!slideOpt.has_value()) {
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt is NULL → using vecLength=" << vecLength);
+                    slideDistance = vecLength;
+                }
+                else if (slideOpt.value() * slideOpt.value() > vecLength2) {
+                    LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
+                           << " too large (slideOpt²=" << (slideOpt.value() * slideOpt.value())
+                           << " > vecLength²=" << vecLength2 << ") → using vecLength=" << vecLength);
+                    slideDistance = vecLength;
+                }
+                else {
+                    // HYBRID APPROACH: JavaScript doesn't have this, but it HELPS in C++
+                    // Use integer rounding to detect slideOpt exactly == 0 (not ≈ 0)
+                    int64_t slideOptInt = static_cast<int64_t>(std::round(slideOpt.value()));
+
+                    if (slideOptInt == 0 && vecLength > TOL) {
+                        // When slideDistance rounds to exactly 0, use vecLength
+                        // This reduces EMPTY from 5 to 0 even though not in JavaScript!
+                        LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") slideOpt=" << slideOpt.value()
+                               << " rounds to 0 → using vecLength=" << vecLength);
+                        slideDistance = vecLength;
+                    }
+                    else {
+                        LOG_NFP("      [SLIDE] Vector (" << vec.x << ", " << vec.y << ") using slideOpt=" << slideOpt.value());
+                        slideDistance = slideOpt.value();
+                    }
+                }
+
+                LOG_NFP("      Candidate: (" << vec.x << ", " << vec.y << ") slide=" << slideDistance
+                       << " polygon=" << vec.polygon);
+
+                // Select vector with MAXIMUM distance
+                // JavaScript lines 1653-1656
+                if (slideDistance > maxDistance) {
+                    maxDistance = slideDistance;
+                    bestVector = &vec;
+                }
+            }
+
+            LOG_NFP("    Filtered " << filteredCount << " backtracking vectors");
+            LOG_NFP("    Best vector: (" << (bestVector ? bestVector->x : 0) << ", "
+                   << (bestVector ? bestVector->y : 0) << ") maxDistance = " << maxDistance
+                   << " polygon=" << (bestVector ? std::string(1, bestVector->polygon) : "?"));
+
+            // JavaScript lines 1660-1664: check if valid vector found
+            if (!bestVector || almostEqual(maxDistance, 0.0)) {
+                LOG_NFP("    ERROR: No valid vector found (bestVector=" << (bestVector ? "exists" : "null")
+                       << ", maxDistance=" << maxDistance << ")");
+                nfp.clear();  // Didn't close loop properly
+                break;
+            }
+
+            // Mark vertices as used
+            // JavaScript lines 1666-1667
+            if (bestVector->polygon == 'A') {
+                A[bestVector->startIndex].marked = true;
+                A[bestVector->endIndex].marked = true;
+            } else {
+                B[bestVector->startIndex].marked = true;
+                B[bestVector->endIndex].marked = true;
+            }
+
+            // STEP 4: Trim vector if needed
+            // JavaScript lines 1672-1677
+            double vecLength2 = bestVector->x * bestVector->x + bestVector->y * bestVector->y;
+            if (maxDistance * maxDistance < vecLength2 &&
+                !almostEqual(maxDistance * maxDistance, vecLength2)) {
+                double scale = std::sqrt((maxDistance * maxDistance) / vecLength2);
+                bestVector->x *= scale;
+                bestVector->y *= scale;
+            }
+
+            // Save prevVector AFTER trimming (so it matches the actual movement)
+            prevVector = *bestVector;
+
+            // STEP 5: Move reference point
+            // JavaScript lines 1679-1680
+            reference.x += bestVector->x;
+            reference.y += bestVector->y;
+            LOG_NFP("    New reference: (" << reference.x << ", " << reference.y << ")");
+
+            // STEP 6: Check loop closure
+            // JavaScript lines 1682-1700
+            if (almostEqual(reference.x, startPoint.x) && almostEqual(reference.y, startPoint.y)) {
+                LOG_NFP("    Loop closed: returned to start point (" << startPoint.x << ", " << startPoint.y << ")");
+                LOG_NFP("    Distance from start: " << std::sqrt((reference.x - startPoint.x)*(reference.x - startPoint.x) +
+                       (reference.y - startPoint.y)*(reference.y - startPoint.y)));
+                break;  // Completed loop
+            }
+
+            // Check if we've returned to any previous point (besides start)
+            // JavaScript lines 1688-1700
+            // CRITICAL: This prevents infinite loops and detects premature closure
+            bool looped = false;
+            if (nfp.size() > 0) {
+                // Check all previous points except the last one (current position)
+                for (size_t i = 0; i < nfp.size() - 1; i++) {
+                    if (almostEqual(reference.x, nfp[i].x) && almostEqual(reference.y, nfp[i].y)) {
+                        LOG_NFP("    Loop closed: returned to point " << i << " ("
+                               << nfp[i].x << ", " << nfp[i].y << ")");
+                        looped = true;
+                        break;
+                    }
+                }
+            }
+
+            if (looped) {
+                break;  // Completed loop
+            }
+
+            // Add point to NFP
+            // JavaScript lines 1702-1705
+            nfp.push_back(reference);
+
+            LOG_NFP("    Added point to NFP: (" << reference.x << ", " << reference.y << ")");
+            LOG_NFP("    NFP now has " << nfp.size() << " points");
+
+            // Update offset for next iteration
+            // JavaScript lines 1707-1708
+            offsetB.x += bestVector->x;
+            offsetB.y += bestVector->y;
+
+            LOG_NFP("    New offsetB: (" << offsetB.x << ", " << offsetB.y << ")");
+
+            counter++;
+        }
+
+        // Add NFP if valid
+        // JavaScript lines 1713-1715
+        if (!nfp.empty() && nfp.size() >= 3) {
+            LOG_NFP("  ✓ Generated NFP with " << nfp.size() << " points");
+            nfpList.push_back(nfp);
+        } else {
+            LOG_NFP("  ✗ NFP invalid: size = " << nfp.size());
+        }
+
+        if (!searchEdges) {
+            break;  // Only get first NFP
+        }
+
+        // Search for next start point
+        // JavaScript line 1722
+        startOpt = searchStartPoint(A, B, inside, nfpList);
+    }
+
+    LOG_NFP("=== ORBITAL TRACING COMPLETE: " << nfpList.size() << " NFPs generated ===");
+
+    // JavaScript line 1726
+    return nfpList;
+}
+#else
 // Uses exact integer arithmetic to avoid floating-point precision issues
 std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                                             const std::vector<Point>& B_input,
@@ -672,7 +1053,7 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
 
     return result;
 }
-
+#endif
 std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& A,
                                                      const std::vector<Point>& B) {
     // Special case for rectangle NFP
