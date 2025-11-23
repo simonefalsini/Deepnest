@@ -221,7 +221,7 @@ std::optional<double> pointDistance(
         }
     }
 
-    return -(pdotnorm - s1dotnorm + (s1dotnorm - s2dotnorm) * (s1dot - pdot) / (s1dot - s2dot));
+    return pdotnorm - s1dotnorm + (s1dotnorm - s2dotnorm) * (s1dot - pdot) / (s1dot - s2dot);
 }
 
 // ========== segmentDistance ==========
@@ -312,9 +312,9 @@ std::optional<double> segmentDistance(
 
     // Check coincident points and distances
     if (almostEqual(dotA, dotE)) {
-        distances.push_back(crossA - crossE);
+        distances.push_back(crossE - crossA);
     } else if (almostEqual(dotA, dotF)) {
-        distances.push_back(crossA - crossF);
+        distances.push_back(crossF - crossA);
     } else if (dotA > EFmin && dotA < EFmax) {
         auto d = pointDistance(A, E, F, reverse);
         if (d.has_value() && almostEqual(d.value(), 0.0)) {
@@ -329,9 +329,9 @@ std::optional<double> segmentDistance(
     }
 
     if (almostEqual(dotB, dotE)) {
-        distances.push_back(crossB - crossE);
+        distances.push_back(crossE - crossB);
     } else if (almostEqual(dotB, dotF)) {
-        distances.push_back(crossB - crossF);
+        distances.push_back(crossF - crossB);
     } else if (dotB > EFmin && dotB < EFmax) {
         auto d = pointDistance(B, E, F, reverse);
         if (d.has_value() && almostEqual(d.value(), 0.0)) {
@@ -346,9 +346,9 @@ std::optional<double> segmentDistance(
     }
 
     if (almostEqual(dotE, dotA)) {
-        distances.push_back(crossE - crossA);
+        distances.push_back(crossA - crossE);
     } else if (almostEqual(dotE, dotB)) {
-        distances.push_back(crossE - crossB);
+        distances.push_back(crossB - crossE);
     } else if (dotE > ABmin && dotE < ABmax) {
         auto d = pointDistance(E, A, B, direction);
         if (d.has_value() && almostEqual(d.value(), 0.0)) {
@@ -363,9 +363,9 @@ std::optional<double> segmentDistance(
     }
 
     if (almostEqual(dotF, dotA)) {
-        distances.push_back(crossF - crossA);
+        distances.push_back(crossA - crossF);
     } else if (almostEqual(dotF, dotB)) {
-        distances.push_back(crossF - crossB);
+        distances.push_back(crossB - crossF);
     } else if (dotF > ABmin && dotF < ABmax) {
         auto d = pointDistance(F, A, B, direction);
         if (d.has_value() && almostEqual(d.value(), 0.0)) {
@@ -383,7 +383,20 @@ std::optional<double> segmentDistance(
         return std::nullopt;
     }
 
-    return *std::min_element(distances.begin(), distances.end());
+    // Find the distance with minimum absolute value (closest collision)
+    // But preserve the sign to indicate direction
+    double minDist = distances[0];
+    double minAbs = std::abs(distances[0]);
+
+    for (size_t i = 1; i < distances.size(); i++) {
+        double absVal = std::abs(distances[i]);
+        if (absVal < minAbs) {
+            minAbs = absVal;
+            minDist = distances[i];
+        }
+    }
+
+    return minDist;
 }
 
 // ========== polygonSlideDistance ==========
@@ -421,7 +434,8 @@ std::optional<double> polygonSlideDistance(
                 continue;
             }
 
-            auto d = segmentDistance(A1, A2, B1, B2, dir);
+            // Calculate distance B must move in direction to touch A
+            auto d = segmentDistance(B1, B2, A1, A2, dir);
 
             if (d.has_value() && (!distance.has_value() || d.value() < distance.value())) {
                 if (!ignoreNegative || d.value() > 0 || almostEqual(d.value(), 0.0)) {
@@ -547,10 +561,12 @@ std::optional<Point> searchStartPoint(
             }
 
             if (!Binside.has_value()) {
-                // A and B are the same
-                std::cerr << "  ERROR: Binside is nullopt (A and B are the same)" << std::endl;
-                std::cerr << "  Candidates checked: " << candidatesChecked << std::endl;
-                return std::nullopt;
+                // All points of B are on the boundary of A - treat as outside for OUTER NFP
+                // This can happen when B's vertices lie exactly on A's edges
+                Binside = false;
+                if (candidatesChecked <= 10) {
+                    std::cerr << "    Note: All B points on boundary, treating as outside" << std::endl;
+                }
             }
 
             candidatesWithValidBinside++;
@@ -568,9 +584,12 @@ std::optional<Point> searchStartPoint(
             bool noIntersection = !intersect(edgeA, offsetB);
             bool notInNfp = !inNfp(startPoint, NFP);
 
-            if (candidatesChecked <= 3) {  // Debug first few candidates
-                std::cerr << "    Candidate [" << i << "," << j << "]: Binside=" << Binside.value()
-                          << ", insideMatch=" << insideMatch << ", noIntersect=" << noIntersection
+            if (candidatesChecked <= 10) {  // Debug first few candidates
+                std::cerr << "    Candidate [" << i << "," << j << "]: offset=(" << offset.x << "," << offset.y << ")"
+                          << " Binside=" << Binside.value()
+                          << ", inside=" << inside
+                          << ", insideMatch=" << insideMatch
+                          << ", noIntersect=" << noIntersection
                           << ", notInNfp=" << notInNfp << std::endl;
             }
 

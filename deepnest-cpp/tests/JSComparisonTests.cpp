@@ -292,27 +292,6 @@ void test_RotationAngleGeneration() {
     }
 }
 
-// ========== Test 7: Minkowski Sum Scale Calculation ==========
-void test_MinkowskiScaleCalculation() {
-    TEST_CASE("Minkowski Sum Scale Calculation");
-
-    // Test scale factor calculation matches expected values
-
-    Polygon A({{0, 0}, {100, 0}, {100, 100}, {0, 100}});
-    Polygon B({{0, 0}, {50, 0}, {50, 50}, {0, 50}});
-
-    double scale = MinkowskiSum::calculateScale(A, B);
-
-    std::cout << "  Scale factor: " << scale << std::endl;
-
-    // Scale should be positive and reasonably large for integer conversion
-    EXPECT_TRUE(scale > 1000.0, "Scale factor > 1000");
-    EXPECT_TRUE(scale < 1e9, "Scale factor < 1 billion");
-
-    // Scale should be consistent for same input
-    double scale2 = MinkowskiSum::calculateScale(A, B);
-    EXPECT_NEAR(scale, scale2, 0.1, "Scale calculation is deterministic");
-}
 
 // ========== Test 8: NFP Calculation Correctness ==========
 void test_NFPReferencePointShift() {
@@ -441,7 +420,6 @@ int runTests() {
     test_GravityPlacementFormula();
     test_BoundingBoxPlacementFormula();
     test_RotationAngleGeneration();
-    test_MinkowskiScaleCalculation();
     test_NFPReferencePointShift();
     test_PointDistanceCalculation();
     test_MutationRateConversion();

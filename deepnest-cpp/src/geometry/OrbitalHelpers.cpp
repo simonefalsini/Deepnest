@@ -90,10 +90,10 @@ std::vector<TranslationVector> generateTranslationVectors(
     std::vector<TranslationVector> vectors;
 
     // Get adjacent vertex indices (with wrapping)
-    int prevAindex = (touch.indexA - 1 + A.size()) % A.size();
-    int nextAindex = (touch.indexA + 1) % A.size();
-    int prevBindex = (touch.indexB - 1 + B.size()) % B.size();
-    int nextBindex = (touch.indexB + 1) % B.size();
+    int prevAindex = (int)(touch.indexA - 1 + A.size()) % A.size();
+    int nextAindex = (int)(touch.indexA + 1) % A.size();
+    int prevBindex = (int)(touch.indexB - 1 + B.size()) % B.size();
+    int nextBindex = (int)(touch.indexB + 1) % B.size();
 
     const Point& vertexA = A[touch.indexA];
     const Point& prevA = A[prevAindex];

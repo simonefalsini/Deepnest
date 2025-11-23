@@ -42,3 +42,121 @@ install(TARGETS PolygonExtractor
 )
 
 message(STATUS "PolygonExtractor test tool configured")
+
+# ===== GeometryValidationTests =====
+add_executable(GeometryValidationTests
+    GeometryValidationTests.cpp
+)
+
+target_include_directories(GeometryValidationTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(GeometryValidationTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(GeometryValidationTests PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(GeometryValidationTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Install target
+install(TARGETS GeometryValidationTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "GeometryValidationTests configured")
+
+# ===== NFPValidationTests =====
+add_executable(NFPValidationTests
+    NFPValidationTests.cpp
+)
+
+target_include_directories(NFPValidationTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(NFPValidationTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(NFPValidationTests PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(NFPValidationTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Install target
+install(TARGETS NFPValidationTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "NFPValidationTests configured")
+
+# ===== SearchStartPointDebug =====
+add_executable(SearchStartPointDebug
+    SearchStartPointDebug.cpp
+)
+
+target_include_directories(SearchStartPointDebug PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(SearchStartPointDebug
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(SearchStartPointDebug PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(SearchStartPointDebug PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+message(STATUS "SearchStartPointDebug configured")
+
+# ===== NFPDebug =====
+add_executable(NFPDebug
+    NFPDebug.cpp
+)
+
+target_include_directories(NFPDebug PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(NFPDebug
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+# C++17 standard
+target_compile_features(NFPDebug PRIVATE cxx_std_17)
+
+# Set output directory
+set_target_properties(NFPDebug PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+message(STATUS "NFPDebug configured")
