@@ -36,7 +36,7 @@
  * Use for debugging NFP calculation issues.
  */
 #ifndef DEBUG_NFP
-#define DEBUG_NFP 0
+#define DEBUG_NFP 1
 #endif
 
 /**
