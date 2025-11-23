@@ -383,8 +383,7 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
-    // Test NFP (now uses Minkowski Sum internally - production version!)
-    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside, false);
+    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
 
     std::vector<deepnest::Polygon> nfps;
 
@@ -569,28 +568,12 @@ int main(int argc, char *argv[]) {
                 }
 
                 try {
-                    // Test both algorithms
-                    auto minkowskiNFPs = deepnest::MinkowskiSum::calculateNFP(polygons[i], polygons[j], false);
 
-                    // Apply B[0] translation to Minkowski NFP
-                    if (!minkowskiNFPs.empty() && !polygons[j].points.empty()) {
-                        for (auto& nfp : minkowskiNFPs) {
-                            nfp = nfp.translate(polygons[j].points[0].x, polygons[j].points[0].y);
-                        }
-                    }
+                    // Test both algorithms with OUTSIDE mode (part-to-part collision)
+                    auto minkowskiNFPs = testMinkowskiSum(polygons[i], polygons[j], false);
+                    auto orbitalNFPs = testOrbitalTracing(polygons[i], polygons[j], false);
 
-                    // Use production NFP (Minkowski-based, mathematically proven!)
-                    auto orbitalPoints = deepnest::GeometryUtil::noFitPolygon(polygons[i].points, polygons[j].points, false, false);
-
-                    // Convert orbital to Polygon
-                    std::vector<deepnest::Polygon> orbitalNFPs;
-                    for (const auto& points : orbitalPoints) {
-                        deepnest::Polygon nfp;
-                        nfp.points = points;
-                        orbitalNFPs.push_back(nfp);
-                    }
-
-                    // Compare results
+                     // Compare results
                     auto comparison = compareNFPsSilent(minkowskiNFPs, orbitalNFPs);
 
                     if (comparison.passed) {
