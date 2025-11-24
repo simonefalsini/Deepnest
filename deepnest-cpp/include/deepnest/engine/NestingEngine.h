@@ -293,6 +293,25 @@ private:
     ) const;
 
     /**
+     * @brief Generate NFP pairs for unevaluated individuals
+     *
+     * Matches JavaScript nfpPairs generation from svgnest.js lines 287-310.
+     * Creates pairs for:
+     * - Inner NFP: each part vs bin/sheet
+     * - Outer NFP: each part vs previously placed parts
+     *
+     * Only generates pairs that are not already in NFP cache.
+     *
+     * @return Vector of NFP pairs to calculate
+     *
+     * References:
+     * - svgnest.js lines 287-310: nfpPairs generation loop
+     * - svgnest.js line 293: Inner NFP key generation
+     * - svgnest.js line 302: Outer NFP key generation
+     */
+    std::vector<NFPPair> generateNFPPairs();
+
+    /**
      * @brief Update saved results with new result
      *
      * Keeps top N results sorted by fitness.

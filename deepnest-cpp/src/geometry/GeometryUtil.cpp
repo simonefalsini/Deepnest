@@ -11,81 +11,6 @@
 namespace deepnest {
 namespace GeometryUtil {
 
-// ========== Integer Geometry (for precision) ==========
-
-/**
- * @brief Integer point for exact geometric calculations
- *
- * Using integer coordinates eliminates floating-point precision issues:
- * - slideDistance == 0 is exactly 0 (not ≈ 0)
- * - No accumulation of rounding errors
- * - Same approach as MinkowskiSum
- */
-struct IntPoint {
-    int64_t x, y;
-    bool marked;  // For orbital tracing
-
-    IntPoint() : x(0), y(0), marked(false) {}
-    IntPoint(int64_t x_, int64_t y_, bool marked_ = false) : x(x_), y(y_), marked(marked_) {}
-
-    // Convert from double Point
-    static IntPoint fromDouble(const Point& p) {
-        return IntPoint(static_cast<int64_t>(p.x), static_cast<int64_t>(p.y), p.marked);
-    }
-
-    // Convert to double Point
-    Point toDouble() const {
-        Point p(static_cast<double>(x), static_cast<double>(y));
-        p.marked = marked;
-        return p;
-    }
-
-    // Vector operations
-    IntPoint operator+(const IntPoint& other) const {
-        return IntPoint(x + other.x, y + other.y);
-    }
-
-    IntPoint operator-(const IntPoint& other) const {
-        return IntPoint(x - other.x, y - other.y);
-    }
-
-    // Dot product
-    int64_t dot(const IntPoint& other) const {
-        return x * other.x + y * other.y;
-    }
-
-    // Cross product (for 2D, returns z-component)
-    int64_t cross(const IntPoint& other) const {
-        return x * other.y - y * other.x;
-    }
-
-    // Squared length (to avoid sqrt)
-    int64_t lengthSquared() const {
-        return x * x + y * y;
-    }
-};
-
-// Convert vector of Points to IntPoints
-std::vector<IntPoint> toIntPoints(const std::vector<Point>& points) {
-    std::vector<IntPoint> result;
-    result.reserve(points.size());
-    for (const auto& p : points) {
-        result.push_back(IntPoint::fromDouble(p));
-    }
-    return result;
-}
-
-// Convert vector of IntPoints to Points
-std::vector<Point> toDoublePoints(const std::vector<IntPoint>& points) {
-    std::vector<Point> result;
-    result.reserve(points.size());
-    for (const auto& p : points) {
-        result.push_back(p.toDouble());
-    }
-    return result;
-}
-
-// ========== Basic Utility Functions ==========
 
 bool almostEqualPoints(const Point& a, const Point& b, double tolerance) {
     double dx = a.x - b.x;
@@ -650,7 +575,7 @@ std::vector<Point> linearize(const Point& p1, const Point& p2,
 // PHASE 3.2: Complete Orbital-Based noFitPolygon implementation
 // This provides a fallback when Minkowski sum fails or for validation
 // Reference: geometryutil.js:1437-1727 (noFitPolygon function)
-#ifndef INTNFP
+
 std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
                                             const std::vector<Point>& B_input,
                                             bool inside,
@@ -1029,30 +954,8 @@ std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
     // JavaScript line 1726
     return nfpList;
 }
-#else
-// Uses exact integer arithmetic to avoid floating-point precision issues
-std::vector<std::vector<Point>> noFitPolygon(const std::vector<Point>& A_input,
-                                            const std::vector<Point>& B_input,
-                                            bool inside,
-                                            bool searchEdges) {
-    // IMPORTANT: searchEdges parameter is currently IGNORED
-    // IntegerNFP::computeNFP always returns a single NFP
-    // This is consistent with most use cases where we only need the primary NFP
 
-    LOG_NFP("=== noFitPolygon: Delegating to IntegerNFP::computeNFP ===");
-    LOG_NFP("  A size: " << A_input.size() << " points");
-    LOG_NFP("  B size: " << B_input.size() << " points");
-    LOG_NFP("  Mode: " << (inside ? "INSIDE" : "OUTSIDE"));
 
-    // Delegate to IntegerNFP implementation (exact integer arithmetic)
-    // This avoids all floating-point tolerance issues that plagued the old orbital tracing
-    auto result = IntegerNFP::computeNFP(A_input, B_input, inside);
-
-    LOG_NFP("=== noFitPolygon: IntegerNFP returned " << result.size() << " NFP(s) ===");
-
-    return result;
-}
-#endif
 std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& A,
                                                      const std::vector<Point>& B) {
     // Special case for rectangle NFP

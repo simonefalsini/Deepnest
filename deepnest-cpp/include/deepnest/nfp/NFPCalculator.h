@@ -2,6 +2,7 @@
 #define DEEPNEST_NFP_CALCULATOR_H
 
 #include "../core/Polygon.h"
+#include "../config/DeepNestConfig.h"
 #include "NFPCache.h"
 #include <vector>
 #include <memory>
@@ -29,7 +30,16 @@ private:
      * @param inside If true, compute inner NFP; if false, compute outer NFP
      * @return Computed NFP polygon
      */
-    Polygon computeNFP(const Polygon& A, const Polygon& B, bool inside) const;
+    Polygon computeDiffNFP(const Polygon& A, const Polygon& B) const;
+    /**
+     * @brief Compute NFP 
+     *
+     *
+     * @param A Stationary polygon (may have children/holes)
+     * @param B Moving polygon
+     * @return Computed NFP polygon
+     */
+    Polygon computeNFP(const Polygon& A, const Polygon& B) const;
 
     /**
      * @brief Create a rectangular frame around a polygon

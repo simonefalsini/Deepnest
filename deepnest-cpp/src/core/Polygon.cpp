@@ -2,6 +2,7 @@
 #include "../../include/deepnest/geometry/Transformation.h"
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
+#include "../../include/deepnest/geometry/PolygonHierarchy.h"
 #include <boost/polygon/polygon.hpp>
 #include <algorithm>
 #include <numeric>
@@ -250,47 +251,75 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         return result;
     }
 
-    // Use the first subpath as the outer boundary
-    const QPolygonF& firstSubpath = subpaths.first();
+    // If only one subpath, simple case - no hierarchy needed
+    if (subpaths.size() == 1) {
+        const QPolygonF& firstSubpath = subpaths.first();
 
-    // Convert QPolygonF to vector<Point>
-    std::vector<Point> pathPoints;
-    pathPoints.reserve(firstSubpath.size());
-    for (const QPointF& qpt : firstSubpath) {
-        pathPoints.push_back(Point::fromQt(qpt));
-    }
-
-    // Apply Ramer-Douglas-Peucker simplification
-    // This matches the original DeepNest JavaScript implementation (simplify.js)
-    // Tolerance of 2.0 matches the JavaScript svgparser.js configuration
-    // This properly handles curve-to-line conversion artifacts and removes redundant points
-    std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
-        pathPoints,
-        2.0,        // tolerance (matches JavaScript config)
-        false       // use two-pass approach (radial + Douglas-Peucker)
-    );
-
-    // Validate minimum points for a polygon
-    if (simplifiedPoints.size() < 3) {
-        return result;  // Invalid polygon
-    }
-
-    result.points = std::move(simplifiedPoints);
-
-    // Additional subpaths become holes/children
-    // Note: This is a simplified approach - a full implementation would need to
-    // determine which subpaths are holes vs separate polygons based on winding order
-    for (int i = 1; i < subpaths.size(); ++i) {
-        const QPolygonF& subpath = subpaths[i];
-
-        Polygon hole;
-        hole.points.reserve(subpath.size());
-        for (const QPointF& pt : subpath) {
-            hole.points.push_back(Point::fromQt(pt));
+        // Convert QPolygonF to vector<Point>
+        std::vector<Point> pathPoints;
+        pathPoints.reserve(firstSubpath.size());
+        for (const QPointF& qpt : firstSubpath) {
+            pathPoints.push_back(Point::fromQt(qpt));
         }
 
-        if (hole.isValid()) {
-            result.children.push_back(hole);
+        // Apply Ramer-Douglas-Peucker simplification
+        std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+            pathPoints,
+            2.0,        // tolerance (matches JavaScript config)
+            false       // use two-pass approach
+        );
+
+        if (simplifiedPoints.size() >= 3) {
+            result.points = std::move(simplifiedPoints);
+        }
+
+        return result;
+    }
+
+    // Multiple subpaths - use PolygonHierarchy::buildTree to automatically
+    // determine parent-child relationships based on containment
+    // This matches JavaScript toTree() logic from svgnest.js lines 541-591
+    
+    std::vector<Polygon> allPolygons;
+    
+    for (int i = 0; i < subpaths.size(); ++i) {
+        const QPolygonF& subpath = subpaths[i];
+
+        Polygon poly;
+        poly.points.reserve(subpath.size());
+        for (const QPointF& pt : subpath) {
+            poly.points.push_back(Point::fromQt(pt));
+        }
+
+        // Apply simplification to each subpath
+        if (poly.points.size() >= 3) {
+            std::vector<Point> simplifiedPoints = GeometryUtil::simplifyPolygon(
+                poly.points,
+                2.0,
+                false
+            );
+            
+            if (simplifiedPoints.size() >= 3) {
+                poly.points = std::move(simplifiedPoints);
+                allPolygons.push_back(poly);
+            }
+        }
+    }
+
+    if (allPolygons.empty()) {
+        return result;
+    }
+
+    // Build hierarchy using PolygonHierarchy::buildTree
+    // This automatically identifies which polygons are holes based on containment
+    std::vector<Polygon> tree = PolygonHierarchy::buildTree(allPolygons, polygonId);
+
+    // Return the first top-level polygon (or empty if none)
+    if (!tree.empty()) {
+        result = tree[0];
+        // If polygonId was specified, ensure it's set
+        if (polygonId >= 0) {
+            result.id = polygonId;
         }
     }
 

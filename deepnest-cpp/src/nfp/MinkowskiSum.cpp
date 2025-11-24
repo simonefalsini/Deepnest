@@ -204,8 +204,7 @@ std::vector<Polygon> MinkowskiSum::fromBoostPolygonSet(const IntPolygonSet& poly
 
 std::vector<Polygon> MinkowskiSum::calculateNFP(
     const Polygon& A,
-    const Polygon& B,
-    bool inner) {
+    const Polygon& B) {
 
     LOG_NFP("Calculating Minkowski NFP: A(" << A.points.size() << " pts) vs B("
            << B.points.size() << " pts), mode=" << (inner ? "INNER" : "OUTER"));
@@ -252,14 +251,13 @@ std::vector<Polygon> MinkowskiSum::calculateNFP(
 
 std::vector<std::vector<Polygon>> MinkowskiSum::calculateNFPBatch(
     const Polygon& A,
-    const std::vector<Polygon>& Blist,
-    bool inner) {
+    const std::vector<Polygon>& Blist) {
 
     std::vector<std::vector<Polygon>> results;
     results.reserve(Blist.size());
 
     for (const auto& B : Blist) {
-        results.push_back(calculateNFP(A, B, inner));
+        results.push_back(calculateNFP(A, B));
     }
 
     return results;

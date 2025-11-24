@@ -32,8 +32,7 @@ public:
      */
     static std::vector<Polygon> calculateNFP(
         const Polygon& A,
-        const Polygon& B,
-        bool inner = false
+        const Polygon& B
     );
 
     /**
@@ -49,9 +48,7 @@ public:
      */
     static std::vector<std::vector<Polygon>> calculateNFPBatch(
         const Polygon& A,
-        const std::vector<Polygon>& Blist,
-        bool inner = false
-    );
+        const std::vector<Polygon>& Blist);
 
 private:
 

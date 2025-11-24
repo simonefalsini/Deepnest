@@ -304,8 +304,23 @@ bool NestingEngine::step() {
     //               }
     //             }
 
+    // CRITICAL: Generate and calculate NFPs BEFORE launching placement workers
+    // This matches JavaScript behavior (svgnest.js lines 287-447)
+    // JavaScript generates nfpPairs, calculates them in parallel, populates nfpCache,
+    // THEN passes the cache to PlacementWorker
+    
+    //LOG_NESTING("Generating NFP pairs for unevaluated individuals");
+    //std::vector<NFPPair> nfpPairs = generateNFPPairs();
+    
+    //if (!nfpPairs.empty()) {
+    //    LOG_NESTING("Calculating " << nfpPairs.size() << " NFP pairs in parallel");
+    //    parallelProcessor_->calculateNFPsParallel(nfpPairs, nfpCache_, config_);
+    //    LOG_NESTING("NFP calculation complete");
+    //}
+
     // Launch parallel evaluations for unevaluated individuals
     // Note: ParallelProcessor::processPopulation handles the parallel execution
+    // NOW PlacementWorker can use the populated NFP cache
     // Check if parallelProcessor_ exists (may be nullptr after stop())
     if (!parallelProcessor_) {
         running_ = false;
@@ -550,6 +565,70 @@ void NestingEngine::updateResults(const NestResult& result) {
     if (results_.size() > MAX_SAVED_RESULTS) {
         results_.resize(MAX_SAVED_RESULTS);
     }
+}
+
+std::vector<NFPPair> NestingEngine::generateNFPPairs() {
+    // JavaScript reference: svgnest.js lines 287-310
+    
+    std::vector<NFPPair> pairs;
+    
+    if (sheets_.empty()) {
+        return pairs;
+    }
+    
+    const Polygon& binPolygon = sheets_[0];
+    auto& population = geneticAlgorithm_->getPopulation();
+    
+    // For each unevaluated individual
+    for (auto& individual : population) {
+        // Skip already evaluated or currently processing individuals
+        if (individual.hasValidFitness() || individual.processing) {
+            continue;
+        }
+        
+        const auto& placelist = individual.placement;
+        const auto& rotations = individual.rotation;
+        
+        // For each part in the placement sequence
+        for (size_t i = 0; i < placelist.size(); ++i) {
+            const Polygon& part = *placelist[i];
+            double partRotation = rotations[i];
+            
+            // Inner NFP: part vs bin (JavaScript line 293)
+            std::vector<Polygon> cached;
+            if (!nfpCache_.find(binPolygon.id, part.id, 0.0, partRotation, cached, true)) {
+                NFPPair pair;
+                pair.A = binPolygon;
+                pair.B = part;
+                pair.inside = true;
+                pair.Arotation = 0.0;
+                pair.Brotation = partRotation;
+                pair.Asource = binPolygon.id;
+                pair.Bsource = part.id;
+                pairs.push_back(pair);
+            }
+            
+            // Outer NFP: part vs previously placed parts (JavaScript lines 300-309)
+            for (size_t j = 0; j < i; ++j) {
+                const Polygon& placed = *placelist[j];
+                double placedRotation = rotations[j];
+                
+                if (!nfpCache_.find(placed.id, part.id, placedRotation, partRotation, cached, false)) {
+                    NFPPair pair;
+                    pair.A = placed;
+                    pair.B = part;
+                    pair.inside = false;
+                    pair.Arotation = placedRotation;
+                    pair.Brotation = partRotation;
+                    pair.Asource = placed.id;
+                    pair.Bsource = part.id;
+                    pairs.push_back(pair);
+                }
+            }
+        }
+    }
+    
+    return pairs;
 }
 
 } // namespace deepnest

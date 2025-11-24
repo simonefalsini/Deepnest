@@ -14,6 +14,21 @@
 namespace deepnest {
 
 /**
+ * @brief Structure representing an NFP calculation pair
+ * 
+ * Matches JavaScript nfpPairs structure from svgnest.js lines 287-310
+ */
+struct NFPPair {
+    Polygon A;           // Stationary polygon
+    Polygon B;           // Moving polygon
+    bool inside;         // true = inner NFP, false = outer NFP
+    double Arotation;    // Rotation of A in degrees
+    double Brotation;    // Rotation of B in degrees
+    int Asource;         // Source ID of A
+    int Bsource;         // Source ID of B
+};
+
+/**
  * @brief Parallel processor using Boost.Thread for concurrent placement evaluation
  *
  * This class manages a thread pool for parallel processing of genetic algorithm
@@ -121,6 +136,41 @@ public:
      * Blocks until the task queue is empty.
      */
     void waitAll();
+
+    /**
+     * @brief Calculate NFPs in parallel for given pairs
+     *
+     * Matches JavaScript Parallel.js worker behavior from svgnest.js lines 338-447.
+     * Calculates NFPs for all pairs concurrently and stores results in cache.
+     *
+     * Algorithm (matching JavaScript):
+     * 1. For each pair:
+     *    - Rotate A and B to specified rotations
+     *    - If inside (inner NFP):
+     *      - Check if A is rectangle → use noFitPolygonRectangle
+     *      - Otherwise → use noFitPolygon(A, B, true, searchEdges)
+     *      - Ensure correct winding direction (negative area)
+     *    - If outside (outer NFP):
+     *      - Use noFitPolygon(A, B, false, searchEdges)
+     *      - Validate area (NFP area >= A area)
+     *      - Handle holes if useHoles enabled
+     *      - Ensure correct winding direction
+     * 2. Store results in NFP cache
+     *
+     * @param pairs Vector of NFP pairs to calculate
+     * @param cache NFP cache for storing results
+     * @param config Configuration (searchEdges, useHoles, etc.)
+     *
+     * References:
+     * - svgnest.js lines 338-447: Parallel.js map function
+     * - svgnest.js lines 350-370: Inner NFP calculation
+     * - svgnest.js lines 372-438: Outer NFP calculation with validation
+     */
+    void calculateNFPsParallel(
+        const std::vector<NFPPair>& pairs,
+        NFPCache& cache,
+        const DeepNestConfig& config
+    );
 
     /**
      * @brief Execute a function under the processor's lock

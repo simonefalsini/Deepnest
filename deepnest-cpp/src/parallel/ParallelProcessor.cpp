@@ -1,5 +1,7 @@
 #include "../../include/deepnest/parallel/ParallelProcessor.h"
 #include "../../include/deepnest/DebugConfig.h"
+#include "../../include/deepnest/nfp/NFPCache.h"
+#include "../../include/deepnest/geometry/GeometryUtil.h"
 #include <algorithm>
 #include <thread>
 #include <chrono>
@@ -182,6 +184,138 @@ void ParallelProcessor::processPopulation(
                     }
             });
         }
+}
+
+void ParallelProcessor::calculateNFPsParallel(
+    const std::vector<NFPPair>& pairs,
+    NFPCache& cache,
+    const DeepNestConfig& config
+) {
+    // JavaScript reference: svgnest.js lines 338-447
+    // p.map(function(pair){ ... })
+    
+    if (pairs.empty()) {
+        return;
+    }
+    
+    LOG_THREAD("calculateNFPsParallel: Processing " << pairs.size() << " NFP pairs");
+    
+    // Process each pair in parallel using thread pool
+    std::vector<std::future<void>> futures;
+    futures.reserve(pairs.size());
+    
+    for (const auto& pair : pairs) {
+        // Enqueue NFP calculation task
+        auto future = enqueue([&pair, &cache, &config]() {
+            // JavaScript: if(!pair || pair.length == 0) return null;
+            if (pair.A.points.empty() || pair.B.points.empty()) {
+                return;
+            }
+            
+            // JavaScript lines 345-346: Rotate polygons
+            Polygon A = pair.A.rotate(pair.Arotation);
+            Polygon B = pair.B.rotate(pair.Brotation);
+            
+            std::vector<std::vector<Point>> nfp;
+            
+            if (pair.inside) {
+                // ========== INNER NFP (JavaScript lines 350-370) ==========
+                if (GeometryUtil::isRectangle(A.points, 0.001)) {
+                    nfp = GeometryUtil::noFitPolygonRectangle(A.points, B.points);
+                } else {
+                    nfp = GeometryUtil::noFitPolygon(A.points, B.points, true, config.exploreConcave);
+                }
+                
+                // Ensure all interior NFPs have same winding direction
+                if (!nfp.empty()) {
+                    for (auto& nfpPoly : nfp) {
+                        if (GeometryUtil::polygonArea(nfpPoly) > 0) {
+                            std::reverse(nfpPoly.begin(), nfpPoly.end());
+                        }
+                    }
+                }
+            } else {
+                // ========== OUTER NFP (JavaScript lines 372-438) ==========
+                nfp = GeometryUtil::noFitPolygon(A.points, B.points, false, config.exploreConcave);
+                
+                if (nfp.empty()) {
+                    return;
+                }
+                
+                // Area validation (JavaScript lines 383-394)
+                double areaA = std::abs(GeometryUtil::polygonArea(A.points));
+                for (size_t j = 0; j < nfp.size(); ++j) {
+                    if (!config.exploreConcave || j == 0) {
+                        double areaNFP = std::abs(GeometryUtil::polygonArea(nfp[j]));
+                        if (areaNFP < areaA) {
+                            nfp.clear();
+                            return;
+                        }
+                    }
+                }
+                
+                // Winding direction correction (JavaScript lines 401-413)
+                for (size_t j = 0; j < nfp.size(); ++j) {
+                    if (GeometryUtil::polygonArea(nfp[j]) > 0) {
+                        std::reverse(nfp[j].begin(), nfp[j].end());
+                    }
+                    
+                    if (j > 0 && !nfp[j].empty() && !nfp[0].empty()) {
+                        auto pointInPoly = GeometryUtil::pointInPolygon(nfp[j][0], nfp[0]);
+                        if (pointInPoly.has_value() && pointInPoly.value()) {
+                            if (GeometryUtil::polygonArea(nfp[j]) < 0) {
+                                std::reverse(nfp[j].begin(), nfp[j].end());
+                            }
+                        }
+                    }
+                }
+                
+                // Holes support (JavaScript lines 416-438)
+                if (config.useHoles && !A.children.empty()) {
+                    BoundingBox bboxB = B.bounds();
+                    
+                    for (const auto& hole : A.children) {
+                        BoundingBox bboxHole = hole.bounds();
+                        
+                        if (bboxHole.width > bboxB.width && bboxHole.height > bboxB.height) {
+                            auto cnfp = GeometryUtil::noFitPolygon(hole.points, B.points, true, config.exploreConcave);
+                            
+                            if (!cnfp.empty()) {
+                                for (auto& cnfpPoly : cnfp) {
+                                    if (GeometryUtil::polygonArea(cnfpPoly) < 0) {
+                                        std::reverse(cnfpPoly.begin(), cnfpPoly.end());
+                                    }
+                                    nfp.push_back(cnfpPoly);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Store in cache (JavaScript lines 447-457)
+            if (!nfp.empty()) {
+                std::vector<Polygon> nfpPolygons;
+                nfpPolygons.reserve(nfp.size());
+                for (const auto& nfpPoints : nfp) {
+                    Polygon poly;
+                    poly.points = nfpPoints;
+                    nfpPolygons.push_back(poly);
+                }
+                
+                cache.insert(pair.Asource, pair.Bsource, pair.Arotation, pair.Brotation, nfpPolygons, pair.inside);
+            }
+        });
+        
+        futures.push_back(std::move(future));
+    }
+    
+    // Wait for all NFP calculations to complete
+    for (auto& future : futures) {
+        future.get();
+    }
+    
+    LOG_THREAD("calculateNFPsParallel: Completed " << pairs.size() << " pairs");
 }
 
 } // namespace deepnest

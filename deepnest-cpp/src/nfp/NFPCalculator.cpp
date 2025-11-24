@@ -2,6 +2,9 @@
 #include "../../include/deepnest/nfp/MinkowskiSum.h"
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
+#include "../../include/deepnest/config/DeepNestConfig.h"
+#include <clipper2/clipper.engine.h>
+#include <clipper2/clipper.minkowski.h>
 #include <algorithm>
 #include <iostream>
 
@@ -11,85 +14,33 @@ NFPCalculator::NFPCalculator(NFPCache& cache)
     : cache_(cache) {
 }
 
-Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool inside) const {
+Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
     // Use MinkowskiSum to calculate NFP
     // The MinkowskiSum::calculateNFP returns a vector of polygons,
     // we need to select the largest one (by area) as per JavaScript implementation
-    auto nfps = MinkowskiSum::calculateNFP(A, B, inside);
+    auto nfps = MinkowskiSum::calculateNFP(A, B);
 
     if (nfps.empty()) {
-        // PHASE 3.2: FALLBACK using Orbital-Based NFP calculation
-        // When Minkowski sum fails (empty result), use the orbital tracing algorithm
-        // This is more accurate than bounding box approximation
-        std::cerr << "WARNING: Minkowski sum failed for polygons A(id=" << A.id
-                 << ") and B(id=" << B.id << "), trying orbital tracing fallback..." << std::endl;
-
-        // Use the orbital-based noFitPolygon algorithm
-        std::vector<std::vector<Point>> orbitalNFPs = GeometryUtil::noFitPolygon(
-            A.points, B.points, inside, false  // searchEdges=false for single NFP
-        );
-
-        if (!orbitalNFPs.empty() && !orbitalNFPs[0].empty()) {
-            // Convert std::vector<Point> to Polygon
-            Polygon fallbackNFP;
-            fallbackNFP.points = orbitalNFPs[0];
-            fallbackNFP.id = -1;  // Mark as generated
-            fallbackNFP.rotation = 0;
-
-            std::cerr << "SUCCESS: Orbital tracing generated NFP with " << fallbackNFP.points.size()
-                     << " points" << std::endl;
-            return fallbackNFP;
-        }
-
-        std::cerr << "ERROR: Both Minkowski and orbital tracing failed!" << std::endl;
-        std::cerr << "  Polygon A(id=" << A.id << "): " << A.points.size() << " points" << std::endl;
-        std::cerr << "  Polygon B(id=" << B.id << "): " << B.points.size() << " points" << std::endl;
-
-        // LAST RESORT FALLBACK: Use conservative bounding box approximation
-        // This ensures we always have SOME collision detection, even if imprecise
-        std::cerr << "  LAST RESORT: Using conservative bounding box NFP approximation" << std::endl;
-
+  
         BoundingBox bboxA = A.bounds();
         BoundingBox bboxB = B.bounds();
 
         // For OUTSIDE NFP: Create a rectangle around A expanded by B's dimensions
         // This is overly conservative but guarantees no overlap
         Polygon conservativeNFP;
-        if (!inside) {
-            double x = bboxA.x - bboxB.width;
-            double y = bboxA.y - bboxB.height;
-            double w = bboxA.width + 2 * bboxB.width;
-            double h = bboxA.height + 2 * bboxB.height;
+        double x = bboxA.x - bboxB.width;
+        double y = bboxA.y - bboxB.height;
+        double w = bboxA.width + 2 * bboxB.width;
+        double h = bboxA.height + 2 * bboxB.height;
 
-            conservativeNFP.points = {
-                {x, y},
-                {x + w, y},
-                {x + w, y + h},
-                {x, y + h}
-            };
+        conservativeNFP.points = {
+            {x, y},
+            {x + w, y},
+            {x + w, y + h},
+            {x, y + h}
+        };
 
-            std::cerr << "  Generated conservative NFP: " << w << " x " << h << " rectangle" << std::endl;
-        } else {
-            // For INSIDE NFP: Shrink A's bounding box by B's dimensions
-            // This ensures B fits completely inside
-            double x = bboxA.x + bboxB.width / 2;
-            double y = bboxA.y + bboxB.height / 2;
-            double w = std::max(1.0, bboxA.width - bboxB.width);
-            double h = std::max(1.0, bboxA.height - bboxB.height);
-
-            if (w > 1.0 && h > 1.0) {
-                conservativeNFP.points = {
-                    {x, y},
-                    {x + w, y},
-                    {x + w, y + h},
-                    {x, y + h}
-                };
-                std::cerr << "  Generated conservative inner NFP: " << w << " x " << h << " rectangle" << std::endl;
-            } else {
-                std::cerr << "  WARNING: B is too large to fit inside A, returning empty NFP" << std::endl;
-                return Polygon(); // Truly impossible to fit
-            }
-        }
+        std::cerr << "  Generated conservative NFP: " << w << " x " << h << " rectangle" << std::endl;
 
         conservativeNFP.id = -999;  // Mark as fallback approximation
         return conservativeNFP;
@@ -128,6 +79,76 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B, bool insid
     return largestNFP;
 }
 
+Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const {
+    
+    const double CLIPPER_SCALE = 10000000.0;
+    
+    // Convert A to Clipper2 Path64 and scale up
+    Clipper2Lib::Path64 pathA;
+    pathA.reserve(A.points.size());
+    for (const auto& pt : A.points) {
+        pathA.push_back(Clipper2Lib::Point64(
+            static_cast<int64_t>(pt.x * CLIPPER_SCALE),
+            static_cast<int64_t>(pt.y * CLIPPER_SCALE)
+        ));
+    }
+    
+    // Convert B to Clipper2 Path64, scale up, and NEGATE (critical for NFP)
+    Clipper2Lib::Path64 pathB;
+    pathB.reserve(B.points.size());
+    for (const auto& pt : B.points) {
+        pathB.push_back(Clipper2Lib::Point64(
+            static_cast<int64_t>(-pt.x * CLIPPER_SCALE),  // Negate X
+            static_cast<int64_t>(-pt.y * CLIPPER_SCALE)   // Negate Y
+        ));
+    }
+    
+    // Call Clipper2::MinkowskiSum (equivalent to ClipperLib.Clipper.MinkowskiSum)
+    Clipper2Lib::Paths64 solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
+
+
+    // JavaScript: Select polygon with largest area (lines 666-674)
+    // var largestArea = null;
+    // for(i=0; i<solution.length; i++){
+    //     var n = toNestCoordinates(solution[i], 10000000);
+    //     var sarea = -GeometryUtil.polygonArea(n);
+    //     if(largestArea === null || largestArea < sarea){
+    //         clipperNfp = n;
+    //         largestArea = sarea;
+    //     }
+    // }
+    
+    Polygon largestNFP;
+    double largestArea = 0.0;
+
+    for (const auto& nfpPath : solution) {
+        // Convert from Clipper2 coordinates back to nest coordinates
+        std::vector<Point> nfpPoints;
+        nfpPoints.reserve(nfpPath.size());
+        
+        for (const auto& pt : nfpPath) {
+            nfpPoints.push_back(Point{
+                static_cast<double>(pt.x) / CLIPPER_SCALE,
+                static_cast<double>(pt.y) / CLIPPER_SCALE
+            });
+        }
+        
+        // Calculate area (JavaScript uses negative area: -GeometryUtil.polygonArea(n))
+        double area = -GeometryUtil::polygonArea(nfpPoints);
+        
+        if (area > largestArea) {
+            largestArea = area;
+            largestNFP.points = std::move(nfpPoints);
+        }
+    }
+
+    if (!B.points.empty()) {
+        largestNFP = largestNFP.translate(B.points[0].x, B.points[0].y);
+    }
+
+    return largestNFP;
+}
+
 Polygon NFPCalculator::getOuterNFP(const Polygon& A, const Polygon& B, bool inside) {
     // Try cache lookup first (background.js line 636-640)
     std::vector<Polygon> cached;
@@ -138,8 +159,23 @@ Polygon NFPCalculator::getOuterNFP(const Polygon& A, const Polygon& B, bool insi
         }
     }
 
+    // Get config to check useHoles setting
+    const DeepNestConfig& config = DeepNestConfig::getInstance();
+    
     // Not found in cache - compute NFP (background.js line 643-684)
-    Polygon nfp = computeNFP(A, B, inside);
+    // Use computeNFPWithHoles if useHoles is enabled and not computing inner NFP
+    Polygon nfp;
+    
+    if (inside || !A.children.empty()) 
+    {
+        // Compute NFP with holes support (svgnest.js lines 415-438)
+        nfp = computeNFP(A, B);
+     }
+    else
+    {
+        nfp = computeDiffNFP(A, B);
+        
+    }
 
     if (nfp.points.empty()) {
         return Polygon(); // Failed to compute
@@ -193,10 +229,10 @@ Polygon NFPCalculator::getFrame(const Polygon& A) const {
 std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon& B) {
     // Try cache lookup first (background.js line 735-742)
     // For inner NFP, rotation of A is always 0
-    std::vector<Polygon> cached;
-    if (cache_.find(A.source, B.source, 0.0, B.rotation, cached, true)) {
-        return cached;
-    }
+    //std::vector<Polygon> cached;
+    //if (cache_.find(A.source, B.source, 0.0, B.rotation, cached, true)) {
+    //    return cached;
+    //}
 
     // DEBUG LOGGING - DISABLED for cleaner output
     // static bool first_call = true;
@@ -302,9 +338,9 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
     }
 
     // Cache the result (using source IDs and rotation)
-    if (!result.empty()) {
-        cache_.insert(A.source, B.source, 0.0, B.rotation, result, true);
-    }
+    //if (!result.empty()) {
+    //    cache_.insert(A.source, B.source, 0.0, B.rotation, result, true);
+    //}
 
     return result;
 }

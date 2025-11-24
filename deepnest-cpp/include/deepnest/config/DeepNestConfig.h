@@ -130,28 +130,31 @@ public:
     // Additional parameters from svgnest.js
 
     /**
-     * @brief Whether to use holes in parts
-     */
-    bool useHoles;
-
-    /**
-     * @brief Whether to explore concave regions for placement
+     * @brief Whether to explore concave regions for better NFP
+     *
+     * Experimental feature for finding additional NFP regions
+     * in concave polygons
      */
     bool exploreConcave;
+
+    /**
+     * @brief Whether to calculate NFP for polygon holes (children)
+     *
+     * When enabled, NFP calculation includes holes of polygon A.
+     * This improves nesting quality for complex polygons with holes.
+     * Corresponds to JavaScript config.useHoles (svgnest.js line 31)
+     */
+    bool useHoles;
 
     // Additional runtime parameters
 
     /**
-     * @brief Maximum number of iterations to run
-     *
-     * 0 = run indefinitely until stopped
+     * @brief Maximum number of iterations for the nesting algorithm
      */
     int maxIterations;
 
     /**
-     * @brief Timeout in seconds for the nesting algorithm
-     *
-     * 0 = no timeout
+     * @brief Timeout in seconds for the nesting process
      */
     int timeoutSeconds;
 
