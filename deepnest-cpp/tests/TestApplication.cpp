@@ -686,6 +686,28 @@ void TestApplication::openConfigDialog() {
         solver_->setMutationRate(config_.mutationRate);
         solver_->setThreads(config_.threads);
         solver_->setPlacementType(config_.placementType.toStdString());
+        
+        // Convert gravity direction string to enum and apply
+        deepnest::GravityDirection gravityDir = deepnest::GravityDirection::LEFT; // Default
+        if (config_.gravityDirection == "left") {
+            gravityDir = deepnest::GravityDirection::LEFT;
+        } else if (config_.gravityDirection == "right") {
+            gravityDir = deepnest::GravityDirection::RIGHT;
+        } else if (config_.gravityDirection == "bottom") {
+            gravityDir = deepnest::GravityDirection::BOTTOM;
+        } else if (config_.gravityDirection == "top") {
+            gravityDir = deepnest::GravityDirection::TOP;
+        } else if (config_.gravityDirection == "bottom_left") {
+            gravityDir = deepnest::GravityDirection::BOTTOM_LEFT;
+        }
+        
+        // Apply gravity direction to DeepNestConfig
+        deepnest::DeepNestConfig& deepnestConfig = deepnest::DeepNestConfig::getInstance();
+        deepnestConfig.gravityDirection = gravityDir;
+        
+        // Apply overlap tolerance to DeepNestConfig
+        deepnestConfig.overlapTolerance = config_.overlapTolerance;
+        
         solver_->setMergeLines(config_.mergeLines);
         solver_->setTimeRatio(config_.timeRatio);
 
@@ -698,11 +720,15 @@ void TestApplication::openConfigDialog() {
             .arg(config_.rotations)
             .arg(config_.populationSize));
 
-        log(QString("  Algorithm: placementType=%1, mergeLines=%2, timeRatio=%3, threads=%4")
+        log(QString("  Algorithm: placementType=%1, gravityDir=%2, mergeLines=%3, timeRatio=%4, threads=%5")
             .arg(config_.placementType)
+            .arg(config_.gravityDirection)
             .arg(config_.mergeLines ? "ON" : "OFF")
             .arg(config_.timeRatio, 0, 'f', 2)
             .arg(config_.threads));
+
+        log(QString("  Precision: overlapTolerance=%1")
+            .arg(config_.overlapTolerance, 0, 'e', 4));  // Scientific notation for small values
 
         log(QString("  Generation: %1 part types × %2 qty, %3 sheet types × %4 qty")
             .arg(config_.numPartTypes)

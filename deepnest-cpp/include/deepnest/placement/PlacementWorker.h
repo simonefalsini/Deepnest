@@ -193,6 +193,33 @@ private:
         const Polygon& polygon,
         const Placement& placement
     ) const;
+
+    /**
+     * @brief Check if two parts have significant overlap
+     *
+     * Uses Clipper2 intersection to detect overlaps between parts.
+     * Returns true if intersection area exceeds config.overlapTolerance.
+     *
+     * This implements the overlap detection from JavaScript background.js:1210-1241.
+     * Parts are considered overlapping if their intersection area is greater than
+     * the configured tolerance (default 0.0001).
+     *
+     * @param partA First part
+     * @param positionA Position of first part
+     * @param partB Second part
+     * @param positionB Position of second part
+     * @param config Configuration with overlapTolerance
+     * @return true if overlap area > overlapTolerance
+     *
+     * @see DeepNestConfig::overlapTolerance
+     */
+    bool hasSignificantOverlap(
+        const Polygon& partA,
+        const Point& positionA,
+        const Polygon& partB,
+        const Point& positionB,
+        const DeepNestConfig& config
+    ) const;
 };
 
 } // namespace deepnest

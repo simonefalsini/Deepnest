@@ -8,6 +8,20 @@
 namespace deepnest {
 
 /**
+ * @brief Gravity direction for placement strategy
+ * 
+ * Determines the preferred direction for part placement compaction.
+ * This affects the tie-breaking logic when multiple positions have similar fitness.
+ */
+enum class GravityDirection {
+    LEFT,       ///< Prefer leftmost positions (minimize x)
+    RIGHT,      ///< Prefer rightmost positions (maximize x)
+    BOTTOM,     ///< Prefer bottom positions (minimize y)
+    TOP,        ///< Prefer top positions (maximize y)
+    BOTTOM_LEFT ///< Prefer bottom-left positions (minimize x+y)
+};
+
+/**
  * @brief Configuration class for DeepNest algorithm
  *
  * This class uses the Singleton pattern to provide global access to
@@ -127,6 +141,21 @@ public:
      */
     bool simplify;
 
+    /**
+     * @brief Tolerance for detecting overlaps between parts
+     *
+     * Maximum allowed intersection area between parts before considering
+     * them as overlapping. Very small value (0.0001) for high precision.
+     * Used during placement validation to prevent part overlaps.
+     *
+     * Units: Same as input geometry (typically mm² or in²)
+     * Default: 0.0001
+     *
+     * Corresponds to JavaScript config.overlapTolerance (deepnest.js:24)
+     * Used in background.js:1210-1241 for overlap detection
+     */
+    double overlapTolerance;
+
     // Additional parameters from svgnest.js
 
     /**
@@ -164,6 +193,22 @@ public:
      * If true, nests parts incrementally; if false, nests all at once
      */
     bool progressive;
+
+    /**
+     * @brief Gravity direction for placement strategy
+     *
+     * Determines the preferred direction for part compaction.
+     * Affects tie-breaking when multiple positions have similar fitness.
+     * Default: LEFT (prefer leftmost positions)
+     *
+     * Options:
+     * - LEFT: Minimize x coordinate (default, matches JavaScript)
+     * - RIGHT: Maximize x coordinate
+     * - BOTTOM: Minimize y coordinate
+     * - TOP: Maximize y coordinate
+     * - BOTTOM_LEFT: Minimize x+y (diagonal)
+     */
+    GravityDirection gravityDirection;
 
     /**
      * @brief Random seed for reproducible results

@@ -52,6 +52,9 @@ BestPositionResult GravityPlacement::findBestPosition(
     Point bestPosition;
     double bestMergedLength = 0.0;
     bool foundValid = false;
+    
+    // Tie-breaking values based on gravity direction
+    double tieBreakValue = std::numeric_limits<double>::max();
 
     // Evaluate each candidate position
     // JavaScript: for(j=0; j<finalNfp.length; j++) { for(k=0; k<nf.length; k++)
@@ -107,10 +110,51 @@ BestPositionResult GravityPlacement::findBestPosition(
             metric -= mergedLength * config.timeRatio;
         }
 
-        if (metric < minMetric) {
+        // Calculate tie-break value based on gravity direction
+        double currentTieBreak;
+        switch (config.gravityDirection) {
+            case GravityDirection::LEFT:
+                currentTieBreak = position.x;  // Prefer leftmost (minimize x)
+                break;
+            case GravityDirection::RIGHT:
+                currentTieBreak = -position.x;  // Prefer rightmost (maximize x)
+                break;
+            case GravityDirection::BOTTOM:
+                currentTieBreak = position.y;  // Prefer bottom (minimize y)
+                break;
+            case GravityDirection::TOP:
+                currentTieBreak = -position.y;  // Prefer top (maximize y)
+                break;
+            case GravityDirection::BOTTOM_LEFT:
+                currentTieBreak = position.x + position.y;  // Prefer bottom-left (minimize x+y)
+                break;
+            default:
+                currentTieBreak = position.x;  // Default to LEFT
+                break;
+        }
+
+        // Selection logic with tie-breaking
+        // JavaScript placementworker.js:252:
+        // if(minarea === null || area < minarea || 
+        //    (GeometryUtil.almostEqual(minarea, area) && (minx === null || shiftvector.x < minx)))
+        const double TOLERANCE = 0.001;  // almostEqual tolerance
+        
+        bool selectThis = false;
+        if (!foundValid) {
+            selectThis = true;
+        } else if (metric < minMetric - TOLERANCE) {
+            // Clearly better metric
+            selectThis = true;
+        } else if (std::abs(metric - minMetric) < TOLERANCE && currentTieBreak < tieBreakValue) {
+            // Metrics are equal (within tolerance), use tie-breaker
+            selectThis = true;
+        }
+
+        if (selectThis) {
             minMetric = metric;
             bestPosition = position;
             bestMergedLength = mergedLength;
+            tieBreakValue = currentTieBreak;
             foundValid = true;
         }
     }

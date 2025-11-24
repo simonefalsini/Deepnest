@@ -75,6 +75,15 @@ void ConfigDialog::createNestingTab() {
     placementTypeCombo_->setToolTip("Placement strategy: gravity=compact down, boundingbox=minimize bbox, convexhull=minimize convex hull");
     algoForm->addRow("Placement Type:", placementTypeCombo_);
 
+    gravityDirectionCombo_ = new QComboBox();
+    gravityDirectionCombo_->addItem("Left (minimize x)", "left");
+    gravityDirectionCombo_->addItem("Right (maximize x)", "right");
+    gravityDirectionCombo_->addItem("Bottom (minimize y)", "bottom");
+    gravityDirectionCombo_->addItem("Top (maximize y)", "top");
+    gravityDirectionCombo_->addItem("Bottom-Left (diagonal)", "bottom_left");
+    gravityDirectionCombo_->setToolTip("Gravity direction for part compaction (affects tie-breaking when positions have similar fitness)");
+    algoForm->addRow("Gravity Direction:", gravityDirectionCombo_);
+
     algoGroup->setLayout(algoForm);
     layout->addWidget(algoGroup);
 
@@ -243,6 +252,24 @@ void ConfigDialog::createAdvancedTab() {
     runtimeGroup->setLayout(runtimeForm);
     layout->addWidget(runtimeGroup);
 
+    // === Precision Parameters Group ===
+    QGroupBox* precisionGroup = new QGroupBox("Precision Parameters");
+    QFormLayout* precisionForm = new QFormLayout();
+
+    overlapToleranceSpinBox_ = new QDoubleSpinBox();
+    overlapToleranceSpinBox_->setRange(0.0, 1.0);
+    overlapToleranceSpinBox_->setDecimals(6);  // High precision
+    overlapToleranceSpinBox_->setSingleStep(0.0001);
+    overlapToleranceSpinBox_->setToolTip(
+        "Maximum allowed overlap area between parts (very small value for high precision)\n"
+        "Default: 0.0001\n"
+        "Lower values = stricter overlap detection\n"
+        "Higher values = more tolerant (may allow tiny overlaps)");
+    precisionForm->addRow("Overlap Tolerance:", overlapToleranceSpinBox_);
+
+    precisionGroup->setLayout(precisionForm);
+    layout->addWidget(precisionGroup);
+
     layout->addStretch();
 
     tabWidget_->addTab(advWidget, "Advanced");
@@ -260,6 +287,11 @@ void ConfigDialog::loadConfig(const Config& config) {
     int placementIndex = placementTypeCombo_->findText(config.placementType);
     if (placementIndex >= 0) {
         placementTypeCombo_->setCurrentIndex(placementIndex);
+    }
+
+    int gravityIndex = gravityDirectionCombo_->findData(config.gravityDirection);
+    if (gravityIndex >= 0) {
+        gravityDirectionCombo_->setCurrentIndex(gravityIndex);
     }
 
     mergeLinesCheckBox_->setChecked(config.mergeLines);
@@ -283,6 +315,7 @@ void ConfigDialog::loadConfig(const Config& config) {
 
     // Advanced tab
     maxGenerationsSpinBox_->setValue(config.maxGenerations);
+    overlapToleranceSpinBox_->setValue(config.overlapTolerance);
 }
 
 ConfigDialog::Config ConfigDialog::getConfig() const {
@@ -333,6 +366,7 @@ void ConfigDialog::validateAndAccept() {
     config_.mutationRate = mutationRateSpinBox_->value();
     config_.threads = threadsSpinBox_->value();
     config_.placementType = placementTypeCombo_->currentText();
+    config_.gravityDirection = gravityDirectionCombo_->currentData().toString();
     config_.mergeLines = mergeLinesCheckBox_->isChecked();
     config_.timeRatio = timeRatioSpinBox_->value();
 
@@ -352,6 +386,7 @@ void ConfigDialog::validateAndAccept() {
     config_.sheetHeight = sheetHeightSpinBox_->value();
 
     config_.maxGenerations = maxGenerationsSpinBox_->value();
+    config_.overlapTolerance = overlapToleranceSpinBox_->value();
 
     accept();
 }

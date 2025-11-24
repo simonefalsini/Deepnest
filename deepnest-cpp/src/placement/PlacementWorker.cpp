@@ -538,8 +538,35 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 config_
             );
 
-            // JavaScript: if(position) { placed.push(path); placements.push(position); }
+            // JavaScript: background.js:1210-1241
+            // Perform overlap check before accepting position
+            bool hasOverlap = false;
+            
             if (!candidatePositions.empty()) {
+                // Check if new part at this position overlaps with any placed part
+                Point testPosition = positionResult.position;
+                
+                for (size_t m = 0; m < placed.size(); m++) {
+                    const Polygon& placedPart = placed[m];
+                    const Placement& placedPosition = placements[m];
+                    
+                    Point placedPos(placedPosition.position.x, placedPosition.position.y);
+                    
+                    if (hasSignificantOverlap(part, testPosition, placedPart, placedPos, config_)) {
+                        hasOverlap = true;
+#ifdef PLACEMENTDEBUG
+                        std::cout << "  Part " << part.id << " overlaps with placed part " 
+                                  << placedPart.id << " at position (" 
+                                  << testPosition.x << ", " << testPosition.y << ")" << std::endl;
+#endif
+                        break;
+                    }
+                }
+            }
+
+            // JavaScript: if(position) { placed.push(path); placements.push(position); }
+            // Only accept position if no significant overlap
+            if (!candidatePositions.empty() && !hasOverlap) {
                 position = Placement(positionResult.position, part.id, part.source, part.rotation);
                 placements.push_back(position);
                 placed.push_back(part);
@@ -551,7 +578,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
                 // Don't increment i
             }
             else {
-                // No valid positions found, skip this part
+                // No valid positions found or overlap detected, skip this part
+#ifdef PLACEMENTDEBUG
+                if (hasOverlap) {
+                    std::cout << "  Part " << part.id << " skipped due to overlap" << std::endl;
+                } else {
+                    std::cout << "  Part " << part.id << " skipped - no valid positions" << std::endl;
+                }
+#endif
                 i++;
             }
         }
@@ -786,6 +820,74 @@ double PlacementWorker::calculateTotalMergedLength(
     }
 
     return totalMerged;
+}
+
+bool PlacementWorker::hasSignificantOverlap(
+    const Polygon& partA,
+    const Point& positionA,
+    const Polygon& partB,
+    const Point& positionB,
+    const DeepNestConfig& config
+) const {
+    // JavaScript: background.js:1210-1241
+    // Perform overlap detection using Clipper2 intersection
+    
+    using namespace Clipper2Lib;
+    
+    // Quick bounding box check first (optimization)
+    // If bounding boxes don't overlap, parts definitely don't overlap
+    Polygon translatedA = partA.translate(positionA.x, positionA.y);
+    Polygon translatedB = partB.translate(positionB.x, positionB.y);
+    
+    BoundingBox bboxA = translatedA.bounds();
+    BoundingBox bboxB = translatedB.bounds();
+    
+    // Check if bounding boxes intersect
+    bool bboxesIntersect = !(
+        bboxA.x + bboxA.width < bboxB.x ||
+        bboxB.x + bboxB.width < bboxA.x ||
+        bboxA.y + bboxA.height < bboxB.y ||
+        bboxB.y + bboxB.height < bboxA.y
+    );
+    
+    if (!bboxesIntersect) {
+        return false;  // No overlap possible
+    }
+    
+    // Convert to Clipper2 paths
+    PathsD pathsA, pathsB;
+    
+    // Convert partA (already translated)
+    PathD pathA;
+    for (const auto& p : translatedA.points) {
+        pathA.push_back(PointD(p.x, p.y));
+    }
+    pathsA.push_back(pathA);
+    
+    // Convert partB (already translated)
+    PathD pathB;
+    for (const auto& p : translatedB.points) {
+        pathB.push_back(PointD(p.x, p.y));
+    }
+    pathsB.push_back(pathB);
+    
+    // Perform intersection to find overlap
+    PathsD intersection = Intersect(pathsA, pathsB, FillRule::NonZero);
+    
+    if (intersection.empty()) {
+        return false;  // No overlap
+    }
+    
+    // Calculate intersection area
+    double intersectionArea = 0.0;
+    for (const auto& path : intersection) {
+        intersectionArea += std::abs(Area(path));
+    }
+    
+    // Compare with tolerance
+    // JavaScript uses: intersectionArea > config.overlapTolerance * clipperScale * clipperScale
+    // Since we're using PathsD (double precision), we compare directly without scaling
+    return intersectionArea > config.overlapTolerance;
 }
 
 } // namespace deepnest

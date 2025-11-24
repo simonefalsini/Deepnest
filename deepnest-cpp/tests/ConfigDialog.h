@@ -35,6 +35,7 @@ public:
         int mutationRate;            // Mutation rate percentage (0-100, typically 50)
         int threads;                 // Number of parallel worker threads
         QString placementType;       // "gravity", "boundingbox", or "convexhull"
+        QString gravityDirection;    // "left", "right", "bottom", "top", "bottom_left"
         bool mergeLines;             // Enable line merge detection
         double timeRatio;            // Line merge time ratio
 
@@ -59,6 +60,9 @@ public:
         // === Runtime Parameters ===
         int maxGenerations;          // Maximum generations to run (0=unlimited)
 
+        // === Precision Parameters ===
+        double overlapTolerance;     // Maximum allowed overlap area between parts
+
         // Default constructor with reasonable defaults
         Config()
             : spacing(0.0)
@@ -68,6 +72,7 @@ public:
             , mutationRate(50)
             , threads(4)
             , placementType("gravity")
+            , gravityDirection("left")
             , mergeLines(false)
             , timeRatio(0.5)
             , numPartTypes(10)
@@ -83,6 +88,7 @@ public:
             , sheetWidth(500.0)
             , sheetHeight(400.0)
             , maxGenerations(100)
+            , overlapTolerance(0.0001)
         {}
     };
 
@@ -120,6 +126,7 @@ private:
     QSpinBox* mutationRateSpinBox_;
     QSpinBox* threadsSpinBox_;
     QComboBox* placementTypeCombo_;
+    QComboBox* gravityDirectionCombo_;
     QCheckBox* mergeLinesCheckBox_;
     QDoubleSpinBox* timeRatioSpinBox_;
 
@@ -141,6 +148,7 @@ private:
 
     // UI Components - Advanced Tab
     QSpinBox* maxGenerationsSpinBox_;
+    QDoubleSpinBox* overlapToleranceSpinBox_;
 
     // Layout
     QTabWidget* tabWidget_;

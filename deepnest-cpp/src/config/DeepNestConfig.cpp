@@ -35,6 +35,7 @@ void DeepNestConfig::resetToDefaults() {
     timeRatio = 0.5;
     scale = 72.0;
     simplify = false;
+    overlapTolerance = 0.0001;  // High precision overlap detection
 
     // Additional parameters from svgnest.js
     useHoles = false;
@@ -44,6 +45,7 @@ void DeepNestConfig::resetToDefaults() {
     maxIterations = 0;  // 0 = unlimited
     timeoutSeconds = 0;  // 0 = no timeout
     progressive = false;
+    gravityDirection = GravityDirection::LEFT; // Default: prefer leftmost positions
     randomSeed = 0;  // 0 = use system time
 }
 
