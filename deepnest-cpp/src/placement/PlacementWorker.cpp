@@ -3,6 +3,7 @@
 #include "../../include/deepnest/geometry/Transformation.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
 #include "../../include/deepnest/placement/MergeDetection.h"
+#include <clipper2/clipper.h>
 #include <algorithm>
 #include <limits>
 #include <cmath>
