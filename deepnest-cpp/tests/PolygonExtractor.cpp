@@ -344,7 +344,7 @@ std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, 
     std::cout << std::endl;
 
     // Test Minkowski sum
-    auto nfps = deepnest::MinkowskiSum::calculateNFP(polyA, polyB, inside);
+    auto nfps = deepnest::scale::MinkowskiSum::calculateNFP(polyA, polyB);
 
     // CRITICAL: Apply B[0] translation to match NFPCalculator behavior
     // JavaScript (background.js:202-203): clipperNfp[i].x += B[0].x; clipperNfp[i].y += B[0].y;
@@ -411,6 +411,43 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     return nfps;
 }
 
+/**
+ * Test trunc minkowski for a polygon pair
+ */
+std::vector<deepnest::Polygon> testTrunkMinkowski(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside) {
+    std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
+    std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
+    std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
+    std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+
+    //auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
+    auto nfps = deepnest::trunk::MinkowskiSum::calculateNFP(polyA, polyB);
+
+    if (!nfps.empty() && !polyB.points.empty()) {
+        for (auto& nfp : nfps) {
+            nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
+        }
+        std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
+    }
+
+    if (nfps.empty()) {
+        std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
+    }
+    else {
+        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
+        for (size_t i = 0; i < nfps.size(); ++i) {
+            std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+        }
+
+        // Save combined visualization
+        QString filename = QString("polygon_pair_%1_%2_trunk.svg")
+            .arg(polyA.id).arg(polyB.id);
+        savePairToSVG(polyA, polyB, nfps, filename);
+        std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
+    }
+
+    return nfps;
+}
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -563,7 +600,7 @@ int main(int argc, char *argv[]) {
 
                 // Progress indicator every 100 tests
                 if (testsCompleted % 100 == 0 || testsCompleted == 1) {
-                    std::cout << "  Progress: " << testsCompleted << "/" << totalTests
+                    std::cerr << "  Progress: " << testsCompleted << "/" << totalTests
                               << " (Pass: " << testsPassed << ", Fail: " << (testsCompleted - testsPassed) << ")" << std::endl;
                 }
 
@@ -571,7 +608,7 @@ int main(int argc, char *argv[]) {
 
                     // Test both algorithms with OUTSIDE mode (part-to-part collision)
                     auto minkowskiNFPs = testMinkowskiSum(polygons[i], polygons[j], false);
-                    auto orbitalNFPs = testOrbitalTracing(polygons[i], polygons[j], false);
+                    auto orbitalNFPs = testTrunkMinkowski(polygons[i], polygons[j], false);
 
                      // Compare results
                     auto comparison = compareNFPsSilent(minkowskiNFPs, orbitalNFPs);
@@ -651,6 +688,7 @@ int main(int argc, char *argv[]) {
             std::cout << "  FAILED COMPARISONS (" << failures.size() << ")" << std::endl;
             std::cout << "========================================" << std::endl;
 
+            std::sort(failures.begin(), failures.end(), [](const NFPComparisonFailure& a, const NFPComparisonFailure& b) { return a.areaPercent > b.areaPercent; });
             // Print first 50 failures in detail
             int printLimit = std::min(50, (int)failures.size());
             for (int i = 0; i < printLimit; i++) {

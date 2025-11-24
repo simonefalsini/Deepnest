@@ -18,7 +18,7 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
     // Use MinkowskiSum to calculate NFP
     // The MinkowskiSum::calculateNFP returns a vector of polygons,
     // we need to select the largest one (by area) as per JavaScript implementation
-    auto nfps = MinkowskiSum::calculateNFP(A, B);
+    auto nfps = scale::MinkowskiSum::calculateNFP(A, B);
 
     if (nfps.empty()) {
   
