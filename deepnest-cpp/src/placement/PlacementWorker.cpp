@@ -51,7 +51,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     std::cout << "Number of sheets: " << sheets.size() << std::endl;
     std::cout.flush();
 #endif
-    std::vector<Polygon> rotatedParts;
+    
+    // Optimize: Rotate in-place instead of creating new vector
     for (size_t idx = 0; idx < parts.size(); ++idx) {
         auto& part = parts[idx];
         Polygon rotated = part.rotate(part.rotation);
@@ -77,13 +78,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         }
 #endif
 
-        rotatedParts.push_back(rotated);
+        parts[idx] = rotated;
     }
-    parts = rotatedParts;
 
     // JavaScript: var allplacements = [];
     //             var fitness = 0;
     std::vector<std::vector<Placement>> allPlacements;
+    allPlacements.reserve(sheets.size()); // Reserve for expected number of sheets
+    
     double fitness = 0.0;
     double totalSheetArea = 0.0;
 
@@ -92,7 +94,10 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         // JavaScript: var placed = [];
         //             var placements = [];
         std::vector<Polygon> placed;
+        placed.reserve(parts.size()); // Reserve max possible
+        
         std::vector<Placement> placements;
+        placements.reserve(parts.size()); // Reserve max possible
 
         // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
         double minarea_accumulator = 0.0;
@@ -639,7 +644,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     // Calculate total merged length
     // JavaScript: totalMerged = ... (calculated in separate loop)
     if (config_.mergeLines) {
-        totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
+        totalMerged = calculateTotalMergedLength(allPlacements, parts);
         // JavaScript: fitness -= totalMerged * config.mergeLines;
         // Note: config.mergeLines is a boolean in C++, but in JS it seemed to be used as a weight?
         // Checking JS: if(config.mergeLines) { ... fitness -= merged * config.mergeLines; }

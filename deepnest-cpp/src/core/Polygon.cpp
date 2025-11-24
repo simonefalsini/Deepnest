@@ -37,6 +37,39 @@ Polygon::Polygon(const std::vector<Point>& pts, int polygonId)
     , isSheet(false)
 {}
 
+Polygon::Polygon(Polygon&& other) noexcept
+    : points(std::move(other.points))
+    , children(std::move(other.children))
+    , id(other.id)
+    , source(other.source)
+    , rotation(other.rotation)
+    , quantity(other.quantity)
+    , isSheet(other.isSheet)
+    , name(std::move(other.name))
+{
+    // Reset other's primitives to safe defaults if needed
+    other.id = -1;
+    other.source = -1;
+}
+
+Polygon& Polygon::operator=(Polygon&& other) noexcept {
+    if (this != &other) {
+        points = std::move(other.points);
+        children = std::move(other.children);
+        id = other.id;
+        source = other.source;
+        rotation = other.rotation;
+        quantity = other.quantity;
+        isSheet = other.isSheet;
+        name = std::move(other.name);
+
+        // Reset other
+        other.id = -1;
+        other.source = -1;
+    }
+    return *this;
+}
+
 // ========== Geometric Properties ==========
 
 double Polygon::area() const {

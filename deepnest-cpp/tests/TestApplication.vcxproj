@@ -177,6 +177,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ConfigDialog.cpp" />
+    <ClCompile Include="ContainerDialog.cpp" />
     <ClCompile Include="RandomShapeGenerator.cpp" />
     <ClCompile Include="SVGLoader.cpp" />
     <ClCompile Include="TestApplication.cpp" />
@@ -184,6 +185,7 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="ConfigDialog.h" />
+    <QtMoc Include="ContainerDialog.h" />
     <ClInclude Include="RandomShapeGenerator.h" />
     <ClInclude Include="SVGLoader.h" />
     <QtMoc Include="TestApplication.h" />

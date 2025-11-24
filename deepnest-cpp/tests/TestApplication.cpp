@@ -42,6 +42,7 @@ TestApplication::TestApplication(QWidget* parent)
     // lastResult_ is unique_ptr, auto-initialized to nullptr
     , maxGenerations_(100)
     , stepTimerInterval_(50)  // 50ms between steps
+    , showShapeIds_(false)  // Hide IDs by default
 {
     LOG_MEMORY("TestApplication constructor started");
     setWindowTitle("DeepNest C++ Test Application");
@@ -107,8 +108,8 @@ TestApplication::~TestApplication() {
 }
 
 void TestApplication::initUI() {
-    // Create central widget with graphics view
-    view_ = new QGraphicsView(this);
+    // Create central widget with graphics view (with zoom support)
+    view_ = new ZoomableGraphicsView(this);
     scene_ = new QGraphicsScene(this);
     view_->setScene(scene_);
     view_->setRenderHint(QPainter::Antialiasing);
@@ -142,6 +143,12 @@ void TestApplication::createMenus() {
 
     fileMenu->addSeparator();
 
+    QAction* importAction = fileMenu->addAction("&Import SVG (Append)...");
+    importAction->setShortcut(QKeySequence("Ctrl+I"));
+    connect(importAction, &QAction::triggered, this, &TestApplication::importSVG);
+
+    fileMenu->addSeparator();
+
     QAction* exitAction = fileMenu->addAction("E&xit");
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
@@ -171,6 +178,15 @@ void TestApplication::createMenus() {
 
     QAction* resetAction = nestingMenu->addAction("&Reset");
     connect(resetAction, &QAction::triggered, this, &TestApplication::reset);
+
+    // Container menu
+    QMenu* containerMenu = menuBar()->addMenu("&Container");
+
+    QAction* setContainerAction = containerMenu->addAction("Set Container &Size...");
+    connect(setContainerAction, &QAction::triggered, this, &TestApplication::setContainerSize);
+
+    QAction* viewContainerAction = containerMenu->addAction("&View Container Info");
+    connect(viewContainerAction, &QAction::triggered, this, &TestApplication::viewContainerInfo);
 }
 
 void TestApplication::createToolbar() {
@@ -180,6 +196,20 @@ void TestApplication::createToolbar() {
     QPushButton* loadBtn = new QPushButton("Load SVG", toolbar);
     connect(loadBtn, &QPushButton::clicked, this, &TestApplication::loadSVG);
     toolbar->addWidget(loadBtn);
+
+    QPushButton* importBtn = new QPushButton("Import SVG", toolbar);
+    connect(importBtn, &QPushButton::clicked, this, &TestApplication::importSVG);
+    toolbar->addWidget(importBtn);
+
+    toolbar->addSeparator();
+
+    QPushButton* generateBtn = new QPushButton("Test Polygon", toolbar);
+    connect(generateBtn, &QPushButton::clicked, this, &TestApplication::generatePolygons);
+    toolbar->addWidget(generateBtn);
+
+    QPushButton* containerBtn = new QPushButton("Container", toolbar);
+    connect(containerBtn, &QPushButton::clicked, this, &TestApplication::setContainerSize);
+    toolbar->addWidget(containerBtn);
 
     QPushButton* rectBtn = new QPushButton("Test Rectangles", toolbar);
     connect(rectBtn, &QPushButton::clicked, this, &TestApplication::testRandomRectangles);
@@ -206,6 +236,14 @@ void TestApplication::createToolbar() {
     QPushButton* resetBtn = new QPushButton("Reset", toolbar);
     connect(resetBtn, &QPushButton::clicked, this, &TestApplication::reset);
     toolbar->addWidget(resetBtn);
+
+    toolbar->addSeparator();
+
+    QPushButton* toggleIdsBtn = new QPushButton("Toggle IDs", toolbar);
+    toggleIdsBtn->setCheckable(true);
+    toggleIdsBtn->setChecked(showShapeIds_);
+    connect(toggleIdsBtn, &QPushButton::clicked, this, &TestApplication::toggleShapeIds);
+    toolbar->addWidget(toggleIdsBtn);
 }
 
 void TestApplication::createStatusBar() {
@@ -290,31 +328,90 @@ void TestApplication::loadSVG() {
     }
 
     if (sheetCount == 0) {
-        QMessageBox::warning(this, "No Sheet",
-                           "No sheet/container found in SVG.\n"
-                           "Please add a sheet manually or mark a shape as 'container' in the SVG.");
+        // No container found - ask user to define one
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "No Container Found",
+            "No container found in SVG.\n\n"
+            "Would you like to define a container now?",
+            QMessageBox::Yes | QMessageBox::No
+        );
+
+        if (reply == QMessageBox::Yes) {
+            ContainerDialog dialog(this);
+            if (dialog.exec() == QDialog::Accepted) {
+                double width = dialog.getWidth();
+                double height = dialog.getHeight();
+
+                // Create container
+                std::vector<deepnest::Point> points = {
+                    {0, 0},
+                    {width, 0},
+                    {width, height},
+                    {0, height}
+                };
+
+                deepnest::Polygon container(points, -1);
+                sheets_.push_back(container);
+                solver_->addSheet(container, 1, "Container");
+
+                log(QString("Container created: %1 x %2 mm").arg(width).arg(height));
+            } else {
+                log("Container creation cancelled");
+            }
+        }
     }
 
-    // Visualize loaded shapes
+    // Visualize loaded shapes with uniform layout (container left, parts right)
     clearScene();
-    for (const auto& shape : result.shapes) {
-        QPainterPath shapePath = shape.path;
-        if (!shape.transform.isIdentity()) {
-            shapePath = shape.transform.map(shapePath);
-        }
-        scene_->addPath(shapePath, QPen(Qt::blue, 2), QBrush(QColor(100, 100, 255, 80)));
+
+    // Draw container on the left if present
+    if (!sheets_.empty()) {
+        drawPolygon(sheets_[0], Qt::black, 0.0, true);  // Show border for container
+
+        // Add container label
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(sheets_[0].points);
+        QGraphicsTextItem* containerLabel = scene_->addText("Container", QFont("Arial", 12, QFont::Bold));
+        containerLabel->setDefaultTextColor(Qt::black);
+        containerLabel->setPos(bbox.x + bbox.width/2 - 40, bbox.y - 30);
     }
 
-    if (result.container) {
-        QPainterPath containerPath = result.container->path;
-        if (!result.container->transform.isIdentity()) {
-            containerPath = result.container->transform.map(containerPath);
+    // Draw parts on the right in a grid layout
+    double xOffset = sheets_.empty() ? 50 : 550;  // Start at 550 if we have a container
+    double yOffset = 50;
+    double maxHeight = 0;
+
+    for (size_t i = 0; i < parts_.size(); ++i) {
+        // Get bounding box
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(parts_[i].points);
+        double width = bbox.width;
+        double height = bbox.height;
+
+        // Check if we need to wrap to next row
+        if (xOffset + width > 1400) {
+            xOffset = sheets_.empty() ? 50 : 550;
+            yOffset += maxHeight + 20;
+            maxHeight = 0;
         }
-        scene_->addPath(containerPath, QPen(Qt::green, 3), QBrush(QColor(100, 255, 100, 40)));
+
+        // Translate part to current position
+        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.x, yOffset - bbox.y);
+
+        // Draw part (blue with transparency)
+        drawPolygon(translated, QColor(100, 150, 200), 0.3);
+
+        // Add ID label on the part (if enabled)
+        if (showShapeIds_) {
+            QGraphicsTextItem* idLabel = scene_->addText(QString::number(i), QFont("Arial", 6));
+            idLabel->setDefaultTextColor(Qt::darkBlue);
+            idLabel->setPos(xOffset + width/2 - 5, yOffset + height/2 - 5);
+        }
+
+        xOffset += width + 20;
+        maxHeight = std::max(maxHeight, height);
     }
 
     view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
-
     log("Ready to start nesting - click 'Start' button");
 }
 
@@ -425,10 +522,17 @@ void TestApplication::reset() {
 }
 
 void TestApplication::testRandomRectangles() {
+    // Ask user for number of rectangles
+    bool ok;
+    int count = QInputDialog::getInt(this, "Test Rectangles",
+                                     "Number of rectangles to generate:", 10, 1, 100, 1, &ok);
+    if (!ok) {
+        return;
+    }
+
     reset();
 
-    log(QString("Generating %1 random rectangle types (%2 total parts)...")
-        .arg(config_.numPartTypes).arg(config_.numPartTypes * config_.quantityPerPart));
+    log(QString("Generating %1 random rectangles...").arg(count));
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -436,7 +540,7 @@ void TestApplication::testRandomRectangles() {
     std::uniform_real_distribution<> heightDist(config_.minPartHeight, config_.maxPartHeight);
 
     // Create N random rectangles
-    for (int i = 0; i < config_.numPartTypes; ++i) {
+    for (int i = 0; i < count; ++i) {
         double w = widthDist(gen);
         double h = heightDist(gen);
 
@@ -985,37 +1089,57 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                 QColor color = partColors[sourceId % 10];
                 drawPolygon(transformed, color, 0.5);
 
-                // Add PLACEMENT INDEX label on the part (for debugging positions)
-                auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
-                double centerX = bbox.x + bbox.width / 2.0;
-                double centerY = bbox.y + bbox.height / 2.0;
+                // Add PLACEMENT INDEX label on the part (if enabled)
+                if (showShapeIds_) {
+                    auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
+                    double centerX = bbox.x + bbox.width / 2.0;
+                    double centerY = bbox.y + bbox.height / 2.0;
 
-                QGraphicsTextItem* idLabel = scene_->addText(
-                    QString::number(placementCount - 1),  // Show placement index (0-based)
-                    QFont("Arial", 12, QFont::Bold));
-                idLabel->setDefaultTextColor(Qt::black);
-                idLabel->setPos(centerX - 8, centerY - 10);
+                    QGraphicsTextItem* idLabel = scene_->addText(
+                        QString::number(placementCount - 1),  // Show placement index (0-based)
+                        QFont("Arial", 6));
+                    idLabel->setDefaultTextColor(Qt::black);
+                    idLabel->setPos(centerX - 5, centerY - 5);
+                }
             }
         }
 
-        // Offset for next sheet (if multiple sheets)
+        // Move to next sheet position
         if (sheetIdx < sheets_.size()) {
             auto bbox = deepnest::GeometryUtil::getPolygonBounds(sheets_[sheetIdx].points);
             sheetOffsetX += bbox.width + 50;  // 50 units spacing between sheets
         }
     }
 
-    // Fit view to scene
-    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+    // Fit view to show all sheets with margin
+    if (!sheets_.empty()) {
+        // Calculate bounds of first sheet with 10% margin
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(sheets_[0].points);
+        double margin = std::max(bbox.width, bbox.height) * 0.1;  // 10% margin
+        QRectF sheetRect(
+            bbox.x - margin,
+            bbox.y - margin,
+            bbox.width + 2 * margin,
+            bbox.height + 2 * margin
+        );
+        view_->fitInView(sheetRect, Qt::KeepAspectRatio);
+    } else {
+        view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+    }
 }
 
-void TestApplication::drawPolygon(const deepnest::Polygon& polygon, const QColor& color, double fillOpacity) {
+void TestApplication::drawPolygon(const deepnest::Polygon& polygon, const QColor& color, double fillOpacity, bool showBorder) {
     QPainterPath path = polygon.toQPainterPath();
 
     QColor fillColor = color;
     fillColor.setAlphaF(fillOpacity);
 
-    scene_->addPath(path, QPen(color, 2), QBrush(fillColor));
+    // Draw with or without border based on parameter
+    if (showBorder) {
+        scene_->addPath(path, QPen(color, 2), QBrush(fillColor));
+    } else {
+        scene_->addPath(path, QPen(Qt::NoPen), QBrush(fillColor));
+    }
 
     // Draw holes if any
     for (const auto& hole : polygon.children) {
@@ -1200,14 +1324,332 @@ double TestApplication::runAutomaticTest(int generations) {
     auto endTime = std::chrono::high_resolution_clock::now();
     auto totalTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-    std::cout << "----------------------------------------" << std::endl;
-    std::cout << "Test completed!" << std::endl;
-    std::cout << "  Final generation: " << currentGeneration_ << std::endl;
-    std::cout << "  Best fitness: " << std::fixed << std::setprecision(4) << bestFitness_ << std::endl;
-    std::cout << "  Total time: " << (totalTime / 1000.0) << " seconds" << std::endl;
-    std::cout << "  Average speed: " << std::fixed << std::setprecision(2)
-              << (totalTime > 0 ? (currentGeneration_ * 1000.0 / totalTime) : 0.0) << " gen/s" << std::endl;
-    std::cout << "========================================" << std::endl;
+    std::cout << "\n=== Test Complete ===" << std::endl;
+    std::cout << "Total time: " << totalTime << "ms" << std::endl;
+    std::cout << "Final generation: " << currentGeneration_ << std::endl;
+    std::cout << "Best fitness: " << bestFitness_ << std::endl;
 
     return bestFitness_;
 }
+
+void TestApplication::generatePolygons() {
+    bool ok;
+    int count = QInputDialog::getInt(this, "Test Polygon",
+                                     "Number of polygons to generate:", 10, 1, 100, 1, &ok);
+    if (!ok) {
+        return;
+    }
+
+    reset();  // Clear existing data like testRandomRectangles does
+
+    log(QString("Generating %1 random polygons...").arg(count));
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> sizeDist(20.0, 100.0);
+    std::uniform_int_distribution<> sidesDist(3, 8);
+
+    // Generate polygons
+    for (int i = 0; i < count; i++) {
+        int sides = sidesDist(gen);
+        double size = sizeDist(gen);
+
+        std::vector<deepnest::Point> points;
+        for (int j = 0; j < sides; j++) {
+            double angle = (2.0 * M_PI * j) / sides;
+            double radius = size * (0.7 + 0.3 * std::uniform_real_distribution<>(0.0, 1.0)(gen));
+            points.push_back(deepnest::Point(
+                radius * cos(angle),
+                radius * sin(angle)
+            ));
+        }
+
+        deepnest::Polygon poly(points, i);
+        parts_.push_back(poly);
+        solver_->addPart(poly, 1, QString("GenPoly_%1").arg(i).toStdString());
+    }
+
+    // Create sheet (500x400 like testRandomRectangles)
+    std::vector<deepnest::Point> sheetPoints = {
+        {0, 0},
+        {500, 0},
+        {500, 400},
+        {0, 400}
+    };
+    deepnest::Polygon sheet(sheetPoints, -1);
+    sheets_.push_back(sheet);
+    solver_->addSheet(sheet, 1, "Sheet");
+
+    log(QString("Generated %1 polygons and 500x400 sheet").arg(count));
+
+    // Visualize with grid layout (container left, parts right)
+    clearScene();
+
+    // Draw sheet on the left
+    drawPolygon(sheet, Qt::black, 0.0, true);
+
+    // Add sheet label
+    QGraphicsTextItem* sheetLabel = scene_->addText("SHEET 500x400", QFont("Arial", 12));
+    sheetLabel->setDefaultTextColor(Qt::black);
+    sheetLabel->setPos(10, -30);
+
+    // Draw parts in grid on the right
+    double xOffset = 550;  // Start after sheet
+    double yOffset = 50;
+    double maxHeight = 0;
+
+    for (size_t i = 0; i < parts_.size(); ++i) {
+        auto bbox = deepnest::GeometryUtil::getPolygonBounds(parts_[i].points);
+        double width = bbox.width;
+        double height = bbox.height;
+
+        // Wrap to next row if needed
+        if (xOffset + width > 1400) {
+            xOffset = 550;
+            yOffset += maxHeight + 20;
+            maxHeight = 0;
+        }
+
+        // Translate part to grid position
+        deepnest::Polygon translated = parts_[i].translate(xOffset - bbox.x, yOffset - bbox.y);
+        drawPolygon(translated, QColor(100, 150, 200), 0.3);
+
+        // Add ID label if enabled
+        if (showShapeIds_) {
+            QGraphicsTextItem* idLabel = scene_->addText(QString::number(i), QFont("Arial", 6));
+            idLabel->setDefaultTextColor(Qt::darkBlue);
+            idLabel->setPos(xOffset + width/2 - 5, yOffset + height/2 - 5);
+        }
+
+        xOffset += width + 20;
+        maxHeight = std::max(maxHeight, height);
+    }
+
+    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+    log("Ready to start nesting - click 'Start' button");
+}
+
+void TestApplication::setContainerSize() {
+    ContainerDialog dialog(this);
+
+    // Pre-fill with current container size if exists
+    if (!sheets_.empty()) {
+        const auto& container = sheets_[0];
+        if (!container.points.empty()) {
+            // Calculate bounds
+            double minX = container.points[0].x, maxX = container.points[0].x;
+            double minY = container.points[0].y, maxY = container.points[0].y;
+
+            for (const auto& p : container.points) {
+                minX = std::min(minX, p.x);
+                maxX = std::max(maxX, p.x);
+                minY = std::min(minY, p.y);
+                maxY = std::max(maxY, p.y);
+            }
+
+            dialog.setWidth(maxX - minX);
+            dialog.setHeight(maxY - minY);
+        }
+    }
+
+    if (dialog.exec() == QDialog::Accepted) {
+        double width = dialog.getWidth();
+        double height = dialog.getHeight();
+
+        // Create new container
+        std::vector<deepnest::Point> points = {
+            {0, 0},
+            {width, 0},
+            {width, height},
+            {0, height}
+        };
+
+        deepnest::Polygon container(points, -1);
+
+        if (sheets_.empty()) {
+            sheets_.push_back(container);
+            solver_->addSheet(container, 1, "Container");  // Add to solver
+            log(QString("Container created: %1 x %2 mm").arg(width).arg(height));
+        } else {
+            sheets_[0] = container;
+            // Note: Cannot update existing sheet in solver, would need reset
+            log(QString("Container updated: %1 x %2 mm (restart nesting to apply)").arg(width).arg(height));
+        }
+
+        // Update visualization
+        clearScene();
+        for (const auto& part : parts_) {
+            drawPolygon(part, Qt::blue, 0.3);
+        }
+        drawPolygon(sheets_[0], Qt::black, 0.0, true);  // Show border
+        view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+    }
+}
+
+void TestApplication::viewContainerInfo() {
+    if (sheets_.empty()) {
+        QMessageBox::information(this, "Container Info",
+                                "No container defined.\n\n"
+                                "Use 'Container > Set Container Size' to create one.");
+        return;
+    }
+
+    const auto& container = sheets_[0];
+    if (container.points.empty()) {
+        QMessageBox::warning(this, "Container Info", "Container has no points!");
+        return;
+    }
+
+    // Calculate bounds
+    double minX = container.points[0].x, maxX = container.points[0].x;
+    double minY = container.points[0].y, maxY = container.points[0].y;
+
+    for (const auto& p : container.points) {
+        minX = std::min(minX, p.x);
+        maxX = std::max(maxX, p.x);
+        minY = std::min(minY, p.y);
+        maxY = std::max(maxY, p.y);
+    }
+
+    double width = maxX - minX;
+    double height = maxY - minY;
+    double area = width * height;
+
+    QString info = QString(
+        "Container Information:\n\n"
+        "Width:  %1 mm\n"
+        "Height: %2 mm\n"
+        "Area:   %3 mm²\n\n"
+        "Bounds:\n"
+        "  X: [%4, %5]\n"
+        "  Y: [%6, %7]\n\n"
+        "Points: %8"
+    ).arg(width, 0, 'f', 2)
+     .arg(height, 0, 'f', 2)
+     .arg(area, 0, 'f', 2)
+     .arg(minX, 0, 'f', 2)
+     .arg(maxX, 0, 'f', 2)
+     .arg(minY, 0, 'f', 2)
+     .arg(maxY, 0, 'f', 2)
+     .arg(container.points.size());
+
+    QMessageBox::information(this, "Container Info", info);
+}
+
+void TestApplication::importSVG() {
+    QString filepath = QFileDialog::getOpenFileName(
+        this,
+        "Import SVG File (Append Mode)",
+        "",
+        "SVG Files (*.svg);;All Files (*)"
+    );
+
+    if (filepath.isEmpty()) {
+        return;
+    }
+
+    log(QString("Importing SVG (append mode): %1").arg(filepath));
+
+    // Save current parts count
+    size_t previousCount = parts_.size();
+
+    try {
+        // Load SVG WITHOUT clearing existing parts
+        SVGLoader::LoadResult result = SVGLoader::loadFile(filepath);
+
+        if (!result.success()) {
+            log("Error importing SVG: " + result.errorMessage);
+            QMessageBox::critical(this, "Import Error",
+                                "Failed to import SVG file:\n" + result.errorMessage);
+            return;
+        }
+
+        // Append loaded shapes as parts
+        for (const auto& shape : result.shapes) {
+            QPainterPath shapePath = shape.path;
+            if (!shape.transform.isIdentity()) {
+                shapePath = shape.transform.map(shapePath);
+            }
+
+            deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(
+                shapePath, static_cast<int>(parts_.size())
+            );
+
+            if (partPoly.isValid()) {
+                parts_.push_back(partPoly);
+            }
+        }
+
+        // Handle container
+        if (result.container) {
+            if (sheets_.empty()) {
+                // If we don't have a container, use the loaded one
+                QPainterPath containerPath = result.container->path;
+                if (!result.container->transform.isIdentity()) {
+                    containerPath = result.container->transform.map(containerPath);
+                }
+
+                deepnest::Polygon containerPoly = deepnest::QtBoostConverter::fromQPainterPath(
+                    containerPath, -1
+                );
+                sheets_.push_back(containerPoly);
+                log("Container imported from SVG");
+            } else {
+                // Ask user what to do
+                QMessageBox::StandardButton reply = QMessageBox::question(
+                    this,
+                    "Container Conflict",
+                    "Imported SVG has a container. Replace existing container?",
+                    QMessageBox::Yes | QMessageBox::No
+                );
+
+                if (reply == QMessageBox::Yes) {
+                    QPainterPath containerPath = result.container->path;
+                    if (!result.container->transform.isIdentity()) {
+                        containerPath = result.container->transform.map(containerPath);
+                    }
+
+                    deepnest::Polygon containerPoly = deepnest::QtBoostConverter::fromQPainterPath(
+                        containerPath, -1
+                    );
+                    sheets_[0] = containerPoly;
+                    log("Container replaced with imported one");
+                } else {
+                    log("Kept existing container");
+                }
+            }
+        }
+
+        size_t importedCount = parts_.size() - previousCount;
+        log(QString("Imported %1 parts (total: %2)")
+            .arg(static_cast<int>(importedCount))
+            .arg(static_cast<int>(parts_.size())));
+
+        // Update visualization
+        clearScene();
+        for (const auto& part : parts_) {
+            drawPolygon(part, Qt::blue, 0.3);
+        }
+        if (!sheets_.empty()) {
+            drawPolygon(sheets_[0], Qt::black, 0.0);
+        }
+        view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, "Import Error",
+                            QString("Failed to import SVG:\n%1").arg(e.what()));
+        log(QString("Import failed: %1").arg(e.what()));
+    }
+}
+
+void TestApplication::toggleShapeIds() {
+    showShapeIds_ = !showShapeIds_;
+    log(QString("Shape IDs: %1").arg(showShapeIds_ ? "ON" : "OFF"));
+    
+    // Refresh visualization if we have a result
+    std::lock_guard<std::mutex> lock(resultMutex_);
+    if (lastResult_) {
+        updateVisualization(*lastResult_);
+    }
+}
+

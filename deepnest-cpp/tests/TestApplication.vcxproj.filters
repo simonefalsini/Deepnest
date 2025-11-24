@@ -42,6 +42,9 @@
     <ClCompile Include="ConfigDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ContainerDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RandomShapeGenerator.h">
@@ -61,6 +64,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="ConfigDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ContainerDialog.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

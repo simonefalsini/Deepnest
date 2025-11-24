@@ -51,13 +51,35 @@ public:
      * @brief Hash function for NFPKey
      */
     struct NFPKeyHash {
-        std::size_t operator()(const NFPKey& key) const;
+        std::size_t operator()(const NFPKey& key) const {
+            // Combine hash values using boost::hash_combine pattern
+            std::size_t seed = 0;
+
+            auto hash_combine = [](std::size_t& seed, std::size_t hash) {
+                seed ^= hash + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+            };
+
+            hash_combine(seed, std::hash<int>{}(key.idA));
+            hash_combine(seed, std::hash<int>{}(key.idB));
+
+            // Normalize rotations to avoid floating point precision issues
+            // Use same precision as in equality check (Point::almostEqual uses epsilon)
+            // Here we map to integer for stable hashing
+            int rotA = static_cast<int>(key.rotationA * 1000000.0);
+            int rotB = static_cast<int>(key.rotationB * 1000000.0);
+            hash_combine(seed, std::hash<int>{}(rotA));
+            hash_combine(seed, std::hash<int>{}(rotB));
+
+            hash_combine(seed, std::hash<bool>{}(key.inside));
+
+            return seed;
+        }
     };
 
 private:
     // Thread-safe cache storage
     mutable boost::shared_mutex mutex_;
-    std::unordered_map<std::string, std::vector<Polygon>> cache_;
+    std::unordered_map<NFPKey, std::vector<Polygon>, NFPKeyHash> cache_;
 
     // Statistics
     mutable size_t hits_;

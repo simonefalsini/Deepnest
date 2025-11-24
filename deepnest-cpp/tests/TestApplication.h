@@ -6,6 +6,7 @@
 #include <QGraphicsView>
 #include <QTimer>
 #include <QLabel>
+#include <QWheelEvent>
 #include <QProgressBar>
 #include <QTextEdit>
 #include <memory>
@@ -14,6 +15,38 @@
 #include "../include/deepnest/DeepNestSolver.h"
 #include "../include/deepnest/DebugConfig.h"
 #include "ConfigDialog.h"
+#include "ContainerDialog.h"
+
+/**
+ * @brief Graphics view with mouse wheel zoom support
+ */
+class ZoomableGraphicsView : public QGraphicsView {
+    Q_OBJECT
+public:
+    explicit ZoomableGraphicsView(QWidget* parent = nullptr)
+        : QGraphicsView(parent), zoomFactor_(1.0) {}
+
+protected:
+    void wheelEvent(QWheelEvent* event) override {
+        // Zoom in/out with mouse wheel
+        const double scaleFactor = 1.15;
+        
+        if (event->angleDelta().y() > 0) {
+            // Zoom in
+            scale(scaleFactor, scaleFactor);
+            zoomFactor_ *= scaleFactor;
+        } else {
+            // Zoom out
+            scale(1.0 / scaleFactor, 1.0 / scaleFactor);
+            zoomFactor_ /= scaleFactor;
+        }
+        
+        event->accept();
+    }
+
+private:
+    double zoomFactor_;
+};
 
 /**
  * @brief Test application for DeepNest C++ library
@@ -167,6 +200,43 @@ private slots:
      */
     void exportSVG();
 
+    /**
+     * @brief Generate random polygons
+     *
+     * Opens dialog to ask for number of polygons, then generates
+     * random polygons and adds them to the current parts list.
+     */
+    void generatePolygons();
+
+    /**
+     * @brief Set container size
+     *
+     * Opens dialog to set or modify container dimensions.
+     */
+    void setContainerSize();
+
+    /**
+     * @brief View container information
+     *
+     * Shows current container dimensions and area.
+     */
+    void viewContainerInfo();
+
+    /**
+     * @brief Import SVG in append mode
+     *
+     * Imports shapes from SVG file without clearing existing parts.
+     * Useful for combining multiple SVG files.
+     */
+    void importSVG();
+
+    /**
+     * @brief Toggle shape ID labels visibility
+     *
+     * Shows/hides ID numbers on shapes in visualization.
+     */
+    void toggleShapeIds();
+
 private:
     /**
      * @brief Initialize the user interface
@@ -205,8 +275,9 @@ private:
      * @param polygon Polygon to draw
      * @param color Color to use
      * @param fillOpacity Fill opacity (0.0-1.0)
+     * @param showBorder Whether to draw border (default: false)
      */
-    void drawPolygon(const deepnest::Polygon& polygon, const QColor& color, double fillOpacity = 0.3);
+    void drawPolygon(const deepnest::Polygon& polygon, const QColor& color, double fillOpacity = 0.3, bool showBorder = false);
 
     /**
      * @brief Clear the graphics scene
@@ -256,6 +327,7 @@ private:
     ConfigDialog::Config config_;    ///< Current configuration
     int maxGenerations_;             ///< Maximum generations to run
     int stepTimerInterval_;          ///< Timer interval in milliseconds
+    bool showShapeIds_;              ///< Show/hide shape ID labels
 };
 
 #endif // TEST_APPLICATION_H
