@@ -43,6 +43,7 @@ TestApplication::TestApplication(QWidget* parent)
     , maxGenerations_(100)
     , stepTimerInterval_(50)  // 50ms between steps
     , showShapeIds_(false)  // Hide IDs by default
+    , currentSheetIndex_(0)
 {
     LOG_MEMORY("TestApplication constructor started");
     setWindowTitle("DeepNest C++ Test Application");
@@ -108,13 +109,44 @@ TestApplication::~TestApplication() {
 }
 
 void TestApplication::initUI() {
-    // Create central widget with graphics view (with zoom support)
+    // Create central widget with layout
+    QWidget* centralWidget = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // Create graphics view
     view_ = new ZoomableGraphicsView(this);
     scene_ = new QGraphicsScene(this);
     view_->setScene(scene_);
     view_->setRenderHint(QPainter::Antialiasing);
     view_->setDragMode(QGraphicsView::ScrollHandDrag);
-    setCentralWidget(view_);
+    
+    // Add view to layout
+    mainLayout->addWidget(view_);
+
+    // Create bottom controls
+    QHBoxLayout* controlsLayout = new QHBoxLayout();
+    controlsLayout->setContentsMargins(10, 5, 10, 5);
+
+    controlsLayout->addStretch(); // Push to right
+
+    sheetInfoLabel_ = new QLabel("Sheet 0 of 0", this);
+    controlsLayout->addWidget(sheetInfoLabel_);
+
+    prevSheetBtn_ = new QPushButton("< Prev", this);
+    prevSheetBtn_->setEnabled(false);
+    connect(prevSheetBtn_, &QPushButton::clicked, this, &TestApplication::prevSheet);
+    controlsLayout->addWidget(prevSheetBtn_);
+
+    nextSheetBtn_ = new QPushButton("Next >", this);
+    nextSheetBtn_->setEnabled(false);
+    connect(nextSheetBtn_, &QPushButton::clicked, this, &TestApplication::nextSheet);
+    controlsLayout->addWidget(nextSheetBtn_);
+
+    mainLayout->addLayout(controlsLayout);
+
+    setCentralWidget(centralWidget);
 
     // Create log dock widget
     QDockWidget* logDock = new QDockWidget("Log", this);
@@ -296,7 +328,7 @@ void TestApplication::loadSVG() {
 
         deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath, 0);
         sheets_.push_back(sheetPoly);  // Save for visualization
-        solver_->addSheet(sheetPoly, 1, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
+        solver_->addSheet(sheetPoly, config_.quantityPerSheet, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
         sheetCount++;
 
         log(QString("Added sheet: %1").arg(result.container->id.isEmpty() ? "Sheet" : result.container->id));
@@ -445,6 +477,11 @@ void TestApplication::startNesting() {
     bestFitness_ = std::numeric_limits<double>::max();
 
     log(QString("Starting nesting (max %1 generations)...").arg(maxGenerations_));
+    log(QString("Configuration: Spacing=%1, Rotations=%2, Pop=%3, SheetQty=%4")
+        .arg(config_.spacing)
+        .arg(config_.rotations)
+        .arg(config_.populationSize)
+        .arg(config_.quantityPerSheet));
 
     try {
         solver_->start(maxGenerations_);
@@ -516,7 +553,22 @@ void TestApplication::reset() {
         LOG_MEMORY("lastResult_ reset to nullptr (thread-safe)");
     }
 
+    currentGeneration_ = 0;
+    bestFitness_ = std::numeric_limits<double>::max();
+    currentSheetIndex_ = 0;
+
+    generationLabel_->setText("Generation: 0");
+    fitnessLabel_->setText("Best Fitness: -");
+    // statusLabel_->setText("Ready"); // This line was commented out in the original snippet, keeping it that way
+    progressBar_->setValue(0);
+    sheetInfoLabel_->setText("Sheet 0 of 0");
+    prevSheetBtn_->setEnabled(false);
+    nextSheetBtn_->setEnabled(false);
+
+    log("Application reset");
+
     updateStatus();
+
     log("Reset complete");
     LOG_NESTING("Reset completed");
 }
@@ -968,18 +1020,34 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
         .arg(totalPlacements)
         .arg(result.placements.size()));
 
+    // Clamp index
+    if (currentSheetIndex_ >= static_cast<int>(result.placements.size())) {
+        currentSheetIndex_ = static_cast<int>(result.placements.size()) - 1;
+    }
+    if (currentSheetIndex_ < 0) currentSheetIndex_ = 0;
+
+    // Update controls
+    sheetInfoLabel_->setText(QString("Sheet %1 of %2")
+        .arg(currentSheetIndex_ + 1)
+        .arg(result.placements.size()));
+
+    prevSheetBtn_->setEnabled(currentSheetIndex_ > 0);
+    nextSheetBtn_->setEnabled(currentSheetIndex_ < static_cast<int>(result.placements.size()) - 1);
+
     clearScene();
 
     // Draw each sheet with placements
     double sheetOffsetX = 0;
-
-    for (size_t sheetIdx = 0; sheetIdx < result.placements.size(); ++sheetIdx) {
+    size_t sheetIdx = currentSheetIndex_;
+    //for (size_t sheetIdx = 0; sheetIdx < result.placements.size(); ++sheetIdx) 
+    {
         const auto& sheetPlacements = result.placements[sheetIdx];
 
         log(QString("--- Sheet %1 ---").arg(sheetIdx));
 
         // Draw sheet boundary (green, thick border, no fill)
-        if (sheetIdx < sheets_.size()) {
+        //if (sheetIdx < sheets_.size()) 
+        {
             deepnest::Polygon sheetTranslated = sheets_[sheetIdx].translate(sheetOffsetX, 0);
             QPainterPath sheetPath = sheetTranslated.toQPainterPath();
             scene_->addPath(sheetPath, QPen(Qt::darkGreen, 4), QBrush(Qt::NoBrush));
@@ -1164,6 +1232,8 @@ void TestApplication::updateStatus() {
     progressBar_->setValue(0);
 }
 
+
+
 void TestApplication::log(const QString& message) {
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
     logWidget_->append(QString("[%1] %2").arg(timestamp).arg(message));
@@ -1204,27 +1274,43 @@ bool TestApplication::loadSVGFromPath(const QString& filepath) {
 
         deepnest::Polygon sheetPoly = deepnest::QtBoostConverter::fromQPainterPath(containerPath, 0);
         sheets_.push_back(sheetPoly);
-        solver_->addSheet(sheetPoly, 1, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
+        solver_->addSheet(sheetPoly, config_.quantityPerSheet, result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString());
         sheetCount++;
 
         std::cout << "  Added sheet: " << (result.container->id.isEmpty() ? "Sheet" : result.container->id.toStdString()) << std::endl;
     }
 
     // Add all shapes as parts
+    // Note: SVGLoader has already split multi-subpath elements and identified holes
+    // Each shape here is already a complete polygon (potentially with holes)
     int partCount = 0;
+    std::cout << "  Processing " << result.shapes.size() << " SVG shape(s)..." << std::endl;
+    
     for (const auto& shape : result.shapes) {
         QPainterPath shapePath = shape.path;
         if (!shape.transform.isIdentity()) {
             shapePath = shape.transform.map(shapePath);
         }
 
+        // Convert to Polygon - this preserves holes that are already in the QPainterPath
         deepnest::Polygon partPoly = deepnest::QtBoostConverter::fromQPainterPath(shapePath, partCount);
-
+        
         if (partPoly.isValid()) {
             QString partName = shape.id.isEmpty() ? QString("Part_%1").arg(partCount) : shape.id;
             parts_.push_back(partPoly);
             solver_->addPart(partPoly, 1, partName.toStdString());
+            
+            std::cout << "    Added part: " << partName.toStdString() 
+                      << " (" << partPoly.points.size() << " points";
+            if (!partPoly.children.empty()) {
+                std::cout << ", " << partPoly.children.size() << " hole(s)";
+            }
+            std::cout << ")" << std::endl;
+            
             partCount++;
+        } else {
+            std::cout << "    Skipped invalid polygon from shape '" 
+                      << (shape.id.isEmpty() ? "unnamed" : shape.id.toStdString()) << "'" << std::endl;
         }
     }
 
@@ -1378,7 +1464,7 @@ void TestApplication::generatePolygons() {
     };
     deepnest::Polygon sheet(sheetPoints, -1);
     sheets_.push_back(sheet);
-    solver_->addSheet(sheet, 1, "Sheet");
+    solver_->addSheet(sheet, config_.quantityPerSheet, "Sheet");
 
     log(QString("Generated %1 polygons and 500x400 sheet").arg(count));
 
@@ -1649,6 +1735,24 @@ void TestApplication::toggleShapeIds() {
     // Refresh visualization if we have a result
     std::lock_guard<std::mutex> lock(resultMutex_);
     if (lastResult_) {
+        updateVisualization(*lastResult_);
+    }
+}
+
+void TestApplication::prevSheet() {
+    if (currentSheetIndex_ > 0) {
+        currentSheetIndex_--;
+        std::lock_guard<std::mutex> lock(resultMutex_);
+        if (lastResult_) {
+            updateVisualization(*lastResult_);
+        }
+    }
+}
+
+void TestApplication::nextSheet() {
+    std::lock_guard<std::mutex> lock(resultMutex_);
+    if (lastResult_ && currentSheetIndex_ < static_cast<int>(lastResult_->placements.size()) - 1) {
+        currentSheetIndex_++;
         updateVisualization(*lastResult_);
     }
 }

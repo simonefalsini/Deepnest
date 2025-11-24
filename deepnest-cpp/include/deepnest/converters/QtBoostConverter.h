@@ -80,12 +80,22 @@ namespace QtBoostConverter {
     /**
      * @brief Convert QPainterPath to deepnest::Polygon
      *
-     * This conversion handles simple paths and automatically detects holes.
-     * For complex paths with multiple disconnected subpaths, use extractPolygonsFromQPainterPath.
+     * This conversion handles paths with holes (children) automatically.
+     * The resulting Polygon will have its outer boundary as points, and any holes
+     * as children polygons.
+     *
+     * **When to use:**
+     * - Converting a single shape (potentially with holes) to a Polygon
+     * - When you want to preserve parent-child (hole) relationships
+     * - Standard use case for SVG import and shape conversion
+     *
+     * **Note:** If the QPainterPath contains multiple disconnected subpaths,
+     * only the first will be used as the outer boundary. For paths with multiple
+     * disconnected shapes, use extractPolygonsFromQPainterPath instead.
      *
      * @param path Qt painter path to convert
      * @param polygonId Optional ID to assign to the polygon
-     * @return Converted Polygon
+     * @return Converted Polygon with holes as children
      */
     Polygon fromQPainterPath(const QPainterPath& path, int polygonId = -1);
 
@@ -100,13 +110,24 @@ namespace QtBoostConverter {
     QPainterPath toQPainterPath(const Polygon& polygon);
 
     /**
-     * @brief Extract multiple polygons from a QPainterPath
+     * @brief Extract multiple disconnected polygons from a QPainterPath
      *
-     * QPainterPath can contain multiple disconnected subpaths.
-     * This function extracts each subpath as a separate polygon.
+     * QPainterPath can contain multiple disconnected subpaths (e.g., multiple letters
+     * in a font file). This function extracts each subpath as a **separate** polygon.
+     *
+     * **When to use:**
+     * - When you explicitly want to treat each subpath as an independent polygon
+     * - For debugging or analysis of multi-subpath QPainterPath
+     *
+     * **Important:** This function does NOT identify parent-child (hole) relationships.
+     * All subpaths are treated as independent polygons. If you need hole detection,
+     * use one of these approaches instead:
+     * 1. Use fromQPainterPath (if holes are already in the QPainterPath)
+     * 2. Call PolygonHierarchy::buildTree on the result to identify holes
+     * 3. Use SVGLoader which handles hole detection automatically
      *
      * @param path Qt painter path to extract from
-     * @return Vector of extracted polygons
+     * @return Vector of extracted polygons (no parent-child relationships)
      */
     std::vector<Polygon> extractPolygonsFromQPainterPath(const QPainterPath& path);
 

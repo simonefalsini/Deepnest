@@ -237,6 +237,16 @@ private slots:
      */
     void toggleShapeIds();
 
+    /**
+     * @brief Show previous sheet
+     */
+    void prevSheet();
+
+    /**
+     * @brief Show next sheet
+     */
+    void nextSheet();
+
 private:
     /**
      * @brief Initialize the user interface
@@ -328,6 +338,12 @@ private:
     int maxGenerations_;             ///< Maximum generations to run
     int stepTimerInterval_;          ///< Timer interval in milliseconds
     bool showShapeIds_;              ///< Show/hide shape ID labels
+    int currentSheetIndex_;          ///< Current sheet being visualized
+
+    // Navigation controls
+    QPushButton* prevSheetBtn_;      ///< Button to go to previous sheet
+    QPushButton* nextSheetBtn_;      ///< Button to go to next sheet
+    QLabel* sheetInfoLabel_;         ///< Label showing "Sheet X of Y"
 };
 
 #endif // TEST_APPLICATION_H

@@ -108,30 +108,38 @@ public:
      * @note If the file cannot be read or parsed, returns an empty vector.
      *       Check the returned LoadResult's success() method for errors.
      */
-    static LoadResult loadFile(const QString& svgPath);
+    /**
+     * @brief Configuration for SVG loading
+     */
+    struct Config {
+        double tolerance;          // Max bound for bezier->line segment conversion
+        double toleranceSvg;       // Fudge factor for browser inaccuracy
+        double scale;              // Base scale (default 72)
+        double endpointTolerance;  // Tolerance for merging endpoints
+        
+        Config() : tolerance(2.0), toleranceSvg(0.01), scale(72.0), endpointTolerance(2.0) {}
+    };
 
     /**
-     * @brief Load shapes from an SVG file
-     *
-     * Convenience method that returns only the shapes vector.
+     * @brief Load all shapes from an SVG file
      *
      * @param svgPath Path to the SVG file
-     * @return Vector of shapes found in the file
+     * @param config Optional configuration
+     * @return LoadResult containing extracted shapes and status
+     */
+    static LoadResult loadFile(const QString& svgPath, const Config& config = Config());
+
+    /**
+     * @brief Load shapes only (convenience wrapper)
      */
     static std::vector<Shape> loadShapes(const QString& svgPath);
 
     /**
-     * @brief Load container/sheet from an SVG file
-     *
-     * Searches for a shape marked as "container" or "sheet" (by ID or class)
-     * and returns it. If no such shape is found, returns the largest shape
-     * or an empty path.
-     *
-     * @param svgPath Path to the SVG file
-     * @return QPainterPath of the container shape
+     * @brief Load container only (convenience wrapper)
      */
     static QPainterPath loadContainer(const QString& svgPath);
 
+private:
     /**
      * @brief Parse SVG path data string
      *
@@ -231,6 +239,25 @@ private:
      */
     static double parseNumber(const QString& str, int& pos);
 
+    // Unit handling
+    static double parseUnit(const QString& valueStr, double defaultVal = 0.0);
+    static double getScalingFactor(const QString& widthStr, const QString& viewBoxStr, double configScale);
+
+    // Path merging helpers
+    static void mergeLines(std::vector<Shape>& shapes, double tolerance);
+    static bool isClosed(const Shape& shape, double tolerance);
+    
+    struct CoincidentResult {
+        int index;
+        bool reverse1;
+        bool reverse2;
+        bool found;
+    };
+    
+    static CoincidentResult getCoincident(const Shape& shape, const std::vector<Shape*>& openPaths, double tolerance);
+    static QPainterPath mergeOpenPaths(const QPainterPath& a, const QPainterPath& b);
+    static QPainterPath reversePath(const QPainterPath& path);
+    
     /**
      * @brief Skip whitespace and commas
      *

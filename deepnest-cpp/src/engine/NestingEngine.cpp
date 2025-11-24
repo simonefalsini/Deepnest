@@ -90,6 +90,15 @@ void NestingEngine::initialize(
 
     // Clear previous state
     LOG_MEMORY("Clearing previous state: parts_(" << parts_.size() << "), partPointers_(" << partPointers_.size() << "), sheets_(" << sheets_.size() << ")");
+#ifdef DEBUG_NESTING
+    std::cout << "Number of sheets: " << sheets.size() << std::endl;
+    std::cout.flush();
+#endif
+    
+    // DEBUG: Log sheet count for troubleshooting
+    // std::cout << "PlacementWorker::placeParts called with " << sheets.size() << " sheets and " << parts.size() << " parts" << std::endl;
+    
+    // Optimize: Rotate in-place instead of creating new vector();
     parts_.clear();
     partPointers_.clear();
     sheets_.clear();
@@ -127,6 +136,7 @@ void NestingEngine::initialize(
             sheets_.push_back(sheet);
         }
     }
+    LOG_NESTING("NestingEngine::initialize: Flattened sheets count: " << sheets_.size());
 
     // Prepare parts with spacing (expand parts by spacing)
     // JavaScript uses +0.5*spacing for parts

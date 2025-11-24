@@ -90,7 +90,13 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     double totalSheetArea = 0.0;
 
     // JavaScript: while(parts.length > 0)
+    int sheetIndex = 0;
     while (!parts.empty() && !sheets.empty()) {
+        sheetIndex++;
+#ifdef PLACEMENTDEBUG        
+        std::cout << "Processing sheet " << sheetIndex << ", remaining parts: " << parts.size() << ", remaining sheets: " << sheets.size() << std::endl;
+
+#endif
         // JavaScript: var placed = [];
         //             var placements = [];
         std::vector<Polygon> placed;
@@ -485,7 +491,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
             // JavaScript: if(!finalNfp || finalNfp.length == 0) { continue; }
             if (finalNfp.empty()) {
-                std::cerr << "  WARNING: finalNfp is empty after difference, skipping part" << std::endl;
+                //std::cerr << "  WARNING: finalNfp is empty after difference, skipping part" << std::endl;
                 i++;
                 continue;
             }

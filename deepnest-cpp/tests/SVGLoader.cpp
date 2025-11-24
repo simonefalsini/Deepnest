@@ -5,9 +5,11 @@
 #include <QDebug>
 #include <QRectF>
 #include <cmath>
+#include "../include/deepnest/geometry/GeometryUtil.h"
+#include "../include/deepnest/geometry/PolygonHierarchy.h"
 
 // Load complete SVG file
-SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
+SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath, const Config& config) {
     LoadResult result;
 
     QFile file(svgPath);
@@ -19,6 +21,10 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
     QXmlStreamReader xml(&file);
     QTransform currentTransform;
     QVector<QTransform> transformStack;
+    
+    // Global scaling factor
+    double globalScale = 1.0;
+    bool scaleCalculated = false;
 
     while (!xml.atEnd()) {
         xml.readNext();
@@ -26,6 +32,19 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
         if (xml.isStartElement()) {
             QString elementName = xml.name().toString().toLower();
             QXmlStreamAttributes attrs = xml.attributes();
+            
+            // Handle root SVG element for scaling
+            if (elementName == "svg" && !scaleCalculated) {
+                QString widthStr = attrs.value("width").toString();
+                QString viewBoxStr = attrs.value("viewBox").toString();
+                
+                // Calculate scale based on units
+                globalScale = getScalingFactor(widthStr, viewBoxStr, config.scale);
+                scaleCalculated = true;
+                
+                // Apply global scale to root transform
+                currentTransform.scale(globalScale, globalScale);
+            }
 
             // Get transform if present
             QTransform elementTransform = currentTransform;
@@ -36,7 +55,7 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
             }
 
             // Push transform onto stack for nested elements
-            if (elementName == "g") {
+            if (elementName == "g" || elementName == "svg") {
                 transformStack.push_back(currentTransform);
                 currentTransform = elementTransform;
                 continue;
@@ -68,29 +87,29 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
                 }
             }
             else if (elementName == "rect") {
-                double x = attrs.hasAttribute("x") ? attrs.value("x").toDouble() : 0;
-                double y = attrs.hasAttribute("y") ? attrs.value("y").toDouble() : 0;
-                double width = attrs.value("width").toDouble();
-                double height = attrs.value("height").toDouble();
-                double rx = attrs.hasAttribute("rx") ? attrs.value("rx").toDouble() : 0;
-                double ry = attrs.hasAttribute("ry") ? attrs.value("ry").toDouble() : 0;
+                double x = attrs.hasAttribute("x") ? parseUnit(attrs.value("x").toString()) : 0;
+                double y = attrs.hasAttribute("y") ? parseUnit(attrs.value("y").toString()) : 0;
+                double width = parseUnit(attrs.value("width").toString());
+                double height = parseUnit(attrs.value("height").toString());
+                double rx = attrs.hasAttribute("rx") ? parseUnit(attrs.value("rx").toString()) : 0;
+                double ry = attrs.hasAttribute("ry") ? parseUnit(attrs.value("ry").toString()) : 0;
 
                 shape.path = rectToPath(x, y, width, height, rx, ry);
                 shapeFound = true;
             }
             else if (elementName == "circle") {
-                double cx = attrs.value("cx").toDouble();
-                double cy = attrs.value("cy").toDouble();
-                double r = attrs.value("r").toDouble();
+                double cx = parseUnit(attrs.value("cx").toString());
+                double cy = parseUnit(attrs.value("cy").toString());
+                double r = parseUnit(attrs.value("r").toString());
 
                 shape.path = circleToPath(cx, cy, r);
                 shapeFound = true;
             }
             else if (elementName == "ellipse") {
-                double cx = attrs.value("cx").toDouble();
-                double cy = attrs.value("cy").toDouble();
-                double rx = attrs.value("rx").toDouble();
-                double ry = attrs.value("ry").toDouble();
+                double cx = parseUnit(attrs.value("cx").toString());
+                double cy = parseUnit(attrs.value("cy").toString());
+                double rx = parseUnit(attrs.value("rx").toString());
+                double ry = parseUnit(attrs.value("ry").toString());
 
                 shape.path = ellipseToPath(cx, cy, rx, ry);
                 shapeFound = true;
@@ -109,18 +128,80 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
                     shapeFound = true;
                 }
             }
+            else if (elementName == "line") {
+                 double x1 = parseUnit(attrs.value("x1").toString());
+                 double y1 = parseUnit(attrs.value("y1").toString());
+                 double x2 = parseUnit(attrs.value("x2").toString());
+                 double y2 = parseUnit(attrs.value("y2").toString());
+                 
+                 QPainterPath linePath;
+                 linePath.moveTo(x1, y1);
+                 linePath.lineTo(x2, y2);
+                 shape.path = linePath;
+                 shapeFound = true;
+            }
 
             if (shapeFound) {
-                if (shape.isContainer && !result.container) {
-                    result.container = std::make_unique<Shape>(shape);
+                // Split paths with multiple subpaths into separate shapes
+                // This matches the JavaScript svgparser.js splitPath behavior
+                QList<QPolygonF> subpaths = shape.path.toSubpathPolygons();
+                
+                if (subpaths.size() > 1) {
+                    // Multiple subpaths - use PolygonHierarchy to identify parent-child relationships
+                    // Convert subpaths to Polygons
+                    std::vector<deepnest::Polygon> polygons;
+                    polygons.reserve(subpaths.size());
+                    
+                    for (int i = 0; i < subpaths.size(); ++i) {
+                        if (subpaths[i].size() < 3) continue;
+                        
+                        deepnest::Polygon poly;
+                        poly.id = i;
+                        poly.points.reserve(subpaths[i].size());
+                        
+                        for (const QPointF& qpt : subpaths[i]) {
+                            poly.points.push_back(deepnest::Point::fromQt(qpt));
+                        }
+                        
+                        if (poly.isValid()) {
+                            polygons.push_back(poly);
+                        }
+                    }
+                    
+                    // Build hierarchy - this identifies holes and associates them with parents
+                    polygons = deepnest::PolygonHierarchy::buildTree(polygons, 0);
+                    
+                    // Convert back to Shapes
+                    for (const auto& poly : polygons) {
+                        Shape subShape = shape; // Copy transform, id, etc.
+                        
+                        // Convert polygon to QPainterPath
+                        subShape.path = poly.toQPainterPath();
+                        
+                        // Update ID to reflect polygon index
+                        if (!subShape.id.isEmpty()) {
+                            subShape.id = QString("%1_%2").arg(subShape.id).arg(poly.id);
+                        }
+                        
+                        if (subShape.isContainer && !result.container) {
+                            result.container = std::make_unique<Shape>(subShape);
+                        } else {
+                            result.shapes.push_back(subShape);
+                        }
+                    }
                 } else {
-                    result.shapes.push_back(shape);
+                    // Single subpath or empty - add as-is
+                    if (shape.isContainer && !result.container) {
+                        result.container = std::make_unique<Shape>(shape);
+                    } else {
+                        result.shapes.push_back(shape);
+                    }
                 }
             }
         }
         else if (xml.isEndElement()) {
             QString elementName = xml.name().toString().toLower();
-            if (elementName == "g" && !transformStack.isEmpty()) {
+            if ((elementName == "g" || elementName == "svg") && !transformStack.isEmpty()) {
                 currentTransform = transformStack.back();
                 transformStack.pop_back();
             }
@@ -129,6 +210,14 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath) {
 
     if (xml.hasError()) {
         result.errorMessage = QString("XML parse error: %1").arg(xml.errorString());
+    }
+    
+    // Perform path merging
+    if (result.success()) {
+        mergeLines(result.shapes, config.endpointTolerance);
+        // Also try to close paths with wider tolerance if needed, as in JS
+        // this.mergeLines(this.svgRoot, 3*this.conf.endpointTolerance);
+        mergeLines(result.shapes, 3.0 * config.endpointTolerance);
     }
 
     return result;
@@ -323,6 +412,12 @@ QPainterPath SVGLoader::parsePathData(const QString& pathData) {
                     double xAxisRotation = parseNumber(pathData, pos);
                     int largeArc = (int)parseNumber(pathData, pos);
                     int sweep = (int)parseNumber(pathData, pos);
+                    
+                    Q_UNUSED(rx);
+                    Q_UNUSED(ry);
+                    Q_UNUSED(xAxisRotation);
+                    Q_UNUSED(largeArc);
+                    Q_UNUSED(sweep);
 
                     if (parseCoordinate(pathData, pos, x, y)) {
                         if (relative) {
@@ -534,6 +629,251 @@ bool SVGLoader::isContainerElement(const QString& id, const QString& className) 
 }
 
 // Helper functions
+
+// Helper to parse units (mm, cm, in, pt, pc, px)
+double SVGLoader::parseUnit(const QString& valueStr, double defaultVal) {
+    if (valueStr.isEmpty()) return defaultVal;
+    
+    QString str = valueStr.trimmed();
+    double val = 0.0;
+    
+    // Extract number part
+    int endPos = 0;
+    // Find where number ends
+    bool foundDot = false;
+    for (int i = 0; i < str.length(); ++i) {
+        QChar c = str[i];
+        if (c.isDigit() || c == '-' || c == '+') {
+            endPos++;
+        } else if (c == '.' && !foundDot) {
+            foundDot = true;
+            endPos++;
+        } else {
+            break;
+        }
+    }
+    
+    val = str.left(endPos).toDouble();
+    QString unit = str.mid(endPos).toLower();
+    
+    // Standard SVG unit conversion to pixels (96 DPI usually)
+    if (unit == "in") {
+        return val * 96.0;
+    } else if (unit == "mm") {
+        return val * 3.7795; // 96 / 25.4
+    } else if (unit == "cm") {
+        return val * 37.795;
+    } else if (unit == "pt") {
+        return val * 1.3333; // 96 / 72
+    } else if (unit == "pc") {
+        return val * 16.0;   // 96 / 6
+    }
+    
+    return val;
+}
+
+double SVGLoader::getScalingFactor(const QString& widthStr, const QString& viewBoxStr, double configScale) {
+    if (widthStr.isEmpty() || viewBoxStr.isEmpty()) {
+        return 1.0;
+    }
+    
+    QStringList vbParts = viewBoxStr.split(QRegExp("[\\s,]+"), QString::SkipEmptyParts);
+    if (vbParts.size() < 4) {
+        return 1.0;
+    }
+    
+    double vbWidth = vbParts[2].toDouble();
+    if (vbWidth <= 0) return 1.0;
+    
+    // Parse width with units
+    QString wStr = widthStr.trimmed();
+    double widthVal = 0.0;
+    QString unit;
+    
+    int endPos = 0;
+    bool foundDot = false;
+    for (int i = 0; i < wStr.length(); ++i) {
+        QChar c = wStr[i];
+        if (c.isDigit() || c == '-' || c == '+') {
+            endPos++;
+        } else if (c == '.' && !foundDot) {
+            foundDot = true;
+            endPos++;
+        } else {
+            break;
+        }
+    }
+    
+    widthVal = wStr.left(endPos).toDouble();
+    unit = wStr.mid(endPos).toLower();
+    
+    if (widthVal <= 0) return 1.0;
+    
+    // Calculate local scale (pixels per unit of width)
+    double localScale = 1.0;
+    
+    if (unit == "in") {
+        localScale = vbWidth / widthVal; 
+    } else if (unit == "mm") {
+        localScale = (25.4 * vbWidth) / widthVal;
+    } else if (unit == "cm") {
+        localScale = (2.54 * vbWidth) / widthVal;
+    } else if (unit == "pt") {
+        localScale = (72.0 * vbWidth) / widthVal;
+    } else if (unit == "pc") {
+        localScale = (6.0 * vbWidth) / widthVal;
+    } else if (unit == "px") {
+        localScale = (96.0 * vbWidth) / widthVal;
+    } else {
+        return 1.0;
+    }
+    
+    return configScale / localScale;
+}
+
+// Path merging implementation
+
+SVGLoader::CoincidentResult SVGLoader::getCoincident(const Shape& shape, const std::vector<Shape*>& openPaths, double tolerance) {
+    CoincidentResult result = {-1, false, false, false};
+    
+    QPointF start1 = shape.path.elementAt(0);
+    QPointF end1 = shape.path.currentPosition();
+    
+    // Find index of shape in openPaths (pointer comparison)
+    int selfIndex = -1;
+    for (int i = 0; i < openPaths.size(); ++i) {
+        if (openPaths[i] == &shape) {
+            selfIndex = i;
+            break;
+        }
+    }
+    
+    if (selfIndex == -1 || selfIndex == openPaths.size() - 1) {
+        return result;
+    }
+    
+    for (int i = selfIndex + 1; i < openPaths.size(); ++i) {
+        Shape* other = openPaths[i];
+        QPointF start2 = other->path.elementAt(0);
+        QPointF end2 = other->path.currentPosition();
+        
+        // Check all 4 combinations
+        // 1. Start1 == Start2 -> Reverse1, NoReverse2 (so End1 matches Start2)
+        if (deepnest::GeometryUtil::almostEqualPoints(deepnest::Point(start1.x(), start1.y()), deepnest::Point(start2.x(), start2.y()), tolerance)) {
+            return {i, true, false, true};
+        }
+        // 2. Start1 == End2 -> Reverse1, Reverse2 (so End1 matches End2 -> End1 matches Start2_rev)
+        else if (deepnest::GeometryUtil::almostEqualPoints(deepnest::Point(start1.x(), start1.y()), deepnest::Point(end2.x(), end2.y()), tolerance)) {
+            return {i, true, true, true};
+        }
+        // 3. End1 == End2 -> NoReverse1, Reverse2 (so End1 matches Start2_rev)
+        else if (deepnest::GeometryUtil::almostEqualPoints(deepnest::Point(end1.x(), end1.y()), deepnest::Point(end2.x(), end2.y()), tolerance)) {
+            return {i, false, true, true};
+        }
+        // 4. End1 == Start2 -> NoReverse1, NoReverse2 (Already matching)
+        else if (deepnest::GeometryUtil::almostEqualPoints(deepnest::Point(end1.x(), end1.y()), deepnest::Point(start2.x(), start2.y()), tolerance)) {
+            return {i, false, false, true};
+        }
+    }
+    
+    return result;
+}
+
+QPainterPath SVGLoader::reversePath(const QPainterPath& path) {
+    return path.toReversed();
+}
+
+QPainterPath SVGLoader::mergeOpenPaths(const QPainterPath& a, const QPainterPath& b) {
+    QPainterPath result = a;
+    result.connectPath(b);
+    return result;
+}
+
+void SVGLoader::mergeLines(std::vector<Shape>& shapes, double tolerance) {
+    // Identify open paths
+    std::vector<Shape*> openPaths;
+    for (auto& shape : shapes) {
+        if (!isClosed(shape, tolerance)) {
+            openPaths.push_back(&shape);
+        } else {
+            // Ensure closed paths are explicitly closed
+            if (shape.path.elementCount() > 0) {
+                 // Check if last element is NOT a close command (implied by isClosed check logic)
+                 // But QPainterPath doesn't easily show "Close" element.
+                 // We can just closeSubpath() if it's geometrically closed but not logically.
+                 // But QPainterPath handles this automatically mostly.
+                 // Let's force closeSubpath if close
+                 // shape.path.closeSubpath(); // This adds a line to start.
+            }
+        }
+    }
+    
+    if (openPaths.empty()) return;
+    
+    // Merge loop
+    // We iterate through openPaths. When we merge, we remove the merged-in path from the list.
+    // Since we are using pointers to the vector 'shapes', we must be careful not to invalidate them.
+    // 'shapes' vector is stable here (passed by ref).
+    
+    // We use a list/vector of active open paths.
+    // When a path is merged into another, we remove it from consideration.
+    // Actually, we can just mark it as "merged" or remove from openPaths vector.
+    
+    for (size_t i = 0; i < openPaths.size(); ++i) {
+        Shape* p = openPaths[i];
+        if (!p) continue; // Already merged
+        
+        while (true) {
+            CoincidentResult c = getCoincident(*p, openPaths, tolerance);
+            
+            if (!c.found) break;
+            
+            Shape* other = openPaths[c.index];
+            
+            // Perform merges
+            if (c.reverse1) {
+                p->path = reversePath(p->path);
+            }
+            if (c.reverse2) {
+                other->path = reversePath(other->path);
+            }
+            
+            // Merge other into p
+            p->path = mergeOpenPaths(p->path, other->path);
+            
+            // Remove 'other' from shapes and openPaths
+            // We can't easily remove from 'shapes' without invalidating pointers if we resize.
+            // Instead, we'll mark 'other' as invalid/empty and remove later, 
+            // OR we just clear its path and ignore it.
+            other->path = QPainterPath(); // Clear it
+            openPaths[c.index] = nullptr; // Remove from openPaths
+            
+            // Check if p is now closed
+            if (isClosed(*p, tolerance)) {
+                p->path.closeSubpath();
+                openPaths[i] = nullptr; // Remove p from openPaths
+                break; // Done with p
+            }
+            
+            // Continue trying to merge more into p
+        }
+    }
+    
+    // Remove empty shapes from original vector
+    shapes.erase(std::remove_if(shapes.begin(), shapes.end(),
+        [](const Shape& s) { return s.path.isEmpty(); }),
+        shapes.end());
+}
+
+bool SVGLoader::isClosed(const Shape& shape, double tolerance) {
+    if (shape.path.elementCount() < 2) return false;
+    
+    QPointF start = shape.path.elementAt(0);
+    QPointF end = shape.path.currentPosition();
+    
+    double dist = std::sqrt(std::pow(start.x() - end.x(), 2) + std::pow(start.y() - end.y(), 2));
+    return dist < tolerance;
+}
 
 double SVGLoader::parseNumber(const QString& str, int& pos) {
     skipWhitespace(str, pos);
