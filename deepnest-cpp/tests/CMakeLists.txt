@@ -1,8 +1,13 @@
 # CMakeLists.txt for DeepNest C++ Test Tools
 cmake_minimum_required(VERSION 3.10)
 
+# Enable Qt MOC processing
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
 # Find Qt5 - Required for test tools
-find_package(Qt5 REQUIRED COMPONENTS Core Xml Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Core Xml Widgets Svg)
 
 # ===== PolygonExtractor Test Tool =====
 add_executable(PolygonExtractor
@@ -282,3 +287,48 @@ install(TARGETS DiagnosticTool
 )
 
 message(STATUS "DiagnosticTool configured")
+
+# ===== TestApplication (GUI Test Tool) =====
+add_executable(TestApplication
+    main.cpp
+    TestApplication.cpp
+    TestApplication.h
+    ConfigDialog.cpp
+    ConfigDialog.h
+    ContainerDialog.cpp
+    ContainerDialog.h
+    RandomShapeGenerator.cpp
+    RandomShapeGenerator.h
+    SVGLoader.cpp
+    SVGLoader.h
+)
+
+target_include_directories(TestApplication PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(TestApplication
+    deepnest
+    Qt5::Core
+    Qt5::Gui
+    Qt5::Widgets
+    Qt5::Xml
+    Qt5::Svg
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(TestApplication PRIVATE cxx_std_17)
+
+set_target_properties(TestApplication PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS TestApplication
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "TestApplication configured")

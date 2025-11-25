@@ -13,7 +13,7 @@ option(BUILD_TESTS "Build test applications" ON)
 # Find required packages
 # Qt5 is optional for library-only build
 find_package(Qt5 COMPONENTS Core Gui Widgets QUIET)
-find_package(Boost REQUIRED COMPONENTS thread system)
+find_package(Boost REQUIRED COMPONENTS thread system chrono)
 
 # Include directories
 include_directories(
@@ -36,6 +36,7 @@ set(DEEPNEST_SOURCES
     src/geometry/PolygonOperations.cpp
     src/geometry/ConvexHull.cpp
     src/geometry/Transformation.cpp
+    src/geometry/PolygonHierarchy.cpp
 
     # NFP
     src/nfp/NFPCache.cpp
@@ -86,6 +87,7 @@ set(DEEPNEST_HEADERS
     include/deepnest/geometry/PolygonOperations.h
     include/deepnest/geometry/ConvexHull.h
     include/deepnest/geometry/Transformation.h
+    include/deepnest/geometry/PolygonHierarchy.h
 
     # NFP
     include/deepnest/nfp/NFPCache.h

@@ -1523,8 +1523,8 @@ void TestApplication::setContainerSize() {
         const auto& container = sheets_[0];
         if (!container.points.empty()) {
             // Calculate bounds
-            double minX = container.points[0].x, maxX = container.points[0].x;
-            double minY = container.points[0].y, maxY = container.points[0].y;
+            deepnest::CoordType minX = container.points[0].x, maxX = container.points[0].x;
+            deepnest::CoordType minY = container.points[0].y, maxY = container.points[0].y;
 
             for (const auto& p : container.points) {
                 minX = std::min(minX, p.x);
@@ -1533,8 +1533,8 @@ void TestApplication::setContainerSize() {
                 maxY = std::max(maxY, p.y);
             }
 
-            dialog.setWidth(maxX - minX);
-            dialog.setHeight(maxY - minY);
+            dialog.setWidth(static_cast<double>(maxX - minX));
+            dialog.setHeight(static_cast<double>(maxY - minY));
         }
     }
 
@@ -1587,8 +1587,8 @@ void TestApplication::viewContainerInfo() {
     }
 
     // Calculate bounds
-    double minX = container.points[0].x, maxX = container.points[0].x;
-    double minY = container.points[0].y, maxY = container.points[0].y;
+    deepnest::CoordType minX = container.points[0].x, maxX = container.points[0].x;
+    deepnest::CoordType minY = container.points[0].y, maxY = container.points[0].y;
 
     for (const auto& p : container.points) {
         minX = std::min(minX, p.x);
@@ -1597,9 +1597,9 @@ void TestApplication::viewContainerInfo() {
         maxY = std::max(maxY, p.y);
     }
 
-    double width = maxX - minX;
-    double height = maxY - minY;
-    double area = width * height;
+    deepnest::CoordType width = maxX - minX;
+    deepnest::CoordType height = maxY - minY;
+    double area = static_cast<double>(width) * static_cast<double>(height);
 
     QString info = QString(
         "Container Information:\n\n"
