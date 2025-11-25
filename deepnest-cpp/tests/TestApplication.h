@@ -108,6 +108,21 @@ public:
      */
     bool isRunning() const { return running_; }
 
+    /**
+     * @brief Generate test polygons (for command-line testing)
+     *
+     * @param count Number of polygon types to generate
+     * @return true if successful, false otherwise
+     */
+    bool testPolygons(int count);
+
+    /**
+     * @brief Get number of sheets used in last result
+     *
+     * @return Number of sheets used, or 0 if no result available
+     */
+    int getSheetsUsed() const;
+
 private slots:
     /**
      * @brief Load SVG file with parts and optionally sheet
@@ -327,7 +342,7 @@ private:
     // CRITICAL FIX: Use smart pointer instead of raw pointer to prevent memory corruption
     // Thread-safe access protected by resultMutex_
     std::unique_ptr<deepnest::NestResult> lastResult_;  ///< Last result (owned, thread-safe)
-    std::mutex resultMutex_;         ///< Protects lastResult_ from concurrent access
+    mutable std::mutex resultMutex_;         ///< Protects lastResult_ from concurrent access (mutable for const methods)
 
     // Parts tracking for visualization
     std::vector<deepnest::Polygon> parts_;  ///< Loaded parts (indexed by id)
