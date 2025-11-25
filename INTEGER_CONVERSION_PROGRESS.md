@@ -44,34 +44,60 @@
   - Documentazione sistema integer completa
   - **Commit**: c00361b ⚠️ PUSHED TO REMOTE
 
+## ✅ COMPLETATO (continuazione)
+
+### FASE 3: Tipi Base (100% - COMPLETA)
+- ✅ **Step 3.3**: Convertire Point.h a int64_t
+  - ✅ Cambiato `x`, `y` da double a CoordType (int64_t)
+  - ✅ Aggiornati operatori matematici (*, /, +=, etc.)
+  - ✅ distanceTo() ritorna double, distanceSquaredTo() ritorna int64_t
+  - ✅ Rimosso normalize() (non ha senso per interi)
+  - ✅ rotate() usa double intermediario con rounding
+  - ✅ almostEqual() usa tolleranza intera
+  - **Commit**: 4a2993c
+
+- ✅ **Step 3.4**: Convertire BoundingBox a int64_t
+  - ✅ Cambiati x, y, width, height da double a CoordType
+  - ✅ area() e perimeter() ritornano int64_t
+  - ✅ center() usa divisione intera
+  - ✅ expand(), translate(), scale() con parametri CoordType
+  - ✅ Versioni scale(double) con rounding per trasformazioni
+  - **Commit**: e68ee02
+
+### FASE 4: Conversioni I/O (60% completato, 3/5 step)
+- ✅ **Step 4.1**: Modificare QtBoostConverter con scalatura (100%)
+  - ✅ qPointFToBoost(point, scale): physical → scaled integer
+  - ✅ boostToQPointF(point, scale): scaled integer → physical
+  - ✅ toBoostPolygon(path, scale) con scaling
+  - ✅ toBoostPolygonWithHoles(path, scale) con holes
+  - ✅ fromBoostPolygon(poly, scale) con descaling
+  - ✅ fromBoostPolygonWithHoles(poly, scale) con holes
+  - ✅ fromBoostPolygonSet(polySet, scale) per polygon sets
+  - ✅ Tutte le conversioni usano rounding (non trunc)
+  - ✅ Funzioni deprecate mantenute per backward compatibility
+  - **Commit**: 03cbfac
+
+- ✅ **Step 4.2**: Aggiungere scaling a Point (100%)
+  - ✅ Point::fromQt(QPointF, scale, exact) con scaling
+  - ✅ Point::toQt(scale) con descaling
+  - ✅ Formule: int_coord = round(phys * scale), phys = int / scale
+  - ✅ Funzioni deprecate mantenute
+  - **Commit**: 56e3707
+
 ## 🚧 IN CORSO
 
-### FASE 3: Tipi Base (continuazione)
-- ⏳ **Step 3.3**: Convertire Point.h a int64_t (PROSSIMO)
-  - Cambiare `x`, `y` da double a CoordType
-  - Aggiornare operatori matematici
-  - Gestire funzioni che richiedono double (distanceTo, etc.)
-  - Rimuovere/modificare rotate(), normalize()
+### FASE 4: Conversioni I/O (continuazione)
 
-- ⏳ **Step 3.4**: Convertire BoundingBox a int64_t
-  - Cambiare tutti i membri a CoordType
-  - Aggiornare width(), height(), area()
-
-## 📋 TODO
-
-### FASE 4: Conversioni I/O (7 ore stimate)
-- ⬜ **Step 4.1**: Modificare QtBoostConverter con scalatura
-  - from/toQPainterPath con scale parameter
-  - from/toQPointF con scale parameter
-  - Arrotondamento (round, non trunc)
-
-- ⬜ **Step 4.2**: Modificare SVGLoader
-  - Passare inputScale alle conversioni
+- ⏳ **Step 4.3**: Modificare SVGLoader (PROSSIMO)
+  - Aggiungere inputScale alla Config
+  - Passare scale a Point::fromQt() quando si caricano SVG
   - Gestire transform SVG con scalatura
 
-- ⬜ **Step 4.3**: Modificare Polygon conversioni
-  - from/toQPainterPath con scale
+- ⏳ **Step 4.4**: Modificare Polygon conversioni
+  - from/toQPainterPath con scale parameter
   - from/toBoostPolygon aggiornati
+
+## 📋 TODO
 
 ### FASE 5: Geometria Base (6 ore stimate)
 - ⬜ **Step 5.1**: GeometryUtil funzioni base
@@ -113,39 +139,43 @@
 ### Codice Modificato
 - **File eliminati**: 4 (OrbitalHelpers.cpp, OrbitalTypes.h, GeometryUtilAdvanced.*)
 - **Righe rimosse**: ~1200
-- **File modificati**: 17
-- **Commit effettuati**: 4
-- **Pushed to remote**: Sì (ultimo: c00361b)
+- **Righe aggiunte**: ~500 (nuove funzioni con scaling)
+- **File modificati**: 22
+- **Commit effettuati**: 12
+- **Pushed to remote**: Sì (ultimo: 56e3707)
 
 ### Tempo Impiegato
 - Fase 1-2: ~3 ore
-- Fase 3 (parziale): ~1 ora
-- **Totale**: ~4 ore su ~63 ore stimate
+- Fase 3: ~2 ore (100% completa)
+- Fase 4 (parziale): ~2 ore (60% completa)
+- **Totale**: ~7 ore su ~63 ore stimate
 
 ### Progresso Globale
-- **Completato**: 6/40 step (~15%)
-- **Fasi complete**: 2/11 (18%)
-- **Step critici completati**: 3/5 (60%)
+- **Completato**: 10/40 step (~25%)
+- **Fasi complete**: 3/11 (27%)
+- **Step critici completati**: 5/5 (100%) ⭐
   - ✅ Types.h → int64_t
+  - ✅ Point.h → int64_t
+  - ✅ BoundingBox → int64_t
   - ✅ inputScale parameter
-  - ✅ noFitPolygon removed
-  - ⏳ Point.h
-  - ⏳ QtBoostConverter
+  - ✅ QtBoostConverter + Point scaling
 
 ## 🎯 Prossimi Step Prioritari
 
-1. **IMMEDIATO**: Step 3.3 - Convertire Point.h
-   - Questo bloccherà tutto il resto
-   - Causerà molti errori di compilazione
-   - È il secondo passo più critico dopo Types.h
+1. **IMMEDIATO**: Step 4.3-4.4 - Completare Fase 4 (Conversioni I/O)
+   - SVGLoader: aggiungere inputScale alla Config
+   - Polygon: from/toQPainterPath con scale parameter
+   - Completare layer I/O prima di procedere
 
-2. **CRITICO**: Step 4.1 - QtBoostConverter con scalatura
-   - Necessario per I/O funzionante
-   - Gestisce conversione double ↔ int64_t
+2. **CRITICO**: Fase 5 - Geometria Base
+   - GeometryUtil: lineIntersect, polygonArea, pointInPolygon
+   - Funzioni fondamentali usate ovunque
+   - Cross product e area calculations con int64_t
 
-3. **IMPORTANTE**: Step 5.1 - GeometryUtil base
-   - lineIntersect, polygonArea, pointInPolygon
-   - Funzioni fondamentali per tutto
+3. **IMPORTANTE**: Fase 6 - Operazioni Poligoni
+   - PolygonOperations con tolleranze intere
+   - Clipper2 usage (già nativo int64_t!)
+   - Transformation con lookup tables
 
 ## ⚠️ Note Importanti
 
@@ -177,13 +207,27 @@
 
 ## 📝 Changelog
 
-### 2025-11-25 - Session 1
+### 2025-11-25 - Session 1 (Continued)
+- ✅ **FASE 3 COMPLETA**: Tutti i tipi base convertiti a int64_t
+  - Point.h: x,y → CoordType, operatori aggiornati
+  - BoundingBox.h: tutti i membri → CoordType
+  - Gestione overflow documentata
+
+- ✅ **FASE 4 (60%)**: Infrastructure I/O con scaling
+  - QtBoostConverter: tutte le funzioni con overload scale parameter
+  - Point: fromQt/toQt con scaling
+  - Formula standard: int_coord = round(phys * scale), phys = int / scale
+
+- ✅ **Pushed 12 commits** (ultimo: 56e3707)
+- ✅ **Progresso: 25%** (10/40 step, 3/11 fasi)
+- ✅ **Tutti step critici completati!** ⭐
+
+### 2025-11-25 - Session 1 (Start)
 - Creato piano dettagliato (INTEGER_CONVERSION_PLAN.md)
 - Documentato stato attuale (CONVERSION_STATUS.md, UNUSED_FUNCTIONS_ANALYSIS.md)
 - Rimosso noFitPolygon orbital tracing (~1200 righe)
 - Aggiunto inputScale parameter
 - **BREAKING CHANGE**: Convertito Types.h a int64_t
-- Pushed 4 commits to remote
 
 ## 🔗 File Riferimento
 
