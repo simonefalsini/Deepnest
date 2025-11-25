@@ -49,11 +49,9 @@ HEADERS += \
     include/deepnest/core/BoundingBox.h \
     include/deepnest/core/Polygon.h \
     include/deepnest/geometry/GeometryUtil.h \
-    include/deepnest/geometry/GeometryUtilAdvanced.h \
     include/deepnest/geometry/PolygonOperations.h \
     include/deepnest/geometry/ConvexHull.h \
     include/deepnest/geometry/Transformation.h \
-    include/geometry/OrbitalHelpers.h \
     include/deepnest/nfp/NFPCache.h \
     include/deepnest/nfp/MinkowskiSum.h \
     include/deepnest/nfp/NFPCalculator.h \
@@ -74,11 +72,9 @@ SOURCES += \
     src/core/Point.cpp \
     src/core/Polygon.cpp \
     src/geometry/GeometryUtil.cpp \
-    src/geometry/GeometryUtilAdvanced.cpp \
     src/geometry/PolygonOperations.cpp \
     src/geometry/ConvexHull.cpp \
     src/geometry/Transformation.cpp \
-    src/geometry/OrbitalHelpers.cpp \
     src/nfp/NFPCache.cpp \
     src/nfp/MinkowskiSum.cpp \
     src/nfp/NFPCalculator.cpp \

@@ -6,7 +6,6 @@
 #include <vector>
 #include "deepnest/core/Point.h"
 #include "deepnest/geometry/GeometryUtil.h"
-#include "deepnest/geometry/GeometryUtilAdvanced.h"
 
 using namespace deepnest;
 

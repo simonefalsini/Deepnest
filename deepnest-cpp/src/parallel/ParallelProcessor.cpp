@@ -2,6 +2,7 @@
 #include "../../include/deepnest/DebugConfig.h"
 #include "../../include/deepnest/nfp/NFPCache.h"
 #include "../../include/deepnest/geometry/GeometryUtil.h"
+#include "../../include/deepnest/nfp/MinkowskiSum.h"
 #include <algorithm>
 #include <thread>
 #include <chrono>
@@ -223,7 +224,13 @@ void ParallelProcessor::calculateNFPsParallel(
                 if (GeometryUtil::isRectangle(A.points, 0.001)) {
                     nfp = GeometryUtil::noFitPolygonRectangle(A.points, B.points);
                 } else {
-                    nfp = GeometryUtil::noFitPolygon(A.points, B.points, true, config.exploreConcave);
+                    // Use Minkowski Sum for INNER NFP (orbital tracing removed)
+                    auto nfpPolygons = trunk::MinkowskiSum::calculateNFP(A, B);
+                    nfp.clear();
+                    nfp.reserve(nfpPolygons.size());
+                    for (const auto& poly : nfpPolygons) {
+                        nfp.push_back(poly.points);
+                    }
                 }
                 
                 // Ensure all interior NFPs have same winding direction
@@ -236,7 +243,13 @@ void ParallelProcessor::calculateNFPsParallel(
                 }
             } else {
                 // ========== OUTER NFP (JavaScript lines 372-438) ==========
-                nfp = GeometryUtil::noFitPolygon(A.points, B.points, false, config.exploreConcave);
+                // Use Minkowski Sum for OUTER NFP (orbital tracing removed)
+                auto nfpPolygons = trunk::MinkowskiSum::calculateNFP(A, B);
+                nfp.clear();
+                nfp.reserve(nfpPolygons.size());
+                for (const auto& poly : nfpPolygons) {
+                    nfp.push_back(poly.points);
+                }
                 
                 if (nfp.empty()) {
                     return;
@@ -276,16 +289,18 @@ void ParallelProcessor::calculateNFPsParallel(
                     
                     for (const auto& hole : A.children) {
                         BoundingBox bboxHole = hole.bounds();
-                        
+
                         if (bboxHole.width > bboxB.width && bboxHole.height > bboxB.height) {
-                            auto cnfp = GeometryUtil::noFitPolygon(hole.points, B.points, true, config.exploreConcave);
-                            
-                            if (!cnfp.empty()) {
-                                for (auto& cnfpPoly : cnfp) {
-                                    if (GeometryUtil::polygonArea(cnfpPoly) < 0) {
-                                        std::reverse(cnfpPoly.begin(), cnfpPoly.end());
+                            // Use Minkowski Sum for hole NFP (orbital tracing removed)
+                            auto cnfpPolygons = trunk::MinkowskiSum::calculateNFP(hole, B);
+
+                            if (!cnfpPolygons.empty()) {
+                                for (const auto& cnfpPoly : cnfpPolygons) {
+                                    auto cnfpPoints = cnfpPoly.points;
+                                    if (GeometryUtil::polygonArea(cnfpPoints) < 0) {
+                                        std::reverse(cnfpPoints.begin(), cnfpPoints.end());
                                     }
-                                    nfp.push_back(cnfpPoly);
+                                    nfp.push_back(cnfpPoints);
                                 }
                             }
                         }

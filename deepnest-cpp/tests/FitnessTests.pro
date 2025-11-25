@@ -17,7 +17,6 @@ SOURCES += FitnessTests.cpp \
     ../src/core/Types.cpp \
     ../src/config/DeepNestConfig.cpp \
     ../src/geometry/GeometryUtil.cpp \
-    ../src/geometry/GeometryUtilAdvanced.cpp \
     ../src/geometry/PolygonOperations.cpp \
     ../src/geometry/ConvexHull.cpp \
     ../src/geometry/Transformation.cpp \

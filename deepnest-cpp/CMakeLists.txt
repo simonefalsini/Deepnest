@@ -33,8 +33,6 @@ set(DEEPNEST_SOURCES
 
     # Geometry
     src/geometry/GeometryUtil.cpp
-    src/geometry/GeometryUtilAdvanced.cpp
-    src/geometry/OrbitalHelpers.cpp
     src/geometry/PolygonOperations.cpp
     src/geometry/ConvexHull.cpp
     src/geometry/Transformation.cpp

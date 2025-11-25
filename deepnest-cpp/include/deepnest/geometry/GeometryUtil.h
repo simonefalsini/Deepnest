@@ -4,7 +4,6 @@
 #include "../core/Types.h"
 #include "../core/Point.h"
 #include "../core/BoundingBox.h"
-#include "OrbitalTypes.h"
 #include <vector>
 #include <optional>
 
@@ -231,93 +230,11 @@ namespace GeometryUtil {
     // ========== Advanced Polygon Functions ==========
 
     /**
-     * @brief Get the edge of polygon in the normal direction
-     * @param normal Normal vector pointing in desired direction
-     * @return Polyline representing the edge
-     */
-    std::vector<Point> polygonEdge(const std::vector<Point>& polygon, const Point& normal);
-
-    /**
-     * @brief Calculate normal distance from point to line segment
-     */
-    std::optional<double> pointLineDistance(
-        const Point& p, const Point& s1, const Point& s2,
-        const Point& normal,
-        bool s1inclusive = false, bool s2inclusive = false
-    );
-
-    /**
-     * @brief Calculate signed distance from point to line (for sliding)
-     */
-    std::optional<double> pointDistance(
-        const Point& p, const Point& s1, const Point& s2,
-        const Point& normal, bool infinite = false
-    );
-
-    /**
-     * @brief Calculate minimum distance between two segments in given direction
-     */
-    std::optional<double> segmentDistance(
-        const Point& A, const Point& B,
-        const Point& E, const Point& F,
-        const Point& direction
-    );
-
-    /**
-     * @brief Calculate slide distance between two polygons
-     */
-    std::optional<double> polygonSlideDistance(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        const Point& direction,
-        bool ignoreNegative = false
-    );
-
-    /**
-     * @brief Project polygon B onto polygon A in given direction
-     */
-    std::optional<double> polygonProjectionDistance(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        const Point& direction
-    );
-
-    /**
-     * @brief Search for a valid start point for NFP calculation
-     */
-    std::optional<Point> searchStartPoint(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        bool inside,
-        const std::vector<std::vector<Point>>& NFP = {}
-    );
-
-    /**
-     * @brief Calculate No-Fit Polygon (NFP) of B orbiting around A
-     * @param inside If true, B orbits inside A; if false, outside
-     * @param searchEdges If true, find all NFPs; if false, only first
-     * @return List of NFP polygons
-     */
-    std::vector<std::vector<Point>> noFitPolygon(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        bool inside = false,
-        bool searchEdges = false
-    );
-
-    /**
      * @brief Calculate NFP for special case where A is a rectangle
+     *
+     * KEPT for future optimizations. Fast NFP calculation when A is a rectangle.
      */
     std::vector<std::vector<Point>> noFitPolygonRectangle(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B
-    );
-
-    /**
-     * @brief Calculate the outer hull of two touching polygons
-     * @return Single polygon representing the combined perimeter
-     */
-    std::optional<std::vector<Point>> polygonHull(
         const std::vector<Point>& A,
         const std::vector<Point>& B
     );
@@ -370,44 +287,6 @@ namespace GeometryUtil {
     std::vector<Point> simplifyDouglasPeucker(
         const std::vector<Point>& points,
         double sqTolerance
-    );
-
-    // ========== Orbital Tracing Helper Functions ==========
-
-    /**
-     * @brief Find all touching contacts between polygons A and B
-     *
-     * Used by orbital tracing algorithm to detect contact points.
-     * Implementation in OrbitalHelpers.cpp
-     */
-    std::vector<TouchingContact> findTouchingContacts(
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        const Point& offsetB
-    );
-
-    /**
-     * @brief Generate translation vectors from a touching contact
-     *
-     * Used by orbital tracing algorithm to generate candidate slide directions.
-     * Implementation in OrbitalHelpers.cpp
-     */
-    std::vector<TranslationVector> generateTranslationVectors(
-        const TouchingContact& touch,
-        const std::vector<Point>& A,
-        const std::vector<Point>& B,
-        const Point& offsetB
-    );
-
-    /**
-     * @brief Check if a vector represents backtracking
-     *
-     * Used by orbital tracing algorithm to filter invalid slide directions.
-     * Forward declaration - implementation in OrbitalHelpers.cpp
-     */
-    bool isBacktracking(
-        const TranslationVector& vec,
-        const std::optional<TranslationVector>& prevVector
     );
 
 } // namespace GeometryUtil
