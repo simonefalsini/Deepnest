@@ -123,11 +123,12 @@ int main(int argc, char *argv[]) {
     std::cout << "  Sheet: 500x300" << std::endl;
 
     // Use actual bin from SVG
+    // Note: Point now uses int64_t, convert decimal coordinates to integers (x1000)
     Polygon actualSheet;
     actualSheet.points.push_back(Point(0, 0));
-    actualSheet.points.push_back(Point(511.822, 0));
-    actualSheet.points.push_back(Point(511.822, 339.235));
-    actualSheet.points.push_back(Point(0, 339.235));
+    actualSheet.points.push_back(Point(511822, 0));
+    actualSheet.points.push_back(Point(511822, 339235));
+    actualSheet.points.push_back(Point(0, 339235));
 
     // Test sheet-to-part NFP (inner NFP)
     std::cout << "\n=== INNER NFP TESTS (Sheet to Part) ===" << std::endl;

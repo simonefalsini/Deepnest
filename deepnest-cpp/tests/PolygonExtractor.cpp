@@ -129,8 +129,9 @@ ComparisonResult compareNFPsSilent(const std::vector<deepnest::Polygon>& minkows
     result.hausdorffDistance = std::max(dist_M_to_O, dist_O_to_M);
 
     // Calculate area difference
-    double minkArea = std::abs(deepnest::GeometryUtil::polygonArea(minkNFP.points));
-    double orbArea = std::abs(deepnest::GeometryUtil::polygonArea(orbNFP.points));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double minkArea = std::abs(deepnest::GeometryUtil::polygonArea(minkNFP.points)) / 2.0;
+    double orbArea = std::abs(deepnest::GeometryUtil::polygonArea(orbNFP.points)) / 2.0;
     double areaDiff = std::abs(minkArea - orbArea);
     result.areaPercent = (minkArea > 0) ? (areaDiff / minkArea * 100.0) : 0.0;
 

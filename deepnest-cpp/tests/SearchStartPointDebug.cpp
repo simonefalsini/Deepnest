@@ -52,8 +52,9 @@ int main() {
         std::vector<Point> A = {
             Point(0, 0), Point(10, 0), Point(5, 10)
         };
+        // Note: Point now uses int64_t, convert decimal coordinates to integers (x10)
         std::vector<Point> B = {
-            Point(0, 0), Point(3, 0), Point(1.5, 3)
+            Point(0, 0), Point(30, 0), Point(15, 30)
         };
 
         auto result = GeometryUtil::searchStartPoint(A, B, false, {});

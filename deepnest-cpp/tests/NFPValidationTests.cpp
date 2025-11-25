@@ -432,8 +432,9 @@ void testSearchStartPoint(NFPTestSuite& suite) {
         std::vector<Point> A = {
             Point(0, 0), Point(10, 0), Point(5, 10)
         };
+        // Note: Point now uses int64_t, convert decimal coordinates to integers (x10)
         std::vector<Point> B = {
-            Point(0, 0), Point(3, 0), Point(1.5, 3)
+            Point(0, 0), Point(30, 0), Point(15, 30)
         };
 
         auto startPoint = GeometryUtil::searchStartPoint(A, B, false, {});
@@ -610,8 +611,9 @@ void testNFPSimpleCases(NFPTestSuite& suite) {
         std::vector<Point> A = {
             Point(0, 0), Point(10, 0), Point(5, 10)
         };
+        // Note: Point now uses int64_t, convert decimal coordinates to integers (x10)
         std::vector<Point> B = {
-            Point(0, 0), Point(5, 0), Point(2.5, 5)
+            Point(0, 0), Point(50, 0), Point(25, 50)
         };
 
         auto nfps = GeometryUtil::noFitPolygon(A, B, false, false);
@@ -630,8 +632,9 @@ void testNFPSimpleCases(NFPTestSuite& suite) {
         std::vector<Point> A = {
             Point(0, 0), Point(10, 0), Point(10, 5), Point(0, 5)
         };
+        // Note: Point now uses int64_t, convert decimal coordinates to integers (x100)
         std::vector<Point> B = {
-            Point(0, 0), Point(0.1, 0), Point(0.1, 0.1), Point(0, 0.1)
+            Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10)
         };
 
         auto nfps = GeometryUtil::noFitPolygon(A, B, false, false);

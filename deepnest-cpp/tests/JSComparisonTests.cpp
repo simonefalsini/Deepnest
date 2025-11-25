@@ -168,7 +168,8 @@ void test_PolygonAreaMatches() {
     };
 
     for (const auto& tc : testCases) {
-        double area = std::abs(GeometryUtil::polygonArea(tc.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        double area = std::abs(GeometryUtil::polygonArea(tc.points)) / 2.0;
         EXPECT_NEAR(area, tc.expectedArea, 1.0, tc.name + " area");
     }
 }

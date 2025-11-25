@@ -103,21 +103,24 @@ void test_SheetAreaCalculation() {
     std::vector<Point> squarePoints = {
         {0, 0}, {100, 0}, {100, 100}, {0, 100}
     };
-    double squareArea = std::abs(GeometryUtil::polygonArea(squarePoints));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double squareArea = std::abs(GeometryUtil::polygonArea(squarePoints)) / 2.0;
     EXPECT_NEAR(squareArea, 10000.0, 1.0, "Square 100x100 area");
 
     // Test 1b: Rectangle sheet (as in IMPLEMENTATION_PLAN.md example)
     std::vector<Point> rectPoints = {
         {0, 0}, {500, 0}, {500, 300}, {0, 300}
     };
-    double rectArea = std::abs(GeometryUtil::polygonArea(rectPoints));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double rectArea = std::abs(GeometryUtil::polygonArea(rectPoints)) / 2.0;
     EXPECT_NEAR(rectArea, 150000.0, 1.0, "Rectangle 500x300 area");
 
     // Test 1c: Large industrial sheet
     std::vector<Point> largePoints = {
         {0, 0}, {2440, 0}, {2440, 1220}, {0, 1220}
     };
-    double largeArea = std::abs(GeometryUtil::polygonArea(largePoints));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double largeArea = std::abs(GeometryUtil::polygonArea(largePoints)) / 2.0;
     EXPECT_NEAR(largeArea, 2976800.0, 10.0, "Large sheet 2440x1220 area");
 }
 
@@ -129,7 +132,8 @@ void test_SheetAreaPenalty() {
     // JavaScript: fitness += sheetArea (background.js:848)
 
     Polygon sheet({{0, 0}, {500, 0}, {500, 300}, {0, 300}});
-    double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points)) / 2.0;
 
     EXPECT_NEAR(sheetArea, 150000.0, 1.0, "Sheet area calculation");
 
@@ -154,7 +158,8 @@ void test_UnplacedPartsPenalty() {
     // Expected penalty: 100,000,000 * (5000/150000) = 3,333,333
 
     Polygon part({{0, 0}, {100, 0}, {100, 50}, {0, 50}});
-    double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double partArea = std::abs(GeometryUtil::polygonArea(part.points)) / 2.0;
     EXPECT_NEAR(partArea, 5000.0, 1.0, "Part area 100x50");
 
     double totalSheetArea = 150000.0;
@@ -185,7 +190,8 @@ void test_MultipleUnplacedParts() {
     double totalPenalty = 0.0;
 
     for (const auto& part : unplacedParts) {
-        double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        double partArea = std::abs(GeometryUtil::polygonArea(part.points)) / 2.0;
         totalPenalty += 100000000.0 * (partArea / totalSheetArea);
     }
 
@@ -242,7 +248,8 @@ void test_MinariaConvexHullMode() {
         {0, 0}, {200, 0}, {200, 100}, {0, 100}
     };
 
-    double hullArea = std::abs(GeometryUtil::polygonArea(rectPoints));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double hullArea = std::abs(GeometryUtil::polygonArea(rectPoints)) / 2.0;
 
     EXPECT_NEAR(hullArea, 20000.0, 0.1, "ConvexHull area for rectangle");
 
@@ -252,7 +259,8 @@ void test_MinariaConvexHullMode() {
         {0, 0}, {100, 0}, {100, 50}, {50, 50}, {50, 100}, {0, 100}
     };
 
-    double lshapeArea = std::abs(GeometryUtil::polygonArea(lshape));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    double lshapeArea = std::abs(GeometryUtil::polygonArea(lshape)) / 2.0;
     EXPECT_NEAR(lshapeArea, 7500.0, 1.0, "L-shape actual area");
 }
 
@@ -397,7 +405,8 @@ void test_TotalSheetAreaCalculation() {
 
     double totalSheetArea = 0.0;
     for (const auto& sheet : sheets) {
-        totalSheetArea += std::abs(GeometryUtil::polygonArea(sheet.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        totalSheetArea += std::abs(GeometryUtil::polygonArea(sheet.points)) / 2.0;
     }
 
     EXPECT_NEAR(totalSheetArea, 460000.0, 10.0, "Total sheet area");

@@ -307,9 +307,11 @@ void testPolygonBasicFunctions(TestSuite& suite) {
             Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10)
         };
 
-        double area = GeometryUtil::polygonArea(square);
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(square);
+        double area = std::abs(area2x) / 2.0;
         // CCW winding should give positive area
-        bool test = almostEqualDouble(std::abs(area), 100.0, 1e-6);
+        bool test = almostEqualDouble(area, 100.0, 1e-6);
         suite.addResult("polygonArea() - square", test,
                        "10x10 square = 100 area");
     }
@@ -320,7 +322,9 @@ void testPolygonBasicFunctions(TestSuite& suite) {
             Point(0, 0), Point(10, 0), Point(5, 10)
         };
 
-        double deepnestArea = std::abs(GeometryUtil::polygonArea(triangle));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(triangle);
+        double deepnestArea = std::abs(area2x) / 2.0;
 
         BgPolygon bgPoly = toBgPolygon(triangle);
         double boostArea = std::abs(bg::area(bgPoly));
@@ -486,7 +490,9 @@ void testConvexHull(TestSuite& suite) {
         bool sizeMatch = deepnestHull.size() == boostHull.size();
 
         // Calculate areas (should be very close)
-        double deepnestArea = std::abs(GeometryUtil::polygonArea(deepnestHull));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(deepnestHull);
+        double deepnestArea = std::abs(area2x) / 2.0;
         double boostArea = std::abs(bg::area(bgHullPoly));
         bool areaMatch = almostEqualDouble(deepnestArea, boostArea, 0.1);
 

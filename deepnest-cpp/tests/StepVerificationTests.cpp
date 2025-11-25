@@ -156,8 +156,9 @@ void testStep04_GeometryUtil() {
     };
 
     // Test area calculation
+    // Note: polygonArea() returns 2x area as int64_t, so 100x100 square = 20000
     double area = GeometryUtil::polygonArea(square);
-    bool utilValid = ASSERT_ALMOST_EQUAL(std::abs(area), 10000.0, 0.01);
+    bool utilValid = ASSERT_ALMOST_EQUAL(std::abs(area), 20000.0, 0.01);
 
     // Test bounds
     BoundingBox bounds = GeometryUtil::getPolygonBounds(square);
