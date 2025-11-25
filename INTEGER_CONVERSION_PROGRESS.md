@@ -94,24 +94,32 @@
   - ✅ Funzioni deprecate mantenute con warning
   - **Commit**: 521b373 (completo)
 
-## 🚧 IN CORSO
+### FASE 5: Geometria Base (100% - COMPLETA ✅)
+- ✅ **Step 5.1**: GeometryUtil funzioni base
+  - ✅ almostEqualPoints() con tolleranza intera e distanza squared
+  - ✅ onSegment() con Point::cross() per int64_t cross product
+  - ✅ lineIntersect() con cross product int64_t, calcolo in double, rounding
+  - ✅ pointInPolygon() con tolleranza intera
+  - ✅ polygonArea() ritorna int64_t (2x area per precisione)
+  - ✅ isRectangle() con tolleranza intera
+  - **Commit**: 32c0b2a
 
-### FASE 5: Geometria Base (0% completato)
+- ✅ **Step 5.2**: ConvexHull
+  - ✅ Rimosso findPolarAngle() basato su atan2
+  - ✅ Aggiunto polarCompare() usando cross product
+  - ✅ crossProduct() ritorna int64_t usando Point::cross()
+  - ✅ Graham's scan usa solo aritmetica intera
+  - **Commit**: 32c0b2a
 
-- ⏳ **Step 5.1**: GeometryUtil funzioni base (PROSSIMO)
-  - lineIntersect() con cross product int64_t
-  - polygonArea() con somma int64_t
-  - pointInPolygon() con tolleranza intera
-  - almostEqualPoints() con tolleranza intera
+- ✅ **Step 5.3**: Transformation
+  - ✅ apply(Point) converte int64_t → double per trasformazione
+  - ✅ apply(double, double) calcola in double, arrotonda a int64_t
+  - ✅ Rotazioni mantengono matrice double per precisione
+  - ✅ std::round() esplicito prima di creare Point
+  - ✅ Punti trasformati marcati come non-exact
+  - **Commit**: 32c0b2a
 
 ## 📋 TODO
-
-### FASE 5: Geometria Base (6 ore stimate)
-- ⬜ **Step 5.2**: ConvexHull
-  - Cross product intero invece di atan2
-
-- ⬜ **Step 5.3**: Transformation
-  - Rotazione con lookup table o double intermediario
 
 ### FASE 6: Operazioni Poligoni (6 ore stimate)
 - ⬜ **Step 6.1**: Clipper2 usage
@@ -140,22 +148,23 @@
 ### Codice Modificato
 - **File eliminati**: 4 (OrbitalHelpers.cpp, OrbitalTypes.h, GeometryUtilAdvanced.*)
 - **Righe rimosse**: ~1200
-- **Righe aggiunte**: ~600 (nuove funzioni con scaling)
-- **File modificati**: 26 (4 nuovi in Fase 4)
-- **Commit effettuati**: 14
-- **Pushed to remote**: Sì (ultimo: 521b373) ✅
+- **Righe aggiunte**: ~715 (scaling + geometry base)
+- **File modificati**: 31 (5 nuovi in Fase 5)
+- **Commit effettuati**: 15
+- **Pushed to remote**: Sì (ultimo: 32c0b2a) ✅
 
 ### Tempo Impiegato
 - Fase 1-2: ~3 ore (preparazione e cleanup)
 - Fase 3: ~2 ore (100% completa - tipi base)
 - Fase 4: ~2.5 ore (100% completa - I/O conversions)
-- **Totale**: ~7.5 ore su ~63 ore stimate
+- Fase 5: ~1.5 ore (100% completa - geometria base)
+- **Totale**: ~9 ore su ~63 ore stimate
 
 ### Progresso Globale
-- **Completato**: 14/40 step (~35%)
-- **Fasi complete**: 4/11 (36%)
-- **MILESTONE: Tutta l'infrastructure I/O completa!** 🎉
-- **Step critici completati**: 7/7 (100%) ⭐⭐
+- **Completato**: 17/40 step (~43%)
+- **Fasi complete**: 5/11 (45%)
+- **MILESTONE: Geometria base completa!** 🎉
+- **Step critici completati**: 10/10 (100%) ⭐⭐⭐
   - ✅ Types.h → int64_t
   - ✅ Point.h → int64_t + scaling
   - ✅ BoundingBox → int64_t
@@ -163,15 +172,13 @@
   - ✅ QtBoostConverter scaling
   - ✅ SVGLoader scaling
   - ✅ Polygon scaling
+  - ✅ GeometryUtil integer predicates
+  - ✅ ConvexHull integer cross product
+  - ✅ Transformation proper rounding
 
 ## 🎯 Prossimi Step Prioritari
 
-1. **IMMEDIATO**: Fase 5 - Geometria Base
-   - GeometryUtil: lineIntersect, polygonArea, pointInPolygon
-   - Funzioni fondamentali usate ovunque
-   - Cross product e area calculations con int64_t
-
-2. **CRITICO**: Fase 6 - Operazioni Poligoni
+1. **IMMEDIATO**: Fase 6 - Operazioni Poligoni
    - PolygonOperations con tolleranze intere
    - Clipper2 usage (già nativo int64_t! 🚀)
    - Transformation con lookup tables
@@ -186,7 +193,8 @@
 ### Build Status
 - ⚠️ **Attualmente NON compila** (step successivi devono essere completati)
 - ✅ **Infrastructure completa**: Tutti I/O boundary corretti
-- ⏳ **Geometria base**: Prossimo step critico
+- ✅ **Geometria base completa**: Tutti predicati geometrici con int64_t
+- ⏳ **Operazioni poligoni**: Prossimo step critico
 
 ### Strategia di Compilazione
 - Procedere sistematicamente: Geometria → Operations → NFP → Engine
@@ -210,6 +218,17 @@
 5. **Backward compatibility**: Funzioni deprecate mantenute con warning
 
 ## 📝 Changelog
+
+### 2025-11-25 - Session 2 (Continued)
+- ✅ **FASE 5 COMPLETA (100%)**: Geometria base con int64_t
+  - GeometryUtil: Tutte le funzioni base con int64_t cross product
+  - ConvexHull: Graham's scan con polar compare usando cross product
+  - Transformation: Rotazioni con double intermediario e rounding
+  - Tutti i predicati geometrici ora robustamente interi
+
+- ✅ **Pushed 15 commits** (ultimo: 32c0b2a)
+- ✅ **Progresso: 43%** (17/40 step, 5/11 fasi)
+- ✅ **MILESTONE: Geometria base completa!** 🎉
 
 ### 2025-11-25 - Session 1 (Continued - Part 2)
 - ✅ **FASE 4 COMPLETA (100%)**: Tutta l'infrastructure I/O con scaling
@@ -249,4 +268,4 @@
 
 ---
 
-**Continua con**: Fase 5 - Geometria Base (GeometryUtil, ConvexHull, Transformation)
+**Continua con**: Fase 6 - Operazioni Poligoni (Clipper2, PolygonOperations, Polygon transforms)
