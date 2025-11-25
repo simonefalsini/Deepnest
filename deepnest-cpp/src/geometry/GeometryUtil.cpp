@@ -97,13 +97,14 @@ std::optional<Point> lineIntersect(const Point& A, const Point& B,
     // Calculate line coefficients using integer arithmetic
     // Line AB: a1*x + b1*y + c1 = 0
     // Line EF: a2*x + b2*y + c2 = 0
+    // For line through (x1,y1) and (x2,y2): a = y2-y1, b = x1-x2, c = y1*x2 - x1*y2
     int64_t a1 = B.y - A.y;
     int64_t b1 = A.x - B.x;
-    int64_t c1 = A.cross(B);  // B.x * A.y - A.x * B.y
+    int64_t c1 = -A.cross(B);  // A.y*B.x - A.x*B.y = -(A.x*B.y - A.y*B.x)
 
     int64_t a2 = F.y - E.y;
     int64_t b2 = E.x - F.x;
-    int64_t c2 = E.cross(F);  // F.x * E.y - E.x * F.y
+    int64_t c2 = -E.cross(F);  // E.y*F.x - E.x*F.y = -(E.x*F.y - E.y*F.x)
 
     // Calculate determinant (cross product of direction vectors)
     int64_t denom = a1 * b2 - a2 * b1;
