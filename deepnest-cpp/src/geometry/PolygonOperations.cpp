@@ -79,9 +79,10 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     }
 
     // Use integer epsilon value
-    // With scale=10000, epsilon=100 ≈ 0.01 physical units
-    // Provides good balance between cleaning and preserving shape
-    double epsilon = 100.0;
+    // CRITICAL FIX: epsilon must be very small for SimplifyPaths
+    // SimplifyPaths removes points within epsilon distance, which is too aggressive
+    // Use epsilon=0.1 (effectively minimal simplification while still removing duplicates)
+    double epsilon = 0.1;
 
     // Simplify to remove self-intersections, collinear points, and tiny edges
     Paths64 solution = SimplifyPaths(Paths64{path}, epsilon);
