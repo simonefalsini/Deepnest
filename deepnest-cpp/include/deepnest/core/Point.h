@@ -41,13 +41,23 @@ struct Point {
     // Conversion from Boost point (already int64_t after Types.h conversion)
     static Point fromBoost(const BoostPoint& p, bool exact = false);
 
-    // Conversion from Qt point (requires scaling)
-    // NOTE: This will need inputScale parameter in future (Phase 4)
+    // Conversion from Qt point (deprecated - use version with scale)
+    // WARNING: This uses rounding without proper scaling!
+    // Use fromQt(p, scale, exact) instead.
     static Point fromQt(const QPointF& p, bool exact = false);
 
-    // Conversion to Qt point (requires descaling)
-    // NOTE: This will need inputScale parameter in future (Phase 4)
+    // Conversion from Qt point with scaling
+    // Converts physical coordinates (double) to scaled integer coordinates
+    static Point fromQt(const QPointF& p, double scale, bool exact = false);
+
+    // Conversion to Qt point (deprecated - use version with scale)
+    // WARNING: This doesn't apply proper descaling!
+    // Use toQt(scale) instead.
     QPointF toQt() const;
+
+    // Conversion to Qt point with descaling
+    // Converts scaled integer coordinates to physical coordinates (double)
+    QPointF toQt(double scale) const;
 
     // Vector operations
     Point operator+(const Point& other) const {

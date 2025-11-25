@@ -11,10 +11,10 @@ Point Point::fromBoost(const BoostPoint& p, bool exact) {
     return Point(boost::polygon::x(p), boost::polygon::y(p), exact);
 }
 
+// Deprecated version (no scaling)
 Point Point::fromQt(const QPointF& p, bool exact) {
-    // TODO (Phase 4): Add inputScale parameter for proper scaling
-    // For now, this is a simple cast with rounding
-    // Temporary: assumes coordinates need to be converted to integer space
+    // WARNING: This deprecated function doesn't apply scaling!
+    // Use fromQt(p, scale, exact) instead.
     return Point(
         static_cast<CoordType>(std::round(p.x())),
         static_cast<CoordType>(std::round(p.y())),
@@ -22,11 +22,32 @@ Point Point::fromQt(const QPointF& p, bool exact) {
     );
 }
 
+// New scaled version
+Point Point::fromQt(const QPointF& p, double scale, bool exact) {
+    // Convert physical coordinates (double) to scaled integer coordinates
+    // Formula: integer_coord = round(physical_coord * scale)
+    return Point(
+        static_cast<CoordType>(std::round(p.x() * scale)),
+        static_cast<CoordType>(std::round(p.y() * scale)),
+        exact
+    );
+}
+
+// Deprecated version (no descaling)
 QPointF Point::toQt() const {
-    // TODO (Phase 4): Add inputScale parameter for proper descaling
-    // For now, this directly converts integer to double
-    // Temporary: will need scaling division in Phase 4
+    // WARNING: This deprecated function doesn't apply descaling!
+    // Use toQt(scale) instead.
     return QPointF(static_cast<double>(x), static_cast<double>(y));
+}
+
+// New descaled version
+QPointF Point::toQt(double scale) const {
+    // Convert scaled integer coordinates to physical coordinates (double)
+    // Formula: physical_coord = integer_coord / scale
+    return QPointF(
+        static_cast<double>(x) / scale,
+        static_cast<double>(y) / scale
+    );
 }
 
 } // namespace deepnest
