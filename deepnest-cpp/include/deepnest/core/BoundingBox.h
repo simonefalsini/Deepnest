@@ -3,35 +3,40 @@
 
 #include "Point.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace deepnest {
 
 /**
- * @brief Axis-Aligned Bounding Box structure
+ * @brief Axis-Aligned Bounding Box structure with integer coordinates
  *
  * Represents a rectangular bounding box aligned with the coordinate axes.
+ * All coordinates are in scaled integer space (int64_t).
  * Used for quick overlap tests and spatial queries.
+ *
+ * IMPORTANT: All coordinates are integers. Physical coordinates are
+ * converted to integers by multiplying by inputScale (default 10000).
  */
 struct BoundingBox {
-    double x;      // Left coordinate
-    double y;      // Top coordinate
-    double width;  // Width of the box
-    double height; // Height of the box
+    CoordType x;      // Left coordinate (integer)
+    CoordType y;      // Top coordinate (integer)
+    CoordType width;  // Width of the box (integer)
+    CoordType height; // Height of the box (integer)
 
     // Constructors
     BoundingBox()
-        : x(0.0), y(0.0), width(0.0), height(0.0) {}
+        : x(0), y(0), width(0), height(0) {}
 
-    BoundingBox(double x_, double y_, double width_, double height_)
+    BoundingBox(CoordType x_, CoordType y_, CoordType width_, CoordType height_)
         : x(x_), y(y_), width(width_), height(height_) {}
 
     // Create from two corner points
     static BoundingBox fromCorners(const Point& p1, const Point& p2) {
-        double minX = std::min(p1.x, p2.x);
-        double minY = std::min(p1.y, p2.y);
-        double maxX = std::max(p1.x, p2.x);
-        double maxY = std::max(p1.y, p2.y);
+        CoordType minX = std::min(p1.x, p2.x);
+        CoordType minY = std::min(p1.y, p2.y);
+        CoordType maxX = std::max(p1.x, p2.x);
+        CoordType maxY = std::max(p1.y, p2.y);
         return BoundingBox(minX, minY, maxX - minX, maxY - minY);
     }
 
@@ -41,10 +46,10 @@ struct BoundingBox {
             return BoundingBox();
         }
 
-        double minX = std::numeric_limits<double>::max();
-        double minY = std::numeric_limits<double>::max();
-        double maxX = std::numeric_limits<double>::lowest();
-        double maxY = std::numeric_limits<double>::lowest();
+        CoordType minX = std::numeric_limits<CoordType>::max();
+        CoordType minY = std::numeric_limits<CoordType>::max();
+        CoordType maxX = std::numeric_limits<CoordType>::lowest();
+        CoordType maxY = std::numeric_limits<CoordType>::lowest();
 
         for (const auto& p : points) {
             minX = std::min(minX, p.x);
@@ -57,25 +62,25 @@ struct BoundingBox {
     }
 
     // Getters for corners
-    double left() const { return x; }
-    double top() const { return y; }
-    double right() const { return x + width; }
-    double bottom() const { return y + height; }
+    CoordType left() const { return x; }
+    CoordType top() const { return y; }
+    CoordType right() const { return x + width; }
+    CoordType bottom() const { return y + height; }
 
     Point topLeft() const { return Point(x, y); }
     Point topRight() const { return Point(x + width, y); }
     Point bottomLeft() const { return Point(x, y + height); }
     Point bottomRight() const { return Point(x + width, y + height); }
-    Point center() const { return Point(x + width / 2.0, y + height / 2.0); }
+    Point center() const { return Point(x + width / 2, y + height / 2); }
 
-    // Area calculation
-    double area() const {
-        return width * height;
+    // Area calculation (returns int64_t, overflow risk for very large boxes)
+    int64_t area() const {
+        return static_cast<int64_t>(width) * static_cast<int64_t>(height);
     }
 
     // Perimeter calculation
-    double perimeter() const {
-        return 2.0 * (width + height);
+    int64_t perimeter() const {
+        return 2 * (static_cast<int64_t>(width) + static_cast<int64_t>(height));
     }
 
     // Check if this box contains a point
@@ -106,36 +111,36 @@ struct BoundingBox {
             return BoundingBox();
         }
 
-        double left = std::max(x, other.x);
-        double top = std::max(y, other.y);
-        double right = std::min(x + width, other.x + other.width);
-        double bottom = std::min(y + height, other.y + other.height);
+        CoordType left = std::max(x, other.x);
+        CoordType top = std::max(y, other.y);
+        CoordType right = std::min(x + width, other.x + other.width);
+        CoordType bottom = std::min(y + height, other.y + other.height);
 
         return BoundingBox(left, top, right - left, bottom - top);
     }
 
     // Calculate union with another box
     BoundingBox unionWith(const BoundingBox& other) const {
-        double left = std::min(x, other.x);
-        double top = std::min(y, other.y);
-        double right = std::max(x + width, other.x + other.width);
-        double bottom = std::max(y + height, other.y + other.height);
+        CoordType left = std::min(x, other.x);
+        CoordType top = std::min(y, other.y);
+        CoordType right = std::max(x + width, other.x + other.width);
+        CoordType bottom = std::max(y + height, other.y + other.height);
 
         return BoundingBox(left, top, right - left, bottom - top);
     }
 
     // Expand the box by a margin in all directions
-    BoundingBox expand(double margin) const {
+    BoundingBox expand(CoordType margin) const {
         return BoundingBox(
             x - margin,
             y - margin,
-            width + 2.0 * margin,
-            height + 2.0 * margin
+            width + 2 * margin,
+            height + 2 * margin
         );
     }
 
     // Translate the box
-    BoundingBox translate(double dx, double dy) const {
+    BoundingBox translate(CoordType dx, CoordType dy) const {
         return BoundingBox(x + dx, y + dy, width, height);
     }
 
@@ -143,13 +148,32 @@ struct BoundingBox {
         return translate(offset.x, offset.y);
     }
 
-    // Scale the box
-    BoundingBox scale(double factor) const {
+    // Scale the box (integer factor)
+    BoundingBox scale(CoordType factor) const {
         return BoundingBox(x * factor, y * factor, width * factor, height * factor);
     }
 
-    BoundingBox scale(double sx, double sy) const {
+    BoundingBox scale(CoordType sx, CoordType sy) const {
         return BoundingBox(x * sx, y * sy, width * sx, height * sy);
+    }
+
+    // Scale the box (double factor with rounding, for transformations)
+    BoundingBox scale(double factor) const {
+        return BoundingBox(
+            static_cast<CoordType>(std::round(x * factor)),
+            static_cast<CoordType>(std::round(y * factor)),
+            static_cast<CoordType>(std::round(width * factor)),
+            static_cast<CoordType>(std::round(height * factor))
+        );
+    }
+
+    BoundingBox scale(double sx, double sy) const {
+        return BoundingBox(
+            static_cast<CoordType>(std::round(x * sx)),
+            static_cast<CoordType>(std::round(y * sy)),
+            static_cast<CoordType>(std::round(width * sx)),
+            static_cast<CoordType>(std::round(height * sy))
+        );
     }
 
     // Check if the box is valid (positive dimensions)
