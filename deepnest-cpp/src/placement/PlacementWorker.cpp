@@ -115,7 +115,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         // NOTE: Don't remove sheet yet - only remove if we actually place parts on it
         Polygon sheet = sheets.front();
 
-        double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(sheet.points);
+        double sheetArea = std::abs(area2x) / 2.0;
         totalSheetArea += sheetArea;
         // JavaScript: fitness += sheetarea;
         fitness += sheetArea;
@@ -506,11 +508,12 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             //                 finalNfp.splice(j,1); j--;
             //               }
             //             }
+            // Note: polygonArea() returns 2x area, so check < 0.2 instead of < 0.1
             finalNfp.erase(
                 std::remove_if(finalNfp.begin(), finalNfp.end(),
                     [](const Polygon& poly) {
                         return poly.points.size() < 3 ||
-                               std::abs(GeometryUtil::polygonArea(poly.points)) < 0.1;
+                               std::abs(GeometryUtil::polygonArea(poly.points)) < 0.2;
                     }),
                 finalNfp.end()
             );
@@ -659,7 +662,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     // JavaScript: fitness += 100000000*(Math.abs(GeometryUtil.polygonArea(parts[i]))/totalsheetarea);
     double totalSheetAreaSafe = std::max(totalSheetArea, 1.0); // Avoid division by zero
     for (const auto& part : parts) {
-        double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(part.points);
+        double partArea = std::abs(area2x) / 2.0;
         fitness += 100000000.0 * (partArea / totalSheetAreaSafe);
     }
 
@@ -697,7 +702,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         double unplacedPenalty = 0.0;
         for (const auto& part : parts) {
-            double partArea = std::abs(GeometryUtil::polygonArea(part.points));
+            // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+            int64_t area2x = GeometryUtil::polygonArea(part.points);
+            double partArea = std::abs(area2x) / 2.0;
             unplacedPenalty += 100000000.0 * (partArea / totalSheetAreaSafe);
         }
 
@@ -748,6 +755,7 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
 
     for (const auto& nfp : finalNfp) {
         // Skip very small NFPs
+        // Note: polygonArea() returns 2x area, so < 2.0 means actual area < 1.0
         if (std::abs(GeometryUtil::polygonArea(nfp.points)) < 2.0) {
             continue;
         }

@@ -477,7 +477,9 @@ double ConvexHullPlacement::calculateMetric(
     // Handle edge case: no placed parts yet (placing first part)
     if (placed.empty()) {
         // Only the new part contributes to area
-        double area = std::abs(GeometryUtil::polygonArea(part.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(part.points);
+        double area = std::abs(area2x) / 2.0;
         return area;
     }
 
@@ -507,7 +509,9 @@ double ConvexHullPlacement::calculateMetric(
 
     // Safety check: if all polygons were invalid, treat as empty
     if (allPoints.empty()) {
-        double area = std::abs(GeometryUtil::polygonArea(part.points));
+        // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+        int64_t area2x = GeometryUtil::polygonArea(part.points);
+        double area = std::abs(area2x) / 2.0;
         return area;
     }
 
@@ -529,7 +533,9 @@ double ConvexHullPlacement::calculateMetric(
 
     // Calculate area of convex hull
     // JavaScript: area = -GeometryUtil.polygonArea(localpoints);
-    double area = std::abs(GeometryUtil::polygonArea(combinedHull));
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    int64_t area2x = GeometryUtil::polygonArea(combinedHull);
+    double area = std::abs(area2x) / 2.0;
 
     return area;
 }
