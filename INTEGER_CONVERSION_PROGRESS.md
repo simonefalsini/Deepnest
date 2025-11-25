@@ -161,10 +161,25 @@
   - ✅ Tutte operazioni Clipper2 lavorano direttamente con int64_t
   - **Commit**: a04b3b7
 
+### FASE 8: Placement (100% - COMPLETA ✅)
+- ✅ **Step 8.1**: PlacementStrategy aggiornato
+  - ✅ ConvexHullPlacement: polygonArea() divide by 2.0 per area reale
+  - ✅ GravityPlacement: Nessuna modifica (usa BoundingBox)
+  - ✅ BoundingBoxPlacement: Nessuna modifica (usa BoundingBox)
+  - ✅ Tutte strategie gestiscono int64_t→double cast implicito
+  - **Commit**: 5d4dce2
+
+- ✅ **Step 8.2**: PlacementWorker aggiornato
+  - ✅ Sheet area calculation: divide by 2.0
+  - ✅ Unplaced part penalty: divide by 2.0 (2 occorrenze)
+  - ✅ Small polygon filter: threshold adjusted (0.1→0.2 per 2x area)
+  - ✅ NFP area check: comment added for clarity
+  - ✅ Tutte operazioni metriche corrette per int64_t
+  - **Commit**: 5d4dce2
+
 ## 📋 TODO
 
-### FASE 8-11: Placement, Engine, Test (30 ore stimate)
-- ⬜ PlacementStrategy con calcoli interi
+### FASE 9-11: Engine, API, Test (25 ore stimate)
 - ⬜ NestingEngine con inputScale
 - ⬜ DeepNestSolver API con scalatura trasparente
 - ⬜ Aggiornamento TUTTI i test
@@ -175,11 +190,11 @@
 
 ### Codice Modificato
 - **File eliminati**: 4 (OrbitalHelpers.cpp, OrbitalTypes.h, GeometryUtilAdvanced.*)
-- **Righe rimosse**: ~1200 + ~182 (Phase 7: scaling logic)
-- **Righe aggiunte**: ~781 + ~126 (Phase 7: direct int64_t usage)
-- **File modificati**: 37 (4 nuovi in Fase 7)
-- **Commit effettuati**: 19
-- **Pushed to remote**: Sì (ultimo: a04b3b7) ✅
+- **Righe rimosse**: ~1200 + ~182 (Phase 7) + ~7 (Phase 8)
+- **Righe aggiunte**: ~781 + ~126 (Phase 7) + ~21 (Phase 8)
+- **File modificati**: 39 (2 nuovi in Fase 8)
+- **Commit effettuati**: 21
+- **Pushed to remote**: Sì (ultimo: 5d4dce2) ✅
 
 ### Tempo Impiegato
 - Fase 1-2: ~3 ore (preparazione e cleanup)
@@ -188,13 +203,14 @@
 - Fase 5: ~1.5 ore (100% completa - geometria base)
 - Fase 6: ~1 ora (100% completa - polygon operations)
 - Fase 7: ~1.5 ore (100% completa - NFP calculations)
-- **Totale**: ~11.5 ore su ~63 ore stimate
+- Fase 8: ~1 ora (100% completa - placement strategies)
+- **Totale**: ~12.5 ore su ~63 ore stimate
 
 ### Progresso Globale
-- **Completato**: 22/40 step (55%) 🎊
-- **Fasi complete**: 7/11 (64%)
-- **MILESTONE: Due terzi del progetto completati!** 🎉🎉
-- **Step critici completati**: 15/15 (100%) ⭐⭐⭐
+- **Completato**: 24/40 step (60%) 🎊
+- **Fasi complete**: 8/11 (73%)
+- **MILESTONE: Tre quarti del progetto completati!** 🎉🎉🎉
+- **Step critici completati**: 17/17 (100%) ⭐⭐⭐
   - ✅ Types.h → int64_t
   - ✅ Point.h → int64_t + scaling
   - ✅ BoundingBox → int64_t
@@ -210,20 +226,22 @@
   - ✅ Polygon transformations verified
   - ✅ MinkowskiSum int64_t direct
   - ✅ NFPCalculator int64_t native
+  - ✅ PlacementStrategy polygonArea handling
+  - ✅ PlacementWorker metrics corrected
 
 ## 🎯 Prossimi Step Prioritari
 
-1. **IMMEDIATO**: Fase 8 - Placement
-   - PlacementStrategy: aggiornare calcoli con coordinate intere
-   - PlacementWorker: verificare uso int64_t
-   - PlacementOptimizer: aggiornare metriche
+1. **IMMEDIATO**: Fase 9 - NestingEngine
+   - Verificare uso inputScale nell'engine
+   - Assicurarsi che l'engine passi inputScale a tutti i componenti
+   - Nessuna conversione aggiuntiva necessaria - coordinate già int64_t!
 
-2. **IMPORTANTE**: Fasi 9-11 - Engine, Test, Optimization
-   - NestingEngine: integrare inputScale
+2. **IMPORTANTE**: Fasi 10-11 - API e Test
    - DeepNestSolver API: gestione scalatura trasparente
-   - Aggiornare TUTTI i test
-   - Test di regressione
+   - Aggiornare TUTTI i test per inputScale
+   - Test di regressione con diversi scale values
    - Ottimizzazione performance
+   - Documentazione finale
 
 ## ⚠️ Note Importanti
 
