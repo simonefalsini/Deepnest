@@ -13,11 +13,12 @@ namespace deepnest {
 
     using namespace boost::polygon;
 
-    // Type aliases for Boost.Polygon types with integer coordinates
-    using IntPoint = point_data<int>;
-    using IntPolygon = polygon_data<int>;
-    using IntPolygonWithHoles = polygon_with_holes_data<int>;
-    using IntPolygonSet = polygon_set_data<int>;
+    // Type aliases for Boost.Polygon types with int64_t coordinates
+    // These now map directly to the types defined in Types.h (already int64_t!)
+    using IntPoint = BoostPoint;  // point_data<int64_t>
+    using IntPolygon = BoostPolygon;  // polygon_data<int64_t>
+    using IntPolygonWithHoles = BoostPolygonWithHoles;  // polygon_with_holes_data<int64_t>
+    using IntPolygonSet = BoostPolygonSet;  // polygon_set_data<int64_t>
     using IntEdge = std::pair<IntPoint, IntPoint>;
 
     // Forward declarations of helper functions from minkowski.cc
@@ -118,113 +119,31 @@ namespace deepnest {
             }
         }
 
-        /**
-         * @brief Calculate optimal scaling factor for NFP calculation
-         *
-         * Analyzes the bounds of both polygons and determines the optimal
-         * scaling factor to maximize integer precision while preventing overflow.
-         *
-         * Based on node-calculateNFP implementation (minkowski.cc:156-189)
-         *
-         * @param A First polygon
-         * @param B Second polygon
-         * @return Optimal scaling factor
-         */
-        double calculateDynamicScale(const Polygon& A, const Polygon& B) {
-            // Find bounds of A
-            double Amaxx = -std::numeric_limits<double>::max();
-            double Aminx = std::numeric_limits<double>::max();
-            double Amaxy = -std::numeric_limits<double>::max();
-            double Aminy = std::numeric_limits<double>::max();
-
-            for (const auto& p : A.points) {
-                Amaxx = std::max(Amaxx, p.x);
-                Aminx = std::min(Aminx, p.x);
-                Amaxy = std::max(Amaxy, p.y);
-                Aminy = std::min(Aminy, p.y);
-            }
-
-            // Also check A's holes
-            for (const auto& hole : A.children) {
-                for (const auto& p : hole.points) {
-                    Amaxx = std::max(Amaxx, p.x);
-                    Aminx = std::min(Aminx, p.x);
-                    Amaxy = std::max(Amaxy, p.y);
-                    Aminy = std::min(Aminy, p.y);
-                }
-            }
-
-            // Find bounds of B
-            double Bmaxx = -std::numeric_limits<double>::max();
-            double Bminx = std::numeric_limits<double>::max();
-            double Bmaxy = -std::numeric_limits<double>::max();
-            double Bminy = std::numeric_limits<double>::max();
-
-            for (const auto& p : B.points) {
-                Bmaxx = std::max(Bmaxx, p.x);
-                Bminx = std::min(Bminx, p.x);
-                Bmaxy = std::max(Bmaxy, p.y);
-                Bminy = std::min(Bminy, p.y);
-            }
-
-            // Also check B's holes
-            for (const auto& hole : B.children) {
-                for (const auto& p : hole.points) {
-                    Bmaxx = std::max(Bmaxx, p.x);
-                    Bminx = std::min(Bminx, p.x);
-                    Bmaxy = std::max(Bmaxy, p.y);
-                    Bminy = std::min(Bminy, p.y);
-                }
-            }
-
-            // Calculate expected result bounds (Minkowski sum bounds)
-            double Cmaxx = Amaxx + Bmaxx;
-            double Cminx = Aminx + Bminx;
-            double Cmaxy = Amaxy + Bmaxy;
-            double Cminy = Aminy + Bminy;
-
-            // Find maximum absolute value
-            double maxxAbs = std::max(Cmaxx, std::fabs(Cminx));
-            double maxyAbs = std::max(Cmaxy, std::fabs(Cminy));
-
-            double maxda = std::max(maxxAbs, maxyAbs);
-
-            // Prevent division by zero
-            if (maxda < 1.0) {
-                maxda = 1.0;
-            }
-
-            // Calculate scale: use 10% of INT_MAX range to leave safety margin
-            int maxi = std::numeric_limits<int>::max();
-            double inputscale = (0.1 * static_cast<double>(maxi)) / maxda;
-
-            LOG_NFP("Dynamic scale calculated: " << inputscale
-                << " (A bounds: [" << Aminx << "," << Amaxx << "] × [" << Aminy << "," << Amaxy << "]"
-                << ", B bounds: [" << Bminx << "," << Bmaxx << "] × [" << Bminy << "," << Bmaxy << "]"
-                << ", max result bound: " << maxda << ")");
-
-            return inputscale;
-        }
+        // REMOVED: calculateDynamicScale() no longer needed
+        // Point coordinates are already int64_t (scaled by inputScale at I/O boundaries)
+        // No additional scaling is required for Minkowski sum calculation
 
     } // anonymous namespace
 
     // ========== Public Methods ==========
 
     IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly, double scale) {
-        // Convert outer boundary with dynamic scaling
+        // DEPRECATED: scale parameter ignored - coordinates are already int64_t!
+        // Point.x and Point.y are already int64_t from inputScale conversion at I/O boundaries
+        // Direct conversion to BoostPoint (which is also int64_t)
+
         std::vector<IntPoint> points;
         points.reserve(poly.points.size());
 
         for (const auto& p : poly.points) {
-            int x = static_cast<int>(p.x * scale);
-            int y = static_cast<int>(p.y * scale);
-            points.push_back(IntPoint(x, y));
+            // Direct copy - both are int64_t!
+            points.push_back(IntPoint(p.x, p.y));
         }
 
         IntPolygonWithHoles result;
         set_points(result, points.begin(), points.end());
 
-        // Convert holes with same scale
+        // Convert holes - direct copy
         if (!poly.children.empty()) {
             std::vector<IntPolygon> holes;
             holes.reserve(poly.children.size());
@@ -234,9 +153,8 @@ namespace deepnest {
                 holePoints.reserve(hole.points.size());
 
                 for (const auto& p : hole.points) {
-                    int x = static_cast<int>(p.x * scale);
-                    int y = static_cast<int>(p.y * scale);
-                    holePoints.push_back(IntPoint(x, y));
+                    // Direct copy - both are int64_t!
+                    holePoints.push_back(IntPoint(p.x, p.y));
                 }
 
                 IntPolygon holePoly;
@@ -251,24 +169,21 @@ namespace deepnest {
     }
 
     Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly, double scale) {
+        // DEPRECATED: scale parameter ignored - coordinates are already int64_t!
+        // BoostPoint coordinates are int64_t, directly convert to Point (also int64_t)
+
         Polygon result;
 
-        // Convert outer boundary - scale back to double
+        // Convert outer boundary - direct copy (both int64_t)
         for (auto it = begin_points(boostPoly); it != end_points(boostPoly); ++it) {
-            result.points.push_back(Point(
-                static_cast<double>(it->x()) / scale,
-                static_cast<double>(it->y()) / scale
-            ));
+            result.points.push_back(Point(it->x(), it->y()));
         }
 
-        // Convert holes with same scale
+        // Convert holes - direct copy
         for (auto itrh = begin_holes(boostPoly); itrh != end_holes(boostPoly); ++itrh) {
             Polygon hole;
             for (auto it = begin_points(*itrh); it != end_points(*itrh); ++it) {
-                hole.points.push_back(Point(
-                    static_cast<double>(it->x()) / scale,
-                    static_cast<double>(it->y()) / scale
-                ));
+                hole.points.push_back(Point(it->x(), it->y()));
             }
             result.children.push_back(hole);
         }
@@ -299,8 +214,10 @@ namespace deepnest {
         LOG_NFP("Calculating Minkowski NFP: A(" << A.points.size() << " pts) vs B("
             << B.points.size() << " pts)");
 
-        // Calculate dynamic scale based on geometry bounds
-        double scale = calculateDynamicScale(A, B);
+        // REMOVED: calculateDynamicScale() - coordinates are already int64_t from inputScale!
+        // No additional scaling needed - coordinates are already scaled at I/O boundaries
+        // For backward compatibility, keep scale parameter but it will be ignored
+        double scale = 1.0;  // Dummy value, not used
 
         // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
         Polygon B_to_use = B;
@@ -322,11 +239,11 @@ namespace deepnest {
             std::reverse(child.points.begin(), child.points.end());
         }
 
-        // Convert to Boost integer polygons with dynamic scaling
+        // Convert to Boost integer polygons (int64_t - direct copy, no scaling!)
         IntPolygonSet polySetA, polySetB, result;
 
-        IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);
-        IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);
+        IntPolygonWithHoles boostA = toBoostIntPolygon(A, scale);  // scale ignored
+        IntPolygonWithHoles boostB = toBoostIntPolygon(B_to_use, scale);  // scale ignored
 
         polySetA.insert(boostA);
         polySetB.insert(boostB);
@@ -334,8 +251,8 @@ namespace deepnest {
         // Compute Minkowski sum
         convolve_two_polygon_sets(result, polySetA, polySetB);
 
-        // Convert back to our Polygon type with scaling
-        std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);
+        // Convert back to our Polygon type (int64_t - direct copy, no descaling!)
+        std::vector<Polygon> nfps = fromBoostPolygonSet(result, scale);  // scale ignored
 
         LOG_NFP("Minkowski NFP calculation complete: " << nfps.size() << " NFP(s) generated");
 
@@ -359,11 +276,12 @@ namespace deepnest {
 namespace trunk {
     using namespace boost::polygon;
 
-    // Type aliases for Boost.Polygon types with integer coordinates
-    using IntPoint = point_data<int>;
-    using IntPolygon = polygon_data<int>;
-    using IntPolygonWithHoles = polygon_with_holes_data<int>;
-    using IntPolygonSet = polygon_set_data<int>;
+    // Type aliases for Boost.Polygon types with int64_t coordinates
+    // These now map directly to the types defined in Types.h (already int64_t!)
+    using IntPoint = BoostPoint;  // point_data<int64_t>
+    using IntPolygon = BoostPolygon;  // polygon_data<int64_t>
+    using IntPolygonWithHoles = BoostPolygonWithHoles;  // polygon_with_holes_data<int64_t>
+    using IntPolygonSet = BoostPolygonSet;  // polygon_set_data<int64_t>
     using IntEdge = std::pair<IntPoint, IntPoint>;
 
     // Forward declarations of helper functions from minkowski.cc
@@ -469,20 +387,20 @@ namespace trunk {
     // ========== Public Methods ==========
 
     IntPolygonWithHoles MinkowskiSum::toBoostIntPolygon(const Polygon& poly) {
-        // Convert outer boundary - direct truncation to int
+        // Point coordinates are already int64_t - direct copy!
+        // No scaling or conversion needed
         std::vector<IntPoint> points;
         points.reserve(poly.points.size());
 
         for (const auto& p : poly.points) {
-            int x = static_cast<int>(p.x);
-            int y = static_cast<int>(p.y);
-            points.push_back(IntPoint(x, y));
+            // Direct copy - both Point and IntPoint (BoostPoint) use int64_t
+            points.push_back(IntPoint(p.x, p.y));
         }
 
         IntPolygonWithHoles result;
         set_points(result, points.begin(), points.end());
 
-        // Convert holes
+        // Convert holes - direct copy
         if (!poly.children.empty()) {
             std::vector<IntPolygon> holes;
             holes.reserve(poly.children.size());
@@ -492,9 +410,8 @@ namespace trunk {
                 holePoints.reserve(hole.points.size());
 
                 for (const auto& p : hole.points) {
-                    int x = static_cast<int>(p.x);
-                    int y = static_cast<int>(p.y);
-                    holePoints.push_back(IntPoint(x, y));
+                    // Direct copy - both are int64_t
+                    holePoints.push_back(IntPoint(p.x, p.y));
                 }
 
                 IntPolygon holePoly;
@@ -511,22 +428,18 @@ namespace trunk {
     Polygon MinkowskiSum::fromBoostIntPolygon(const IntPolygonWithHoles& boostPoly) {
         Polygon result;
 
-        // Convert outer boundary - direct cast to double
+        // Convert outer boundary - direct copy (both int64_t)
         for (auto it = begin_points(boostPoly); it != end_points(boostPoly); ++it) {
-            result.points.push_back(Point(
-                static_cast<double>(it->x()),
-                static_cast<double>(it->y())
-            ));
+            // Direct copy - IntPoint (BoostPoint) and Point both use int64_t
+            result.points.push_back(Point(it->x(), it->y()));
         }
 
-        // Convert holes
+        // Convert holes - direct copy
         for (auto itrh = begin_holes(boostPoly); itrh != end_holes(boostPoly); ++itrh) {
             Polygon hole;
             for (auto it = begin_points(*itrh); it != end_points(*itrh); ++it) {
-                hole.points.push_back(Point(
-                    static_cast<double>(it->x()),
-                    static_cast<double>(it->y())
-                ));
+                // Direct copy - both are int64_t
+                hole.points.push_back(Point(it->x(), it->y()));
             }
             result.children.push_back(hole);
         }
@@ -555,7 +468,7 @@ namespace trunk {
         const Polygon& B) {
 
         LOG_NFP("Calculating Minkowski NFP: A(" << A.points.size() << " pts) vs B("
-            << B.points.size() << " pts), mode=" << (inner ? "INNER" : "OUTER"));
+            << B.points.size() << " pts)");
 
         // For NFP placement calculations, we ALWAYS need Minkowski difference: A ⊖ B = A ⊕ (-B)
         Polygon B_to_use = B;
@@ -577,7 +490,7 @@ namespace trunk {
             std::reverse(child.points.begin(), child.points.end());
         }
 
-        // Convert to Boost integer polygons (direct truncation)
+        // Convert to Boost integer polygons (int64_t - direct copy!)
         IntPolygonSet polySetA, polySetB, result;
 
         IntPolygonWithHoles boostA = toBoostIntPolygon(A);
@@ -589,7 +502,7 @@ namespace trunk {
         // Compute Minkowski sum
         convolve_two_polygon_sets(result, polySetA, polySetB);
 
-        // Convert back to our Polygon type
+        // Convert back to our Polygon type (int64_t - direct copy!)
         std::vector<Polygon> nfps = fromBoostPolygonSet(result);
 
         LOG_NFP("Minkowski NFP calculation complete: " << nfps.size() << " NFP(s) generated");
