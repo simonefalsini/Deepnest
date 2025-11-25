@@ -43,20 +43,50 @@ namespace QtBoostConverter {
     QPointF toQPointF(const Point& point);
 
     /**
-     * @brief Convert QPointF to BoostPoint
+     * @brief Convert QPointF to BoostPoint (deprecated - use version with scale)
      *
      * @param point Qt point to convert
      * @return Converted BoostPoint
+     * @deprecated Use qPointFToBoost(point, scale) with explicit scaling
      */
     BoostPoint qPointFToBoost(const QPointF& point);
 
     /**
-     * @brief Convert BoostPoint to QPointF
+     * @brief Convert QPointF to BoostPoint with scaling
+     *
+     * Converts floating-point Qt coordinates to integer Boost coordinates
+     * by multiplying by scale and rounding.
+     *
+     * @param point Qt point to convert (in physical coordinates)
+     * @param scale Scaling factor (default from DeepNestConfig is 10000)
+     * @return Converted BoostPoint (in scaled integer coordinates)
+     *
+     * Example: QPointF(1.5, 2.3) with scale=10000 → BoostPoint(15000, 23000)
+     */
+    BoostPoint qPointFToBoost(const QPointF& point, double scale);
+
+    /**
+     * @brief Convert BoostPoint to QPointF (deprecated - use version with scale)
      *
      * @param point Boost point to convert
      * @return Converted QPointF
+     * @deprecated Use boostToQPointF(point, scale) with explicit descaling
      */
     QPointF boostToQPointF(const BoostPoint& point);
+
+    /**
+     * @brief Convert BoostPoint to QPointF with descaling
+     *
+     * Converts integer Boost coordinates to floating-point Qt coordinates
+     * by dividing by scale.
+     *
+     * @param point Boost point to convert (in scaled integer coordinates)
+     * @param scale Scaling factor (default from DeepNestConfig is 10000)
+     * @return Converted QPointF (in physical coordinates)
+     *
+     * Example: BoostPoint(15000, 23000) with scale=10000 → QPointF(1.5, 2.3)
+     */
+    QPointF boostToQPointF(const BoostPoint& point, double scale);
 
     /**
      * @brief Convert vector of QPointF to vector of Points
@@ -144,7 +174,7 @@ namespace QtBoostConverter {
     // ========== Direct Boost-Qt Conversions ==========
 
     /**
-     * @brief Convert QPainterPath directly to BoostPolygon
+     * @brief Convert QPainterPath directly to BoostPolygon (deprecated - use version with scale)
      *
      * This is a direct conversion that bypasses the Polygon intermediate type.
      * Useful for performance-critical operations.
@@ -154,49 +184,99 @@ namespace QtBoostConverter {
      *
      * @param path Qt painter path to convert
      * @return Converted BoostPolygon (simple polygon, no holes)
+     * @deprecated Use toBoostPolygon(path, scale) with explicit scaling
      */
     BoostPolygon toBoostPolygon(const QPainterPath& path);
 
     /**
-     * @brief Convert QPainterPath directly to BoostPolygonWithHoles
+     * @brief Convert QPainterPath directly to BoostPolygon with scaling
+     *
+     * @param path Qt painter path to convert (in physical coordinates)
+     * @param scale Scaling factor
+     * @return Converted BoostPolygon (in scaled integer coordinates, no holes)
+     */
+    BoostPolygon toBoostPolygon(const QPainterPath& path, double scale);
+
+    /**
+     * @brief Convert QPainterPath directly to BoostPolygonWithHoles (deprecated - use version with scale)
      *
      * This conversion handles polygons with holes.
      *
      * @param path Qt painter path to convert
      * @return Converted BoostPolygonWithHoles
+     * @deprecated Use toBoostPolygonWithHoles(path, scale) with explicit scaling
      */
     BoostPolygonWithHoles toBoostPolygonWithHoles(const QPainterPath& path);
 
     /**
-     * @brief Convert BoostPolygon to QPainterPath
+     * @brief Convert QPainterPath directly to BoostPolygonWithHoles with scaling
+     *
+     * @param path Qt painter path to convert (in physical coordinates)
+     * @param scale Scaling factor
+     * @return Converted BoostPolygonWithHoles (in scaled integer coordinates)
+     */
+    BoostPolygonWithHoles toBoostPolygonWithHoles(const QPainterPath& path, double scale);
+
+    /**
+     * @brief Convert BoostPolygon to QPainterPath (deprecated - use version with scale)
      *
      * Converts a simple Boost polygon (no holes) to QPainterPath.
      *
      * @param poly Boost polygon to convert
      * @return Converted QPainterPath
+     * @deprecated Use fromBoostPolygon(poly, scale) with explicit descaling
      */
     QPainterPath fromBoostPolygon(const BoostPolygon& poly);
 
     /**
-     * @brief Convert BoostPolygonWithHoles to QPainterPath
+     * @brief Convert BoostPolygon to QPainterPath with descaling
+     *
+     * @param poly Boost polygon to convert (in scaled integer coordinates)
+     * @param scale Scaling factor
+     * @return Converted QPainterPath (in physical coordinates)
+     */
+    QPainterPath fromBoostPolygon(const BoostPolygon& poly, double scale);
+
+    /**
+     * @brief Convert BoostPolygonWithHoles to QPainterPath (deprecated - use version with scale)
      *
      * Converts a Boost polygon with holes to QPainterPath.
      *
      * @param poly Boost polygon with holes to convert
      * @return Converted QPainterPath
+     * @deprecated Use fromBoostPolygonWithHoles(poly, scale) with explicit descaling
      */
     QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly);
 
     /**
-     * @brief Convert BoostPolygonSet to QPainterPath
+     * @brief Convert BoostPolygonWithHoles to QPainterPath with descaling
+     *
+     * @param poly Boost polygon with holes to convert (in scaled integer coordinates)
+     * @param scale Scaling factor
+     * @return Converted QPainterPath (in physical coordinates)
+     */
+    QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly, double scale);
+
+    /**
+     * @brief Convert BoostPolygonSet to QPainterPath (deprecated - use version with scale)
      *
      * Converts a Boost polygon set (result of boolean operations) to QPainterPath.
      * Each polygon in the set becomes a subpath.
      *
      * @param polySet Boost polygon set to convert
      * @return Converted QPainterPath with multiple subpaths
+     * @deprecated Use fromBoostPolygonSet(polySet, scale) with explicit descaling
      */
     QPainterPath fromBoostPolygonSet(const BoostPolygonSet& polySet);
+
+    /**
+     * @brief Convert BoostPolygonSet to QPainterPath with descaling
+     *
+     * @param polySet Boost polygon set to convert (in scaled integer coordinates)
+     * @param scale Scaling factor
+     * @return Converted QPainterPath (in physical coordinates) with multiple subpaths
+     */
+    QPainterPath fromBoostPolygonSet(const BoostPolygonSet& polySet, double scale);
 
     // ========== Utility Functions ==========
 

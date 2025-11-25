@@ -1,6 +1,7 @@
 #include "../../include/deepnest/converters/QtBoostConverter.h"
 #include <boost/polygon/polygon.hpp>
 #include <QPolygonF>
+#include <cmath>
 
 namespace deepnest {
 namespace QtBoostConverter {
@@ -15,12 +16,46 @@ QPointF toQPointF(const Point& point) {
     return point.toQt();
 }
 
+// Deprecated version (no scaling)
 BoostPoint qPointFToBoost(const QPointF& point) {
-    return BoostPoint(point.x(), point.y());
+    // WARNING: This deprecated function doesn't apply scaling!
+    // It directly casts double to int64_t, which is incorrect.
+    // Use qPointFToBoost(point, scale) instead.
+    return BoostPoint(
+        static_cast<CoordType>(std::round(point.x())),
+        static_cast<CoordType>(std::round(point.y()))
+    );
 }
 
+// New scaled version
+BoostPoint qPointFToBoost(const QPointF& point, double scale) {
+    // Convert physical coordinates (double) to scaled integer coordinates
+    // Formula: integer_coord = round(physical_coord * scale)
+    return BoostPoint(
+        static_cast<CoordType>(std::round(point.x() * scale)),
+        static_cast<CoordType>(std::round(point.y() * scale))
+    );
+}
+
+// Deprecated version (no descaling)
 QPointF boostToQPointF(const BoostPoint& point) {
-    return QPointF(boost::polygon::x(point), boost::polygon::y(point));
+    // WARNING: This deprecated function doesn't apply descaling!
+    // It directly casts int64_t to double, which is incorrect.
+    // Use boostToQPointF(point, scale) instead.
+    return QPointF(
+        static_cast<double>(boost::polygon::x(point)),
+        static_cast<double>(boost::polygon::y(point))
+    );
+}
+
+// New descaled version
+QPointF boostToQPointF(const BoostPoint& point, double scale) {
+    // Convert scaled integer coordinates to physical coordinates (double)
+    // Formula: physical_coord = integer_coord / scale
+    return QPointF(
+        static_cast<double>(boost::polygon::x(point)) / scale,
+        static_cast<double>(boost::polygon::y(point)) / scale
+    );
 }
 
 std::vector<Point> fromQPointFList(const QList<QPointF>& points, bool exact) {
@@ -71,15 +106,15 @@ QPainterPath toQPainterPath(const std::vector<Polygon>& polygons) {
 
 // ========== Direct Boost-Qt Conversions ==========
 
+// Deprecated version (no scaling)
 BoostPolygon toBoostPolygon(const QPainterPath& path) {
-    // Convert QPainterPath to simple BoostPolygon (no holes)
-    // This is a direct conversion for performance
+    // WARNING: This deprecated function doesn't apply scaling!
+    // Use toBoostPolygon(path, scale) instead.
 
     if (path.isEmpty()) {
         return BoostPolygon();
     }
 
-    // Extract points from the first subpath
     QList<QPolygonF> subpaths = path.toSubpathPolygons();
 
     if (subpaths.isEmpty()) {
@@ -91,7 +126,7 @@ BoostPolygon toBoostPolygon(const QPainterPath& path) {
     boostPoints.reserve(firstPath.size());
 
     for (const auto& qpt : firstPath) {
-        boostPoints.push_back(qPointFToBoost(qpt));
+        boostPoints.push_back(qPointFToBoost(qpt));  // Uses deprecated version
     }
 
     BoostPolygon result;
@@ -100,16 +135,96 @@ BoostPolygon toBoostPolygon(const QPainterPath& path) {
     return result;
 }
 
+// New scaled version
+BoostPolygon toBoostPolygon(const QPainterPath& path, double scale) {
+    // Convert QPainterPath to BoostPolygon with scaling
+    // This is a direct conversion for performance (no holes)
+
+    if (path.isEmpty()) {
+        return BoostPolygon();
+    }
+
+    QList<QPolygonF> subpaths = path.toSubpathPolygons();
+
+    if (subpaths.isEmpty()) {
+        return BoostPolygon();
+    }
+
+    const QPolygonF& firstPath = subpaths.first();
+    std::vector<BoostPoint> boostPoints;
+    boostPoints.reserve(firstPath.size());
+
+    for (const auto& qpt : firstPath) {
+        boostPoints.push_back(qPointFToBoost(qpt, scale));  // Uses scaled version
+    }
+
+    BoostPolygon result;
+    boost::polygon::set_points(result, boostPoints.begin(), boostPoints.end());
+
+    return result;
+}
+
+// Deprecated version (no scaling)
 BoostPolygonWithHoles toBoostPolygonWithHoles(const QPainterPath& path) {
-    // Convert via Polygon intermediate to properly handle holes
+    // WARNING: This deprecated function doesn't apply scaling!
+    // Use toBoostPolygonWithHoles(path, scale) instead.
+    // Note: This will call Polygon::fromQPainterPath which also doesn't scale properly yet
     Polygon poly = Polygon::fromQPainterPath(path);
     return poly.toBoostPolygon();
 }
 
+// New scaled version
+BoostPolygonWithHoles toBoostPolygonWithHoles(const QPainterPath& path, double scale) {
+    // Convert via Polygon intermediate to properly handle holes
+    // TODO (Step 4.3): Update Polygon::fromQPainterPath to accept scale parameter
+    // For now, we'll do manual conversion
+
+    if (path.isEmpty()) {
+        return BoostPolygonWithHoles();
+    }
+
+    QList<QPolygonF> subpaths = path.toSubpathPolygons();
+
+    if (subpaths.isEmpty()) {
+        return BoostPolygonWithHoles();
+    }
+
+    // Convert first subpath as outer boundary
+    const QPolygonF& outerPath = subpaths.first();
+    std::vector<BoostPoint> outerPoints;
+    outerPoints.reserve(outerPath.size());
+
+    for (const auto& qpt : outerPath) {
+        outerPoints.push_back(qPointFToBoost(qpt, scale));
+    }
+
+    BoostPolygonWithHoles result;
+    boost::polygon::set_points(result, outerPoints.begin(), outerPoints.end());
+
+    // Convert remaining subpaths as holes
+    for (int i = 1; i < subpaths.size(); ++i) {
+        const QPolygonF& holePath = subpaths[i];
+        std::vector<BoostPoint> holePoints;
+        holePoints.reserve(holePath.size());
+
+        for (const auto& qpt : holePath) {
+            holePoints.push_back(qPointFToBoost(qpt, scale));
+        }
+
+        BoostPolygon hole;
+        boost::polygon::set_points(hole, holePoints.begin(), holePoints.end());
+        boost::polygon::set_holes(result, &hole, &hole + 1);
+    }
+
+    return result;
+}
+
+// Deprecated version (no descaling)
 QPainterPath fromBoostPolygon(const BoostPolygon& poly) {
+    // WARNING: This deprecated function doesn't apply descaling!
+    // Use fromBoostPolygon(poly, scale) instead.
     QPainterPath path;
 
-    // Extract points from BoostPolygon
     auto pointsBegin = boost::polygon::begin_points(poly);
     auto pointsEnd = boost::polygon::end_points(poly);
 
@@ -117,14 +232,12 @@ QPainterPath fromBoostPolygon(const BoostPolygon& poly) {
         return path;
     }
 
-    // Start the path
     auto it = pointsBegin;
-    path.moveTo(boostToQPointF(*it));
+    path.moveTo(boostToQPointF(*it));  // Uses deprecated version
     ++it;
 
-    // Add remaining points
     for (; it != pointsEnd; ++it) {
-        path.lineTo(boostToQPointF(*it));
+        path.lineTo(boostToQPointF(*it));  // Uses deprecated version
     }
 
     path.closeSubpath();
@@ -132,7 +245,35 @@ QPainterPath fromBoostPolygon(const BoostPolygon& poly) {
     return path;
 }
 
+// New descaled version
+QPainterPath fromBoostPolygon(const BoostPolygon& poly, double scale) {
+    // Convert BoostPolygon to QPainterPath with descaling
+    QPainterPath path;
+
+    auto pointsBegin = boost::polygon::begin_points(poly);
+    auto pointsEnd = boost::polygon::end_points(poly);
+
+    if (pointsBegin == pointsEnd) {
+        return path;
+    }
+
+    auto it = pointsBegin;
+    path.moveTo(boostToQPointF(*it, scale));  // Uses scaled version
+    ++it;
+
+    for (; it != pointsEnd; ++it) {
+        path.lineTo(boostToQPointF(*it, scale));  // Uses scaled version
+    }
+
+    path.closeSubpath();
+
+    return path;
+}
+
+// Deprecated version (no descaling)
 QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly) {
+    // WARNING: This deprecated function doesn't apply descaling!
+    // Use fromBoostPolygonWithHoles(poly, scale) instead.
     QPainterPath path;
 
     // Add outer boundary
@@ -141,11 +282,11 @@ QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly) {
 
     if (pointsBegin != pointsEnd) {
         auto it = pointsBegin;
-        path.moveTo(boostToQPointF(*it));
+        path.moveTo(boostToQPointF(*it));  // Uses deprecated version
         ++it;
 
         for (; it != pointsEnd; ++it) {
-            path.lineTo(boostToQPointF(*it));
+            path.lineTo(boostToQPointF(*it));  // Uses deprecated version
         }
 
         path.closeSubpath();
@@ -161,11 +302,11 @@ QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly) {
 
         if (holePointsBegin != holePointsEnd) {
             auto it = holePointsBegin;
-            path.moveTo(boostToQPointF(*it));
+            path.moveTo(boostToQPointF(*it));  // Uses deprecated version
             ++it;
 
             for (; it != holePointsEnd; ++it) {
-                path.lineTo(boostToQPointF(*it));
+                path.lineTo(boostToQPointF(*it));  // Uses deprecated version
             }
 
             path.closeSubpath();
@@ -175,16 +316,77 @@ QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly) {
     return path;
 }
 
-QPainterPath fromBoostPolygonSet(const BoostPolygonSet& polySet) {
+// New descaled version
+QPainterPath fromBoostPolygonWithHoles(const BoostPolygonWithHoles& poly, double scale) {
+    // Convert BoostPolygonWithHoles to QPainterPath with descaling
     QPainterPath path;
 
-    // Extract all polygons from the set
+    // Add outer boundary
+    auto pointsBegin = boost::polygon::begin_points(poly);
+    auto pointsEnd = boost::polygon::end_points(poly);
+
+    if (pointsBegin != pointsEnd) {
+        auto it = pointsBegin;
+        path.moveTo(boostToQPointF(*it, scale));  // Uses scaled version
+        ++it;
+
+        for (; it != pointsEnd; ++it) {
+            path.lineTo(boostToQPointF(*it, scale));  // Uses scaled version
+        }
+
+        path.closeSubpath();
+    }
+
+    // Add holes
+    auto holesBegin = boost::polygon::begin_holes(poly);
+    auto holesEnd = boost::polygon::end_holes(poly);
+
+    for (auto holeIt = holesBegin; holeIt != holesEnd; ++holeIt) {
+        auto holePointsBegin = boost::polygon::begin_points(*holeIt);
+        auto holePointsEnd = boost::polygon::end_points(*holeIt);
+
+        if (holePointsBegin != holePointsEnd) {
+            auto it = holePointsBegin;
+            path.moveTo(boostToQPointF(*it, scale));  // Uses scaled version
+            ++it;
+
+            for (; it != holePointsEnd; ++it) {
+                path.lineTo(boostToQPointF(*it, scale));  // Uses scaled version
+            }
+
+            path.closeSubpath();
+        }
+    }
+
+    return path;
+}
+
+// Deprecated version (no descaling)
+QPainterPath fromBoostPolygonSet(const BoostPolygonSet& polySet) {
+    // WARNING: This deprecated function doesn't apply descaling!
+    // Use fromBoostPolygonSet(polySet, scale) instead.
+    QPainterPath path;
+
     std::vector<BoostPolygonWithHoles> polygons;
     polySet.get(polygons);
 
-    // Convert each polygon to a subpath
     for (const auto& poly : polygons) {
-        path.addPath(fromBoostPolygonWithHoles(poly));
+        path.addPath(fromBoostPolygonWithHoles(poly));  // Uses deprecated version
+    }
+
+    return path;
+}
+
+// New descaled version
+QPainterPath fromBoostPolygonSet(const BoostPolygonSet& polySet, double scale) {
+    // Convert BoostPolygonSet to QPainterPath with descaling
+    QPainterPath path;
+
+    std::vector<BoostPolygonWithHoles> polygons;
+    polySet.get(polygons);
+
+    for (const auto& poly : polygons) {
+        path.addPath(fromBoostPolygonWithHoles(poly, scale));  // Uses scaled version
     }
 
     return path;
