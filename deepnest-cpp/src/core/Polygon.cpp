@@ -76,7 +76,9 @@ double Polygon::area() const {
     if (points.size() < 3) {
         return 0.0;
     }
-    return GeometryUtil::polygonArea(points);
+    // Note: polygonArea() returns 2x area as int64_t, divide by 2.0 for actual area
+    int64_t area2x = GeometryUtil::polygonArea(points);
+    return area2x / 2.0;
 }
 
 BoundingBox Polygon::bounds() const {

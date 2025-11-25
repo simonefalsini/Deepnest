@@ -165,6 +165,7 @@ void NestingEngine::initialize(
     //               return Math.abs(GeometryUtil.polygonArea(b)) - Math.abs(GeometryUtil.polygonArea(a));
     //             });
     // Sort parts by area (largest first)
+    // Note: polygonArea() returns int64_t (2x area), but comparison works correctly
     std::sort(parts_.begin(), parts_.end(),
         [](const Polygon& a, const Polygon& b) {
             return std::abs(GeometryUtil::polygonArea(a.points)) >
