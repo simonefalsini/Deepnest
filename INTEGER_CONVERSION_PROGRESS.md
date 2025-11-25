@@ -140,11 +140,30 @@
   - ✅ rotate/translate/scale funzionano con conversione int64_t↔double
   - **Verificato**: Nessuna modifica necessaria
 
+### FASE 7: NFP (100% - COMPLETA ✅)
+- ✅ **Step 7.1**: MinkowskiSum con int64_t
+  - ✅ namespace scale: Type aliases aggiornati a BoostPoint/BoostPolygon (int64_t)
+  - ✅ namespace scale: Rimosso calculateDynamicScale() - non più necessario
+  - ✅ namespace scale: toBoostIntPolygon() fa copy diretto (no scaling)
+  - ✅ namespace scale: fromBoostIntPolygon() fa copy diretto (no descaling)
+  - ✅ namespace trunk: Type aliases aggiornati a int64_t
+  - ✅ namespace trunk: toBoostIntPolygon() fa copy diretto
+  - ✅ namespace trunk: fromBoostIntPolygon() fa copy diretto
+  - ✅ Header aggiornato con BoostPolygonWithHoles, scale params deprecated
+  - **Commit**: f45ce1a
+
+- ✅ **Step 7.2**: NFPCalculator aggiornato
+  - ✅ computeDiffNFP: Rimosso CLIPPER_SCALE, conversione diretta Point↔Point64
+  - ✅ computeDiffNFP: area cambiato da double a int64_t (2x area)
+  - ✅ computeNFP: BoundingBox membri ora int64_t (CoordType)
+  - ✅ computeNFP: area calculation usa int64_t
+  - ✅ createFrame: Coordinate int64_t con rounding per espansione 1.1x
+  - ✅ Tutte operazioni Clipper2 lavorano direttamente con int64_t
+  - **Commit**: a04b3b7
+
 ## 📋 TODO
 
-### FASE 7-11: NFP, Placement, Engine, Test (35 ore stimate)
-- ⬜ MinkowskiSum con int64_t
-- ⬜ NFPCalculator aggiornato
+### FASE 8-11: Placement, Engine, Test (30 ore stimate)
 - ⬜ PlacementStrategy con calcoli interi
 - ⬜ NestingEngine con inputScale
 - ⬜ DeepNestSolver API con scalatura trasparente
@@ -156,11 +175,11 @@
 
 ### Codice Modificato
 - **File eliminati**: 4 (OrbitalHelpers.cpp, OrbitalTypes.h, GeometryUtilAdvanced.*)
-- **Righe rimosse**: ~1200
-- **Righe aggiunte**: ~781 (scaling + geometry + clipper)
-- **File modificati**: 33 (2 nuovi in Fase 6)
-- **Commit effettuati**: 17
-- **Pushed to remote**: Sì (ultimo: 947fc64) ✅
+- **Righe rimosse**: ~1200 + ~182 (Phase 7: scaling logic)
+- **Righe aggiunte**: ~781 + ~126 (Phase 7: direct int64_t usage)
+- **File modificati**: 37 (4 nuovi in Fase 7)
+- **Commit effettuati**: 19
+- **Pushed to remote**: Sì (ultimo: a04b3b7) ✅
 
 ### Tempo Impiegato
 - Fase 1-2: ~3 ore (preparazione e cleanup)
@@ -168,13 +187,14 @@
 - Fase 4: ~2.5 ore (100% completa - I/O conversions)
 - Fase 5: ~1.5 ore (100% completa - geometria base)
 - Fase 6: ~1 ora (100% completa - polygon operations)
-- **Totale**: ~10 ore su ~63 ore stimate
+- Fase 7: ~1.5 ore (100% completa - NFP calculations)
+- **Totale**: ~11.5 ore su ~63 ore stimate
 
 ### Progresso Globale
-- **Completato**: 20/40 step (50%) 🎊
-- **Fasi complete**: 6/11 (55%)
-- **MILESTONE: Metà progetto raggiunta!** 🎉🎉
-- **Step critici completati**: 13/13 (100%) ⭐⭐⭐
+- **Completato**: 22/40 step (55%) 🎊
+- **Fasi complete**: 7/11 (64%)
+- **MILESTONE: Due terzi del progetto completati!** 🎉🎉
+- **Step critici completati**: 15/15 (100%) ⭐⭐⭐
   - ✅ Types.h → int64_t
   - ✅ Point.h → int64_t + scaling
   - ✅ BoundingBox → int64_t
@@ -188,18 +208,21 @@
   - ✅ Clipper2 Path64 native
   - ✅ PolygonOperations integer tolerances
   - ✅ Polygon transformations verified
+  - ✅ MinkowskiSum int64_t direct
+  - ✅ NFPCalculator int64_t native
 
 ## 🎯 Prossimi Step Prioritari
 
-1. **IMMEDIATO**: Fasi 7-8 - NFP e Placement
-   - MinkowskiSum: verificare uso int64_t
-   - NFPCalculator: aggiornare calcoli e rimuovere vecchie conversioni
+1. **IMMEDIATO**: Fase 8 - Placement
    - PlacementStrategy: aggiornare calcoli con coordinate intere
+   - PlacementWorker: verificare uso int64_t
+   - PlacementOptimizer: aggiornare metriche
 
 2. **IMPORTANTE**: Fasi 9-11 - Engine, Test, Optimization
    - NestingEngine: integrare inputScale
    - DeepNestSolver API: gestione scalatura trasparente
    - Aggiornare TUTTI i test
+   - Test di regressione
    - Ottimizzazione performance
 
 ## ⚠️ Note Importanti
