@@ -28,11 +28,16 @@ void printUsage() {
     std::cout << "  TestApplication                              - Start GUI mode" << std::endl;
     std::cout << "  TestApplication --test <file.svg>            - Run automatic test" << std::endl;
     std::cout << "  TestApplication --benchmark <file.svg> [options]" << std::endl;
+    std::cout << "  TestApplication --test-polygons [options]    - Test with random polygons" << std::endl;
     std::cout << "\nBenchmark Options:" << std::endl;
     std::cout << "  --generations N         - Number of generations to run (default: 100)" << std::endl;
     std::cout << "  --reference-fitness F   - Reference fitness to compare against" << std::endl;
+    std::cout << "\nPolygon Test Options:" << std::endl;
+    std::cout << "  --count N               - Number of polygons to generate (default: 10)" << std::endl;
+    std::cout << "  --max-sheets N          - Maximum allowed sheets (default: 1)" << std::endl;
     std::cout << "\nExample:" << std::endl;
     std::cout << "  TestApplication --benchmark test.svg --generations 200 --reference-fitness 512.5" << std::endl;
+    std::cout << "  TestApplication --test-polygons --count 15 --max-sheets 1" << std::endl;
     std::cout << std::endl;
 }
 
@@ -79,14 +84,32 @@ int main(int argc, char *argv[]) {
                                               "fitness");
     parser.addOption(referenceFitnessOption);
 
+    QCommandLineOption testPolygonsOption(QStringList() << "p" << "test-polygons",
+                                         "Test with random polygons");
+    parser.addOption(testPolygonsOption);
+
+    QCommandLineOption countOption(QStringList() << "c" << "count",
+                                   "Number of polygons to generate (default: 10)",
+                                   "count",
+                                   "10");
+    parser.addOption(countOption);
+
+    QCommandLineOption maxSheetsOption(QStringList() << "m" << "max-sheets",
+                                       "Maximum allowed sheets (default: 1)",
+                                       "count",
+                                       "1");
+    parser.addOption(maxSheetsOption);
+
     parser.process(app);
 
-    // Check for test/benchmark mode
-    bool testMode = parser.isSet(testOption) || parser.isSet(benchmarkOption);
+    // Check for test/benchmark/polygon mode
+    bool testMode = parser.isSet(testOption) || parser.isSet(benchmarkOption) || parser.isSet(testPolygonsOption);
     QString svgFile;
     int generations = parser.value(generationsOption).toInt();
     bool hasReferenceFitness = parser.isSet(referenceFitnessOption);
     double referenceFitness = hasReferenceFitness ? parser.value(referenceFitnessOption).toDouble() : 0.0;
+    int polygonCount = parser.value(countOption).toInt();
+    int maxSheets = parser.value(maxSheetsOption).toInt();
 
     if (parser.isSet(testOption)) {
         svgFile = parser.value(testOption);
@@ -103,6 +126,43 @@ int main(int argc, char *argv[]) {
 
         // Create window but don't show it
         TestApplication window;
+
+        // Check if it's polygon test mode
+        if (parser.isSet(testPolygonsOption)) {
+            std::cout << "\nMode: Random Polygon Test" << std::endl;
+            std::cout << "Polygons: " << polygonCount << std::endl;
+            std::cout << "Max sheets: " << maxSheets << std::endl;
+            std::cout << "Generations: " << generations << std::endl;
+            std::cout << "========================================\n" << std::endl;
+
+            // Generate random polygons
+            if (!window.testPolygons(polygonCount)) {
+                std::cerr << "\nFailed to generate polygons. Exiting." << std::endl;
+                return 1;
+            }
+
+            // Run automatic test
+            double finalFitness = window.runAutomaticTest(generations);
+
+            // Verify sheet count
+            int sheetsUsed = window.getSheetsUsed();
+            std::cout << "\n========================================" << std::endl;
+            std::cout << "  PLACEMENT VERIFICATION" << std::endl;
+            std::cout << "========================================" << std::endl;
+            std::cout << "Sheets used:    " << sheetsUsed << std::endl;
+            std::cout << "Max allowed:    " << maxSheets << std::endl;
+
+            if (sheetsUsed > maxSheets) {
+                std::cout << "\n❌ FAIL: Used more sheets than allowed!" << std::endl;
+                std::cout << "   This indicates inefficient nesting." << std::endl;
+                std::cout << "========================================" << std::endl;
+                return 1;
+            } else {
+                std::cout << "\n✓ PASS: Sheet count within limits" << std::endl;
+                std::cout << "========================================" << std::endl;
+                return 0;
+            }
+        }
 
         // Load SVG file
         if (!window.loadSVGFromPath(svgFile)) {

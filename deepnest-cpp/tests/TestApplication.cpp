@@ -1757,3 +1757,100 @@ void TestApplication::nextSheet() {
     }
 }
 
+bool TestApplication::testPolygons(int count) {
+    reset();
+
+    std::cout << "Generating " << count << " random polygon types..." << std::endl;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Use reasonable defaults for polygon generation
+    double minRadius = 5.0;
+    double maxRadius = 20.0;
+    int minSides = 3;
+    int maxSides = 8;
+    int quantityPerType = 3;  // 3 copies of each polygon type
+
+    std::uniform_real_distribution<> sizeDist(minRadius, maxRadius);
+    std::uniform_int_distribution<> sidesDist(minSides, maxSides);
+
+    // Create random polygons
+    for (int i = 0; i < count; ++i) {
+        int sides = sidesDist(gen);
+        double radius = sizeDist(gen);
+
+        std::vector<deepnest::Point> points;
+        for (int j = 0; j < sides; ++j) {
+            double angle = 2.0 * M_PI * j / sides;
+            double x = radius * std::cos(angle);
+            double y = radius * std::sin(angle);
+            points.push_back(deepnest::Point(x + radius, y + radius));
+        }
+
+        deepnest::Polygon poly(points, i);  // Assign id
+        parts_.push_back(poly);  // Save for visualization
+        solver_->addPart(poly, quantityPerType, QString("Poly_%1").arg(i).toStdString());
+
+        std::cout << "  Generated polygon " << (i+1) << "/" << count
+                  << ": " << sides << " sides, radius " << radius << std::endl;
+    }
+
+    // Create sheet that should fit all polygons
+    // Calculate total area needed and add 50% margin
+    double totalPartsArea = 0.0;
+    for (const auto& part : parts_) {
+        totalPartsArea += std::abs(part.area()) * quantityPerType;
+    }
+
+    // Square sheet with 50% margin
+    double sheetDimension = std::sqrt(totalPartsArea * 1.5);
+
+    std::cout << "  Total parts area: " << totalPartsArea << std::endl;
+    std::cout << "  Creating sheet: " << sheetDimension << " x " << sheetDimension << std::endl;
+
+    // Create sheet - counter-clockwise
+    std::vector<deepnest::Point> sheetPoints;
+    sheetPoints.push_back(deepnest::Point(0, 0));
+    sheetPoints.push_back(deepnest::Point(0, sheetDimension));
+    sheetPoints.push_back(deepnest::Point(sheetDimension, sheetDimension));
+    sheetPoints.push_back(deepnest::Point(sheetDimension, 0));
+
+    deepnest::Polygon sheet(sheetPoints, 0);
+
+    // Validate sheet
+    if (!sheet.isValid()) {
+        std::cerr << "ERROR: Sheet is invalid!" << std::endl;
+        return false;
+    }
+    if (!sheet.isCounterClockwise()) {
+        sheet.reverse();
+    }
+
+    sheets_.push_back(sheet);
+    solver_->addSheet(sheet, 1, "Sheet");  // Only 1 sheet - all parts should fit!
+
+    std::cout << "✓ Generated " << count << " polygon types ("
+              << (count * quantityPerType) << " total parts)" << std::endl;
+
+    return true;
+}
+
+int TestApplication::getSheetsUsed() const {
+    std::lock_guard<std::mutex> lock(resultMutex_);
+    if (!lastResult_) {
+        return 0;
+    }
+
+    // Count sheets that have at least one part placed
+    // lastResult_->placements is vector<vector<Placement>>
+    int usedSheets = 0;
+    for (const auto& sheetPlacements : lastResult_->placements) {
+        if (!sheetPlacements.empty()) {
+            usedSheets++;
+        }
+    }
+
+    return usedSheets;
+}
+
