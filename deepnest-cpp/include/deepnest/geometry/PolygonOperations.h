@@ -101,11 +101,12 @@ public:
     /**
      * @brief Convert polygon points to Clipper coordinates
      *
-     * Clipper works with integer coordinates, so we scale up floating point
-     * coordinates by clipperScale factor
+     * @deprecated This function is no longer needed since Point already uses int64_t coordinates.
+     * Our Point coordinates are already in the correct integer format for Clipper2.
+     * Use toClipperPath64() helper instead.
      *
-     * @param poly Input polygon with floating point coordinates
-     * @param scale Scaling factor (default 10000000 from config)
+     * @param poly Input polygon
+     * @param scale Scaling factor (deprecated, not needed)
      * @return Clipper path with scaled integer coordinates
      */
     static std::vector<std::pair<long long, long long>> toClipperCoordinates(
@@ -116,9 +117,12 @@ public:
     /**
      * @brief Convert Clipper coordinates back to polygon points
      *
+     * @deprecated This function is no longer needed since Point already uses int64_t coordinates.
+     * Use fromClipperPath64() helper instead.
+     *
      * @param path Clipper path with integer coordinates
-     * @param scale Scaling factor (default 10000000 from config)
-     * @return Polygon with floating point coordinates
+     * @param scale Scaling factor (deprecated, not needed)
+     * @return Polygon
      */
     static std::vector<Point> fromClipperCoordinates(
         const std::vector<std::pair<long long, long long>>& path,

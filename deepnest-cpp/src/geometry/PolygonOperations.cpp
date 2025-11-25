@@ -8,20 +8,21 @@ namespace deepnest {
 using namespace Clipper2Lib;
 
 // Helper functions to convert between our Point type and Clipper's Point64
-static PathD toClipperPathD(const std::vector<Point>& poly) {
-    PathD path;
+// Our Point already uses int64_t coordinates, so this is a direct mapping!
+static Path64 toClipperPath64(const std::vector<Point>& poly) {
+    Path64 path;
     path.reserve(poly.size());
     for (const auto& p : poly) {
-        path.push_back(PointD(p.x, p.y));
+        path.push_back(Point64(p.x, p.y));
     }
     return path;
 }
 
-static std::vector<Point> fromClipperPathD(const PathD& path) {
+static std::vector<Point> fromClipperPath64(const Path64& path) {
     std::vector<Point> poly;
     poly.reserve(path.size());
     for (const auto& p : path) {
-        poly.emplace_back(p.x, p.y);
+        poly.emplace_back(static_cast<CoordType>(p.x), static_cast<CoordType>(p.y));
     }
     return poly;
 }
@@ -39,12 +40,13 @@ std::vector<std::vector<Point>> PolygonOperations::offset(
         return {};
     }
 
-    // Convert to Clipper path
-    PathD pathD = toClipperPathD(poly);
+    // Convert to Clipper path (int64_t native)
+    Path64 path64 = toClipperPath64(poly);
 
-    // Perform offset operation
-    PathsD solution = InflatePaths(
-        {pathD},
+    // Perform offset operation with integer coordinates
+    // delta, miterLimit, arcTolerance are scaled to match our coordinate system
+    Paths64 solution = InflatePaths(
+        {path64},
         delta,
         JoinType::Miter,
         EndType::Polygon,
@@ -56,7 +58,7 @@ std::vector<std::vector<Point>> PolygonOperations::offset(
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path));
     }
 
     return result;
@@ -67,8 +69,8 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         return {};
     }
 
-    // Convert to Clipper PathD (double precision, no scaling needed)
-    PathD path = toClipperPathD(poly);
+    // Convert to Clipper Path64 (int64_t native)
+    Path64 path = toClipperPath64(poly);
 
     // Check for degenerate polygon before processing
     if (path.size() < 3) {
@@ -76,12 +78,13 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         return {};
     }
 
-    // Use absolute epsilon value (no scaling needed with PathsD)
-    // 0.01 provides good balance between cleaning and preserving shape
-    double epsilon = 0.01;
+    // Use integer epsilon value
+    // With scale=10000, epsilon=100 ≈ 0.01 physical units
+    // Provides good balance between cleaning and preserving shape
+    double epsilon = 100.0;
 
     // Simplify to remove self-intersections, collinear points, and tiny edges
-    PathsD solution = SimplifyPaths(PathsD{path}, epsilon);
+    Paths64 solution = SimplifyPaths(Paths64{path}, epsilon);
 
     if (solution.empty()) {
         std::cerr << "WARNING: cleanPolygon SimplifyPaths returned empty result" << std::endl;
@@ -89,7 +92,7 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         std::cerr << "  Epsilon: " << epsilon << std::endl;
 
         // Last resort: Try with larger epsilon
-        solution = SimplifyPaths(PathsD{path}, 0.1);
+        solution = SimplifyPaths(Paths64{path}, 1000.0);
 
         if (solution.empty()) {
             std::cerr << "  Even aggressive simplification failed, returning empty" << std::endl;
@@ -99,7 +102,7 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     }
 
     // Find the largest polygon (by area)
-    PathD biggest = solution[0];
+    Path64 biggest = solution[0];
     double biggestArea = std::abs(Area(biggest));
 
     for (size_t i = 1; i < solution.size(); i++) {
@@ -116,8 +119,8 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         return {};
     }
 
-    // Convert back (no unscaling needed)
-    std::vector<Point> result = fromClipperPathD(biggest);
+    // Convert back
+    std::vector<Point> result = fromClipperPath64(biggest);
 
     // Validate result
     if (result.size() < 3) {
@@ -136,14 +139,14 @@ std::vector<Point> PolygonOperations::simplifyPolygon(
         return poly;
     }
 
-    // Convert to Clipper path
-    PathD pathD = toClipperPathD(poly);
+    // Convert to Clipper path (int64_t native)
+    Path64 path64 = toClipperPath64(poly);
 
-    // Simplify - RamerDouglasPeucker
-    PathD simplified = RamerDouglasPeucker(pathD, distance);
+    // Simplify - RamerDouglasPeucker with integer distance
+    Path64 simplified = RamerDouglasPeucker(path64, distance);
 
     // Convert back
-    return fromClipperPathD(simplified);
+    return fromClipperPath64(simplified);
 }
 
 std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
@@ -153,11 +156,11 @@ std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
         return {};
     }
 
-    // Convert all polygons to Clipper PathsD (no scaling needed)
-    PathsD paths;
+    // Convert all polygons to Clipper Paths64 (int64_t native)
+    Paths64 paths;
     for (const auto& poly : polygons) {
         if (poly.size() >= 3) {
-            paths.push_back(toClipperPathD(poly));
+            paths.push_back(toClipperPath64(poly));
         }
     }
 
@@ -166,13 +169,13 @@ std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
     }
 
     // Perform union
-    PathsD solution = Union(paths, FillRule::NonZero);
+    Paths64 solution = Union(paths, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path));
     }
 
     return result;
@@ -186,18 +189,18 @@ std::vector<std::vector<Point>> PolygonOperations::intersectPolygons(
         return {};
     }
 
-    // Convert to Clipper PathsD (no scaling needed)
-    PathD pathA = toClipperPathD(polyA);
-    PathD pathB = toClipperPathD(polyB);
+    // Convert to Clipper Paths64 (int64_t native)
+    Path64 pathA = toClipperPath64(polyA);
+    Path64 pathB = toClipperPath64(polyB);
 
     // Perform intersection
-    PathsD solution = Intersect(PathsD{pathA}, PathsD{pathB}, FillRule::NonZero);
+    Paths64 solution = Intersect(Paths64{pathA}, Paths64{pathB}, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path));
     }
 
     return result;
@@ -211,27 +214,31 @@ std::vector<std::vector<Point>> PolygonOperations::differencePolygons(
         return {};
     }
 
-    // Convert to Clipper PathsD (no scaling needed)
-    PathD pathA = toClipperPathD(polyA);
-    PathD pathB = toClipperPathD(polyB);
+    // Convert to Clipper Paths64 (int64_t native)
+    Path64 pathA = toClipperPath64(polyA);
+    Path64 pathB = toClipperPath64(polyB);
 
     // Perform difference
-    PathsD solution = Difference(PathsD{pathA}, PathsD{pathB}, FillRule::NonZero);
+    Paths64 solution = Difference(Paths64{pathA}, Paths64{pathB}, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path));
     }
 
     return result;
 }
 
+// DEPRECATED: These functions are no longer needed since Point already uses int64_t
+// Our coordinates are already in the correct integer format for Clipper2
 std::vector<std::pair<long long, long long>> PolygonOperations::toClipperCoordinates(
     const std::vector<Point>& poly,
     double scale) {
 
+    // WARNING: This function is deprecated and shouldn't be used
+    // Point coordinates are already int64_t, no additional scaling needed
     std::vector<std::pair<long long, long long>> result;
     result.reserve(poly.size());
 
@@ -245,18 +252,21 @@ std::vector<std::pair<long long, long long>> PolygonOperations::toClipperCoordin
     return result;
 }
 
+// DEPRECATED: These functions are no longer needed since Point already uses int64_t
 std::vector<Point> PolygonOperations::fromClipperCoordinates(
     const std::vector<std::pair<long long, long long>>& path,
     double scale) {
 
+    // WARNING: This function is deprecated and shouldn't be used
+    // Point coordinates are already int64_t, no descaling needed
     std::vector<Point> result;
     result.reserve(path.size());
 
     double invScale = 1.0 / scale;
     for (const auto& p : path) {
         result.emplace_back(
-            static_cast<double>(p.first) * invScale,
-            static_cast<double>(p.second) * invScale
+            static_cast<CoordType>(static_cast<double>(p.first) * invScale),
+            static_cast<CoordType>(static_cast<double>(p.second) * invScale)
         );
     }
 
@@ -268,9 +278,9 @@ double PolygonOperations::area(const std::vector<Point>& poly) {
         return 0.0;
     }
 
-    // Use Clipper's area function
-    PathD pathD = toClipperPathD(poly);
-    return Area(pathD);
+    // Use Clipper's area function with Path64 (int64_t native)
+    Path64 path64 = toClipperPath64(poly);
+    return Area(path64);
 }
 
 std::vector<Point> PolygonOperations::reversePolygon(const std::vector<Point>& poly) {
