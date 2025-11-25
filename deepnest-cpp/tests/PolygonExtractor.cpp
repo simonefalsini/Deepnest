@@ -386,7 +386,7 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
     // noFitPolygon was removed, use MinkowskiSum instead
-    auto nfpPolygons = deepnest::MinkowskiSum::calculateNFP(polyA, polyB, inside);
+    auto nfpPolygons = deepnest::trunk::MinkowskiSum::calculateNFP(polyA, polyB);
     std::vector<std::vector<Point>> nfpPoints;
     for (const auto& nfp : nfpPolygons) {
         if (!nfp.points.empty()) {

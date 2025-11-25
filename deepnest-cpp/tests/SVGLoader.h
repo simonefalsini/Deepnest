@@ -140,7 +140,7 @@ public:
      */
     static QPainterPath loadContainer(const QString& svgPath);
 
-private:
+public:
     /**
      * @brief Parse SVG path data string
      *

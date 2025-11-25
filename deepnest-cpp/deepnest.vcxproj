@@ -141,9 +141,7 @@
     <ClCompile Include="src\DeepNestSolver.cpp" />
     <ClCompile Include="src\algorithm\GeneticAlgorithm.cpp" />
     <ClCompile Include="src\geometry\GeometryUtil.cpp" />
-    <ClCompile Include="src\geometry\GeometryUtilAdvanced.cpp" />
     <ClCompile Include="src\algorithm\Individual.cpp" />
-    <ClCompile Include="src\geometry\OrbitalHelpers.cpp" />
     <ClCompile Include="src\geometry\PolygonHierarchy.cpp" />
     <ClCompile Include="src\placement\MergeDetection.cpp" />
     <ClCompile Include="src\nfp\MinkowskiSum.cpp" />

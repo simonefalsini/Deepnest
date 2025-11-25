@@ -99,8 +99,8 @@ std::vector<PolygonPtr> createTestParts(int count, int seed = 12345) {
     std::uniform_real_distribution<double> sizeDist(20.0, 50.0);
 
     for (int i = 0; i < count; i++) {
-        double width = sizeDist(rng);
-        double height = sizeDist(rng);
+        deepnest::CoordType width = sizeDist(rng);
+        deepnest::CoordType height = sizeDist(rng);
 
         std::vector<Point> points = {
             {0, 0}, {width, 0}, {width, height}, {0, height}
@@ -113,7 +113,7 @@ std::vector<PolygonPtr> createTestParts(int count, int seed = 12345) {
 }
 
 // Helper function to create test sheets
-std::vector<PolygonPtr> createTestSheets(int count, double width = 500.0, double height = 300.0) {
+std::vector<PolygonPtr> createTestSheets(int count, deepnest::CoordType width = 500, deepnest::CoordType height = 300.0) {
     std::vector<PolygonPtr> sheets;
 
     for (int i = 0; i < count; i++) {

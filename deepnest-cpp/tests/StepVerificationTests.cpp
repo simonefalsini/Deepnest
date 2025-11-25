@@ -335,7 +335,7 @@ void testStep10_MinkowskiSum() {
     deepnest::Polygon p1(poly1);
     deepnest::Polygon p2(poly2);
 
-    auto result = MinkowskiSum::calculateNFP(p1, p2);
+    auto result = trunk::MinkowskiSum::calculateNFP(p1, p2);
 
     bool sumValid = !result.empty();
 

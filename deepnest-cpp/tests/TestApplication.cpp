@@ -372,8 +372,8 @@ void TestApplication::loadSVG() {
         if (reply == QMessageBox::Yes) {
             ContainerDialog dialog(this);
             if (dialog.exec() == QDialog::Accepted) {
-                double width = dialog.getWidth();
-                double height = dialog.getHeight();
+                deepnest::CoordType width = dialog.getWidth();
+                deepnest::CoordType height = dialog.getHeight();
 
                 // Create container
                 std::vector<deepnest::Point> points = {
@@ -616,9 +616,9 @@ void TestApplication::testRandomRectangles() {
 
         log(QString("Created rect %1: %2x%3, area=%4, CCW=%5")
             .arg(i)
-            .arg(w, 0, 'f', 1)
-            .arg(h, 0, 'f', 1)
-            .arg(std::abs(rect.area()), 0, 'f', 1)
+            .arg(w)
+            .arg(h)
+            .arg(std::abs(rect.area()))
             .arg(rect.isCounterClockwise() ? "yes" : "no"));
 
         parts_.push_back(rect);  // Save for visualization
@@ -646,7 +646,7 @@ void TestApplication::testRandomRectangles() {
     log(QString("Created sheet: %1x%2, area=%3, CCW=%4")
         .arg(config_.sheetWidth, 0, 'f', 0)
         .arg(config_.sheetHeight, 0, 'f', 0)
-        .arg(std::abs(sheet.area()), 0, 'f', 1)
+        .arg(std::abs(sheet.area()))
         .arg(sheet.isCounterClockwise() ? "yes" : "no"));
 
     sheets_.push_back(sheet);  // Save for visualization
@@ -763,7 +763,7 @@ void TestApplication::testRandomPolygons() {
     log(QString("Created sheet: %1x%2, area=%3, CCW=%4")
         .arg(config_.sheetWidth, 0, 'f', 0)
         .arg(config_.sheetHeight, 0, 'f', 0)
-        .arg(std::abs(sheet.area()), 0, 'f', 1)
+        .arg(std::abs(sheet.area()))
         .arg(sheet.isCounterClockwise() ? "yes" : "no"));
 
     sheets_.push_back(sheet);  // Save for visualization
@@ -871,8 +871,8 @@ void TestApplication::openConfigDialog() {
         maxGenerations_ = config_.maxGenerations;
 
         log(QString("Configuration updated: spacing=%1, curveTol=%2, rotations=%3, popSize=%4")
-            .arg(config_.spacing, 0, 'f', 1)
-            .arg(config_.curveTolerance, 0, 'f', 2)
+            .arg(config_.spacing)
+            .arg(config_.curveTolerance)
             .arg(config_.rotations)
             .arg(config_.populationSize));
 
@@ -880,7 +880,7 @@ void TestApplication::openConfigDialog() {
             .arg(config_.placementType)
             .arg(config_.gravityDirection)
             .arg(config_.mergeLines ? "ON" : "OFF")
-            .arg(config_.timeRatio, 0, 'f', 2)
+            .arg(config_.timeRatio)
             .arg(config_.threads));
 
         log(QString("  Precision: overlapTolerance=%1")
@@ -899,14 +899,14 @@ void TestApplication::onProgress(const deepnest::NestProgress& progress) {
     bestFitness_ = progress.bestFitness;
 
     generationLabel_->setText(QString("Generation: %1").arg(progress.generation));
-    fitnessLabel_->setText(QString("Fitness: %1").arg(progress.bestFitness, 0, 'f', 2));
+    fitnessLabel_->setText(QString("Fitness: %1").arg(progress.bestFitness));
     progressBar_->setValue(static_cast<int>(progress.percentComplete));
 
     if (progress.generation % 10 == 0) {
         log(QString("Gen %1: Fitness = %2, Progress = %3%")
             .arg(progress.generation)
-            .arg(progress.bestFitness, 0, 'f', 2)
-            .arg(progress.percentComplete, 0, 'f', 1));
+            .arg(progress.bestFitness)
+            .arg(progress.percentComplete));
     }
 }
 
@@ -921,7 +921,7 @@ void TestApplication::onResult(const deepnest::NestResult& result) {
     }
 
     log(QString("New best result! Fitness: %1 at generation %2")
-        .arg(result.fitness, 0, 'f', 2)
+        .arg(result.fitness)
         .arg(result.generation));
 
     // CRITICAL: Update visualization on UI thread, not worker thread
@@ -943,7 +943,7 @@ void TestApplication::onStepTimer() {
 
         const deepnest::NestResult* best = solver_->getBestResult();
         if (best) {
-            log(QString("Final best fitness: %1").arg(best->fitness, 0, 'f', 2));
+            log(QString("Final best fitness: %1").arg(best->fitness));
             // Visualize the final best result
             updateVisualization(*best);
         }
@@ -995,7 +995,7 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
     // Detailed diagnostics
     log(QString("=== Visualization Update ==="));
     log(QString("Result fitness: %1, generation: %2")
-        .arg(result.fitness, 0, 'f', 2)
+        .arg(result.fitness)
         .arg(result.generation));
     log(QString("Result has %1 sheets in placements vector")
         .arg(result.placements.size()));
@@ -1083,9 +1083,9 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                     .arg(placementCount)
                     .arg(placement.id)
                     .arg(placement.source)
-                    .arg(placement.position.x, 0, 'f', 1)
-                    .arg(placement.position.y, 0, 'f', 1)
-                    .arg(placement.rotation, 0, 'f', 1));
+                    .arg(placement.position.x)
+                    .arg(placement.position.y)
+                    .arg(placement.rotation));
             }
             placementCount++;
 
@@ -1101,15 +1101,15 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                     log(QString("  Source ID: %1, Rotation: %2°, Position: (%3, %4)")
                         .arg(sourceId)
                         .arg(placement.rotation)
-                        .arg(placement.position.x, 0, 'f', 2)
-                        .arg(placement.position.y, 0, 'f', 2));
+                        .arg(placement.position.x)
+                        .arg(placement.position.y));
 
                     // Log original part (first 4 points)
                     QString origPoints;
                     for (size_t i = 0; i < std::min(size_t(4), part.points.size()); ++i) {
                         origPoints += QString("(%1,%2) ")
-                            .arg(part.points[i].x, 0, 'f', 1)
-                            .arg(part.points[i].y, 0, 'f', 1);
+                            .arg(part.points[i].x)
+                            .arg(part.points[i].y);
                     }
                     log(QString("  Original part points: %1").arg(origPoints));
                 }
@@ -1123,8 +1123,8 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                     QString rotPoints;
                     for (size_t i = 0; i < std::min(size_t(4), rotated.points.size()); ++i) {
                         rotPoints += QString("(%1,%2) ")
-                            .arg(rotated.points[i].x, 0, 'f', 1)
-                            .arg(rotated.points[i].y, 0, 'f', 1);
+                            .arg(rotated.points[i].x)
+                            .arg(rotated.points[i].y);
                     }
                     log(QString("  After rotation points: %1").arg(rotPoints));
                 }
@@ -1139,18 +1139,18 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
                     QString transPoints;
                     for (size_t i = 0; i < std::min(size_t(4), transformed.points.size()); ++i) {
                         transPoints += QString("(%1,%2) ")
-                            .arg(transformed.points[i].x, 0, 'f', 1)
-                            .arg(transformed.points[i].y, 0, 'f', 1);
+                            .arg(transformed.points[i].x)
+                            .arg(transformed.points[i].y);
                     }
                     log(QString("  Final transformed points: %1").arg(transPoints));
 
                     // Log bounding box
                     auto bbox = deepnest::GeometryUtil::getPolygonBounds(transformed.points);
                     log(QString("  Final bbox: (%1,%2) to (%3,%4)")
-                        .arg(bbox.x, 0, 'f', 1)
-                        .arg(bbox.y, 0, 'f', 1)
-                        .arg(bbox.x + bbox.width, 0, 'f', 1)
-                        .arg(bbox.y + bbox.height, 0, 'f', 1));
+                        .arg(bbox.x)
+                        .arg(bbox.y)
+                        .arg(bbox.x + bbox.width)
+                        .arg(bbox.y + bbox.height));
                 }
 
                 // Draw with color based on source ID
@@ -1224,7 +1224,7 @@ void TestApplication::updateStatus() {
     generationLabel_->setText(QString("Generation: %1").arg(currentGeneration_));
 
     if (bestFitness_ < std::numeric_limits<double>::max()) {
-        fitnessLabel_->setText(QString("Fitness: %1").arg(bestFitness_, 0, 'f', 2));
+        fitnessLabel_->setText(QString("Fitness: %1").arg(bestFitness_));
     } else {
         fitnessLabel_->setText("Fitness: N/A");
     }
@@ -1539,8 +1539,8 @@ void TestApplication::setContainerSize() {
     }
 
     if (dialog.exec() == QDialog::Accepted) {
-        double width = dialog.getWidth();
-        double height = dialog.getHeight();
+        deepnest::CoordType  width = dialog.getWidth();
+        deepnest::CoordType  height = dialog.getHeight();
 
         // Create new container
         std::vector<deepnest::Point> points = {
@@ -1610,13 +1610,13 @@ void TestApplication::viewContainerInfo() {
         "  X: [%4, %5]\n"
         "  Y: [%6, %7]\n\n"
         "Points: %8"
-    ).arg(width, 0, 'f', 2)
-     .arg(height, 0, 'f', 2)
-     .arg(area, 0, 'f', 2)
-     .arg(minX, 0, 'f', 2)
-     .arg(maxX, 0, 'f', 2)
-     .arg(minY, 0, 'f', 2)
-     .arg(maxY, 0, 'f', 2)
+    ).arg(width)
+     .arg(height)
+     .arg(area)
+     .arg(minX)
+     .arg(maxX)
+     .arg(minY)
+     .arg(maxY)
      .arg(container.points.size());
 
     QMessageBox::information(this, "Container Info", info);

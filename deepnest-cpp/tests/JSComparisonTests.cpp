@@ -309,7 +309,7 @@ void test_NFPReferencePointShift() {
     Polygon A(polyA);
     Polygon B(polyB);
 
-    auto nfps = MinkowskiSum::calculateNFP(A, B, false);
+    auto nfps = trunk::MinkowskiSum::calculateNFP(A, B);
 
     EXPECT_TRUE(!nfps.empty(), "NFP calculated successfully");
 
