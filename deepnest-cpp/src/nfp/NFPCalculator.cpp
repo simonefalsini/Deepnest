@@ -21,23 +21,24 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
     auto nfps = trunk::MinkowskiSum::calculateNFP(A, B);
 
     if (nfps.empty()) {
-  
+
         BoundingBox bboxA = A.bounds();
         BoundingBox bboxB = B.bounds();
 
         // For OUTSIDE NFP: Create a rectangle around A expanded by B's dimensions
         // This is overly conservative but guarantees no overlap
         Polygon conservativeNFP;
-        double x = bboxA.x - bboxB.width;
-        double y = bboxA.y - bboxB.height;
-        double w = bboxA.width + 2 * bboxB.width;
-        double h = bboxA.height + 2 * bboxB.height;
+        // BoundingBox members are now int64_t (CoordType)
+        CoordType x = bboxA.x - bboxB.width;
+        CoordType y = bboxA.y - bboxB.height;
+        CoordType w = bboxA.width + 2 * bboxB.width;
+        CoordType h = bboxA.height + 2 * bboxB.height;
 
         conservativeNFP.points = {
-            {x, y},
-            {x + w, y},
-            {x + w, y + h},
-            {x, y + h}
+            Point(x, y),
+            Point(x + w, y),
+            Point(x + w, y + h),
+            Point(x, y + h)
         };
 
         std::cerr << "  Generated conservative NFP: " << w << " x " << h << " rectangle" << std::endl;
@@ -60,11 +61,12 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
     }
 
     // Select the polygon with largest area (as in JavaScript: largestArea)
+    // Note: polygonArea() now returns int64_t (2x area for precision)
     Polygon largestNFP;
-    double largestArea = 0.0;
+    int64_t largestArea = 0;
 
     for (const auto& nfp : nfps) {
-        double area = std::abs(GeometryUtil::polygonArea(nfp.points));
+        int64_t area = std::abs(GeometryUtil::polygonArea(nfp.points));
         if (area > largestArea) {
             largestArea = area;
             largestNFP = nfp;
@@ -80,62 +82,47 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
 }
 
 Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const {
-    
-    const double CLIPPER_SCALE = 10000000.0;
-    
-    // Convert A to Clipper2 Path64 and scale up
+
+    // REMOVED: CLIPPER_SCALE - coordinates are already int64_t from inputScale!
+    // No additional scaling needed - Point coordinates are already properly scaled
+
+    // Convert A to Clipper2 Path64 (direct copy - both are int64_t)
     Clipper2Lib::Path64 pathA;
     pathA.reserve(A.points.size());
     for (const auto& pt : A.points) {
-        pathA.push_back(Clipper2Lib::Point64(
-            static_cast<int64_t>(pt.x * CLIPPER_SCALE),
-            static_cast<int64_t>(pt.y * CLIPPER_SCALE)
-        ));
+        pathA.push_back(Clipper2Lib::Point64(pt.x, pt.y));  // Direct copy!
     }
-    
-    // Convert B to Clipper2 Path64, scale up, and NEGATE (critical for NFP)
+
+    // Convert B to Clipper2 Path64 and NEGATE (critical for NFP)
     Clipper2Lib::Path64 pathB;
     pathB.reserve(B.points.size());
     for (const auto& pt : B.points) {
-        pathB.push_back(Clipper2Lib::Point64(
-            static_cast<int64_t>(-pt.x * CLIPPER_SCALE),  // Negate X
-            static_cast<int64_t>(-pt.y * CLIPPER_SCALE)   // Negate Y
-        ));
+        pathB.push_back(Clipper2Lib::Point64(-pt.x, -pt.y));  // Negate, direct copy!
     }
-    
-    // Call Clipper2::MinkowskiSum (equivalent to ClipperLib.Clipper.MinkowskiSum)
+
+    // Call Clipper2::MinkowskiSum
     Clipper2Lib::Paths64 solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
 
 
-    // JavaScript: Select polygon with largest area (lines 666-674)
-    // var largestArea = null;
-    // for(i=0; i<solution.length; i++){
-    //     var n = toNestCoordinates(solution[i], 10000000);
-    //     var sarea = -GeometryUtil.polygonArea(n);
-    //     if(largestArea === null || largestArea < sarea){
-    //         clipperNfp = n;
-    //         largestArea = sarea;
-    //     }
-    // }
-    
+    // JavaScript: Select polygon with largest area
+    // Note: polygonArea() now returns int64_t (2x area for precision)
+
     Polygon largestNFP;
-    double largestArea = 0.0;
+    int64_t largestArea = 0;
 
     for (const auto& nfpPath : solution) {
-        // Convert from Clipper2 coordinates back to nest coordinates
+        // Convert from Clipper2 Path64 back to our Points (both int64_t - direct copy!)
         std::vector<Point> nfpPoints;
         nfpPoints.reserve(nfpPath.size());
-        
+
         for (const auto& pt : nfpPath) {
-            nfpPoints.push_back(Point{
-                static_cast<double>(pt.x) / CLIPPER_SCALE,
-                static_cast<double>(pt.y) / CLIPPER_SCALE
-            });
+            nfpPoints.emplace_back(pt.x, pt.y);  // Direct copy - both int64_t!
         }
-        
-        // Calculate area (JavaScript uses negative area: -GeometryUtil.polygonArea(n))
-        double area = -GeometryUtil::polygonArea(nfpPoints);
-        
+
+        // Calculate area (returns 2x area as int64_t)
+        // JavaScript uses negative area, so we negate
+        int64_t area = -GeometryUtil::polygonArea(nfpPoints);
+
         if (area > largestArea) {
             largestArea = area;
             largestNFP.points = std::move(nfpPoints);
@@ -196,14 +183,16 @@ Polygon NFPCalculator::createFrame(const Polygon& A) const {
     BoundingBox bounds = A.bounds();
 
     // Expand bounds by 10% (background.js line 716-719)
-    double originalWidth = bounds.width;
-    double originalHeight = bounds.height;
+    // BoundingBox members are now int64_t, but we need double for multiplication
+    // Then round back to int64_t for final coordinates
+    CoordType originalWidth = bounds.width;
+    CoordType originalHeight = bounds.height;
 
-    double expandedWidth = originalWidth * 1.1;
-    double expandedHeight = originalHeight * 1.1;
+    CoordType expandedWidth = static_cast<CoordType>(std::round(originalWidth * 1.1));
+    CoordType expandedHeight = static_cast<CoordType>(std::round(originalHeight * 1.1));
 
-    double newX = bounds.left() - 0.5 * (expandedWidth - originalWidth);
-    double newY = bounds.top() - 0.5 * (expandedHeight - originalHeight);
+    CoordType newX = bounds.left() - (expandedWidth - originalWidth) / 2;
+    CoordType newY = bounds.top() - (expandedHeight - originalHeight) / 2;
 
     // Create rectangular frame (background.js line 721-725)
     Polygon frame;
