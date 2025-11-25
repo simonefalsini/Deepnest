@@ -1,5 +1,4 @@
 #include "../../include/deepnest/geometry/GeometryUtil.h"
-#include "../../include/deepnest/geometry/OrbitalTypes.h"
 #include "../../include/deepnest/core/Polygon.h"
 #include "../../include/deepnest/DebugConfig.h"
 #include <cmath>
@@ -20,10 +19,21 @@ bool almostEqualPoints(const Point& a, const Point& b, CoordType tolerance) {
 }
 
 Point normalizeVector(const Point& v) {
-    if (almostEqual(v.x * v.x + v.y * v.y, 1.0)) {
-        return v;  // Already a unit vector
+    // Calculate squared length
+    int64_t lenSq = v.x * v.x + v.y * v.y;
+    if (lenSq == 0) {
+        return Point(0, 0);  // Zero vector
     }
-    return v.normalize();
+
+    // Convert to double for division, then back to int64_t
+    double len = std::sqrt(static_cast<double>(lenSq));
+    double nx = static_cast<double>(v.x) / len;
+    double ny = static_cast<double>(v.y) / len;
+
+    // Round to nearest int64_t
+    return Point(static_cast<CoordType>(std::round(nx)),
+                 static_cast<CoordType>(std::round(ny)),
+                 false);  // Mark as not exact
 }
 
 // ========== Line Segment Functions ==========
@@ -601,8 +611,8 @@ std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& 
     }
 
     // Find min/max of A
-    double minAx = A[0].x, minAy = A[0].y;
-    double maxAx = A[0].x, maxAy = A[0].y;
+    CoordType minAx = A[0].x, minAy = A[0].y;
+    CoordType maxAx = A[0].x, maxAy = A[0].y;
     for (const auto& p : A) {
         minAx = std::min(minAx, p.x);
         minAy = std::min(minAy, p.y);
@@ -611,8 +621,8 @@ std::vector<std::vector<Point>> noFitPolygonRectangle(const std::vector<Point>& 
     }
 
     // Find min/max of B
-    double minBx = B[0].x, minBy = B[0].y;
-    double maxBx = B[0].x, maxBy = B[0].y;
+    CoordType minBx = B[0].x, minBy = B[0].y;
+    CoordType maxBx = B[0].x, maxBy = B[0].y;
     for (const auto& p : B) {
         minBx = std::min(minBx, p.x);
         minBy = std::min(minBy, p.y);

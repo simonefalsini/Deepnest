@@ -12,7 +12,7 @@ namespace deepnest {
 
 // Forward declarations
 namespace GeometryUtil {
-    double polygonArea(const std::vector<Point>& polygon);
+    int64_t polygonArea(const std::vector<Point>& polygon);
     BoundingBox getPolygonBounds(const std::vector<Point>& polygon);
 }
 

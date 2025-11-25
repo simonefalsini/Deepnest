@@ -23,6 +23,7 @@
 #include <iostream>
 #include <vector>
 
+using namespace deepnest;
 
 // Known problematic pairs from test runs
 struct ProblematicPair {
@@ -256,10 +257,10 @@ bool savePairToSVG(const deepnest::Polygon& polyA, const deepnest::Polygon& poly
     auto bboxA = polyA.bounds();
     auto bboxB = polyB.bounds();
 
-    double minX = std::min(bboxA.x, bboxB.x);
-    double minY = std::min(bboxA.y, bboxB.y);
-    double maxX = std::max(bboxA.x + bboxA.width, bboxB.x + bboxB.width);
-    double maxY = std::max(bboxA.y + bboxA.height, bboxB.y + bboxB.height);
+    CoordType minX = std::min(bboxA.x, bboxB.x);
+    CoordType minY = std::min(bboxA.y, bboxB.y);
+    CoordType maxX = std::max(bboxA.x + bboxA.width, bboxB.x + bboxB.width);
+    CoordType maxY = std::max(bboxA.y + bboxA.height, bboxB.y + bboxB.height);
 
     // Add NFP bounds if present
     for (const auto& nfp : nfps) {
@@ -384,7 +385,14 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
-    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
+    // noFitPolygon was removed, use MinkowskiSum instead
+    auto nfpPolygons = deepnest::MinkowskiSum::calculateNFP(polyA, polyB, inside);
+    std::vector<std::vector<Point>> nfpPoints;
+    for (const auto& nfp : nfpPolygons) {
+        if (!nfp.points.empty()) {
+            nfpPoints.push_back(nfp.points);
+        }
+    }
 
     std::vector<deepnest::Polygon> nfps;
 

@@ -160,3 +160,125 @@ set_target_properties(NFPDebug PROPERTIES
 )
 
 message(STATUS "NFPDebug configured")
+
+# ===== FitnessTests =====
+add_executable(FitnessTests
+    FitnessTests.cpp
+)
+
+target_include_directories(FitnessTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(FitnessTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(FitnessTests PRIVATE cxx_std_17)
+
+set_target_properties(FitnessTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS FitnessTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "FitnessTests configured")
+
+# ===== JSComparisonTests =====
+add_executable(JSComparisonTests
+    JSComparisonTests.cpp
+)
+
+target_include_directories(JSComparisonTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(JSComparisonTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(JSComparisonTests PRIVATE cxx_std_17)
+
+set_target_properties(JSComparisonTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS JSComparisonTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "JSComparisonTests configured")
+
+# ===== StepVerificationTests =====
+add_executable(StepVerificationTests
+    StepVerificationTests.cpp
+)
+
+target_include_directories(StepVerificationTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(StepVerificationTests
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(StepVerificationTests PRIVATE cxx_std_17)
+
+set_target_properties(StepVerificationTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS StepVerificationTests
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "StepVerificationTests configured")
+
+# ===== DiagnosticTool =====
+add_executable(DiagnosticTool
+    DiagnosticTool.cpp
+    SVGLoader.cpp
+    SVGLoader.h
+)
+
+target_include_directories(DiagnosticTool PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(DiagnosticTool
+    deepnest
+    Qt5::Core
+    Qt5::Xml
+    Qt5::Widgets
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(DiagnosticTool PRIVATE cxx_std_17)
+
+set_target_properties(DiagnosticTool PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS DiagnosticTool
+    RUNTIME DESTINATION bin
+)
+
+message(STATUS "DiagnosticTool configured")

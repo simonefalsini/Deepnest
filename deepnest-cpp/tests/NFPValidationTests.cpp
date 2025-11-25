@@ -37,7 +37,6 @@
 #include "deepnest/core/Point.h"
 #include "deepnest/core/Types.h"
 #include "deepnest/geometry/GeometryUtil.h"
-#include "deepnest/geometry/OrbitalTypes.h"
 
 using namespace deepnest;
 
