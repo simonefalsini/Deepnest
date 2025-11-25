@@ -23,6 +23,7 @@ DeepNestConfig& DeepNestConfig::getInstance() {
 
 void DeepNestConfig::resetToDefaults() {
     // Default values from deepnest.js (lines 20-33)
+    inputScale = 10000.0;  // Default: 0.1 micron precision
     clipperScale = 10000000.0;
     curveTolerance = 0.3;
     spacing = 0.0;
@@ -66,6 +67,13 @@ void DeepNestConfig::loadFromJson(const QString& path) {
     QJsonObject obj = doc.object();
 
     // Load parameters with validation (similar to svgnest.js config() method)
+    if (obj.contains("inputScale")) {
+        double val = obj["inputScale"].toDouble();
+        if (val > 0) {
+            inputScale = val;
+        }
+    }
+
     if (obj.contains("clipperScale")) {
         clipperScale = obj["clipperScale"].toDouble(clipperScale);
     }
@@ -157,6 +165,7 @@ void DeepNestConfig::loadFromJson(const QString& path) {
 void DeepNestConfig::saveToJson(const QString& path) const {
     QJsonObject obj;
 
+    obj["inputScale"] = inputScale;
     obj["clipperScale"] = clipperScale;
     obj["curveTolerance"] = curveTolerance;
     obj["spacing"] = spacing;
@@ -188,6 +197,14 @@ void DeepNestConfig::saveToJson(const QString& path) const {
 }
 
 // Setter methods with validation
+
+void DeepNestConfig::setInputScale(double value) {
+    if (value > 0) {
+        inputScale = value;
+    } else {
+        throw std::invalid_argument("Input scale must be positive");
+    }
+}
 
 void DeepNestConfig::setClipperScale(double value) {
     if (value > 0) {

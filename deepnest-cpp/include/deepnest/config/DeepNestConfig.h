@@ -56,8 +56,28 @@ public:
     // Configuration parameters (from deepnest.js lines 20-33)
 
     /**
+     * @brief Input scaling factor for integer conversion
+     *
+     * All floating point coordinates from SVG/QPainterPath are multiplied
+     * by this factor when converting to internal int64_t representation.
+     * Higher values = more precision but risk of overflow.
+     *
+     * Recommended values:
+     * - 1000.0 for mm precision (0.001 mm resolution)
+     * - 10000.0 for 0.1 micron precision (RECOMMENDED)
+     * - 100000.0 for high precision (0.00001 units, risk of overflow)
+     *
+     * With int64_t max = 9.2e18:
+     * - scale=10000, max coordinate ≈ 922 million units (safe for <10km)
+     *
+     * Default: 10000.0
+     */
+    double inputScale;
+
+    /**
      * @brief Scaling factor for Clipper library operations
      *
+     * @deprecated Will be removed - Clipper2 uses int64_t directly
      * Clipper works with integers, so floating point coordinates
      * need to be scaled up for precision
      */
@@ -68,6 +88,7 @@ public:
      *
      * Controls how closely curves (Bezier, arcs) are approximated
      * by line segments. Lower values = more segments = higher precision
+     * NOTE: After integer conversion, this will be in integer units
      */
     double curveTolerance;
     double getCurveTolerance(){return curveTolerance;};
@@ -218,6 +239,16 @@ public:
     unsigned int randomSeed;
 
     // Getter methods with validation
+
+    /**
+     * @brief Get input scale with validation
+     */
+    double getInputScale() const { return inputScale; }
+
+    /**
+     * @brief Set input scale with validation (must be > 0)
+     */
+    void setInputScale(double value);
 
     /**
      * @brief Get clipper scale with validation
