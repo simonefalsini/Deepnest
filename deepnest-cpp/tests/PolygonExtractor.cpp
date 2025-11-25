@@ -369,7 +369,7 @@ std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, 
         // Save combined visualization
         QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
                           .arg(polyA.id).arg(polyB.id);
-        savePairToSVG(polyA, polyB, nfps, filename);
+        //savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
@@ -413,7 +413,7 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
 
         QString filename = QString("polygon_pair_%1_%2_orbital.svg")
                           .arg(polyA.id).arg(polyB.id);
-        savePairToSVG(polyA, polyB, nfps, filename);
+        //savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
