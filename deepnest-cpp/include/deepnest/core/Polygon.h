@@ -230,19 +230,59 @@ public:
     static Polygon fromBoostPolygon(const BoostPolygonWithHoles& boostPoly);
 
     /**
-     * @brief Convert to QPainterPath
+     * @brief Convert to QPainterPath (deprecated - use version with scale)
+     *
+     * WARNING: This doesn't apply proper descaling!
+     * Use toQPainterPath(scale) instead.
      */
     QPainterPath toQPainterPath() const;
 
     /**
-     * @brief Convert from QPainterPath
+     * @brief Convert to QPainterPath with descaling
+     *
+     * Converts scaled integer coordinates to physical coordinates (double).
+     *
+     * @param scale Scaling factor (inputScale from DeepNestConfig)
+     * @return QPainterPath in physical coordinates
+     */
+    QPainterPath toQPainterPath(double scale) const;
+
+    /**
+     * @brief Convert from QPainterPath (deprecated - use version with scale)
+     *
+     * WARNING: This doesn't apply proper scaling!
+     * Use fromQPainterPath(path, scale) instead.
      */
     static Polygon fromQPainterPath(const QPainterPath& path);
 
     /**
-     * @brief Convert from QPainterPath with id
+     * @brief Convert from QPainterPath with scaling
+     *
+     * Converts physical coordinates (double) to scaled integer coordinates.
+     *
+     * @param path QPainterPath in physical coordinates
+     * @param scale Scaling factor (inputScale from DeepNestConfig)
+     * @return Polygon with scaled integer coordinates
+     */
+    static Polygon fromQPainterPath(const QPainterPath& path, double scale);
+
+    /**
+     * @brief Convert from QPainterPath with id (deprecated - use version with scale)
+     *
+     * WARNING: This doesn't apply proper scaling!
+     * Use fromQPainterPath(path, scale, polygonId) instead.
      */
     static Polygon fromQPainterPath(const QPainterPath& path, int polygonId);
+
+    /**
+     * @brief Convert from QPainterPath with scaling and id
+     *
+     * @param path QPainterPath in physical coordinates
+     * @param scale Scaling factor (inputScale from DeepNestConfig)
+     * @param polygonId Polygon ID
+     * @return Polygon with scaled integer coordinates
+     */
+    static Polygon fromQPainterPath(const QPainterPath& path, double scale, int polygonId);
 
     /**
      * @brief Extract multiple polygons from a QPainterPath

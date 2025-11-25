@@ -227,7 +227,10 @@ Polygon Polygon::fromBoostPolygon(const BoostPolygonWithHoles& boostPoly) {
     return result;
 }
 
+// Deprecated version (no descaling)
 QPainterPath Polygon::toQPainterPath() const {
+    // WARNING: This deprecated function doesn't apply descaling!
+    // Use toQPainterPath(scale) instead.
     QPainterPath path;
 
     if (points.empty()) {
@@ -255,11 +258,58 @@ QPainterPath Polygon::toQPainterPath() const {
     return path;
 }
 
+// New descaled version
+QPainterPath Polygon::toQPainterPath(double scale) const {
+    // Convert Polygon to QPainterPath with descaling
+    QPainterPath path;
+
+    if (points.empty()) {
+        return path;
+    }
+
+    // Add outer boundary (with descaling)
+    path.moveTo(points[0].toQt(scale));
+    for (size_t i = 1; i < points.size(); i++) {
+        path.lineTo(points[i].toQt(scale));
+    }
+    path.closeSubpath();
+
+    // Add holes (with descaling)
+    for (const auto& hole : children) {
+        if (!hole.points.empty()) {
+            path.moveTo(hole.points[0].toQt(scale));
+            for (size_t i = 1; i < hole.points.size(); i++) {
+                path.lineTo(hole.points[i].toQt(scale));
+            }
+            path.closeSubpath();
+        }
+    }
+
+    return path;
+}
+
+// Deprecated version (no scaling)
 Polygon Polygon::fromQPainterPath(const QPainterPath& path) {
+    // WARNING: This deprecated function doesn't apply scaling!
+    // Use fromQPainterPath(path, scale) instead.
     return fromQPainterPath(path, -1);
 }
 
+// New scaled version
+Polygon Polygon::fromQPainterPath(const QPainterPath& path, double scale) {
+    // Convert QPainterPath to Polygon with scaling
+    return fromQPainterPath(path, scale, -1);
+}
+
+// Deprecated version (no scaling)
 Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
+    // WARNING: This deprecated function doesn't apply scaling!
+    // Use fromQPainterPath(path, scale, polygonId) instead.
+    return fromQPainterPath(path, 1.0, polygonId);  // Use scale=1.0 as fallback
+}
+
+// New scaled version with polygonId
+Polygon Polygon::fromQPainterPath(const QPainterPath& path, double scale, int polygonId) {
     Polygon result;
     result.id = polygonId;
 
@@ -288,11 +338,11 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
     if (subpaths.size() == 1) {
         const QPolygonF& firstSubpath = subpaths.first();
 
-        // Convert QPolygonF to vector<Point>
+        // Convert QPolygonF to vector<Point> (with scaling)
         std::vector<Point> pathPoints;
         pathPoints.reserve(firstSubpath.size());
         for (const QPointF& qpt : firstSubpath) {
-            pathPoints.push_back(Point::fromQt(qpt));
+            pathPoints.push_back(Point::fromQt(qpt, scale));
         }
 
         // Apply Ramer-Douglas-Peucker simplification
@@ -321,7 +371,7 @@ Polygon Polygon::fromQPainterPath(const QPainterPath& path, int polygonId) {
         Polygon poly;
         poly.points.reserve(subpath.size());
         for (const QPointF& pt : subpath) {
-            poly.points.push_back(Point::fromQt(pt));
+            poly.points.push_back(Point::fromQt(pt, scale));
         }
 
         // Apply simplification to each subpath

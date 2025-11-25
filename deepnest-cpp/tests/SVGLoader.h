@@ -116,8 +116,9 @@ public:
         double toleranceSvg;       // Fudge factor for browser inaccuracy
         double scale;              // Base scale (default 72)
         double endpointTolerance;  // Tolerance for merging endpoints
-        
-        Config() : tolerance(2.0), toleranceSvg(0.01), scale(72.0), endpointTolerance(2.0) {}
+        double inputScale;         // Scaling factor for converting physical coords to integers (default 10000)
+
+        Config() : tolerance(2.0), toleranceSvg(0.01), scale(72.0), endpointTolerance(2.0), inputScale(10000.0) {}
     };
 
     /**

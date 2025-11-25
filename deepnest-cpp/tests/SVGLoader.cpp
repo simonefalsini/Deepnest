@@ -160,7 +160,7 @@ SVGLoader::LoadResult SVGLoader::loadFile(const QString& svgPath, const Config& 
                         poly.points.reserve(subpaths[i].size());
                         
                         for (const QPointF& qpt : subpaths[i]) {
-                            poly.points.push_back(deepnest::Point::fromQt(qpt));
+                            poly.points.push_back(deepnest::Point::fromQt(qpt, config.inputScale));
                         }
                         
                         if (poly.isValid()) {
