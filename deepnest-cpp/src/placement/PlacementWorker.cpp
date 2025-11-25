@@ -112,8 +112,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         //             var sheetarea = Math.abs(GeometryUtil.polygonArea(sheet));
         //             totalsheetarea += sheetarea;
         //             fitness += sheetarea;
+        // NOTE: Don't remove sheet yet - only remove if we actually place parts on it
         Polygon sheet = sheets.front();
-        sheets.erase(sheets.begin());
 
         double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
         totalSheetArea += sheetArea;
@@ -606,6 +606,9 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         //               allplacements.push(placements);
         //             }
         if (!placements.empty()) {
+            // Sheet was used - remove it from the list
+            sheets.erase(sheets.begin());
+            
             // Calculate bounds fitness (minwidth/binarea)
             // JavaScript: if(minwidth) { fitness += minwidth/binarea; }
             std::vector<Point> allPlacedPoints;
@@ -636,7 +639,20 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             allPlacements.push_back(placements);
         }
         else {
-            break; // No progress made
+            // No parts placed on this sheet
+            // This can happen if:
+            // 1. Parts don't fit geometrically
+            // 2. All remaining parts have overlap issues
+            // 3. Sheet is too small for any remaining part
+            
+            // Remove this sheet and try the next one
+            sheets.erase(sheets.begin());
+            
+            // If no more sheets available, break
+            if (sheets.empty()) {
+                break;
+            }
+            // Otherwise continue to next sheet
         }
     }
 

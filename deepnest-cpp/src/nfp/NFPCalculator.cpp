@@ -81,30 +81,22 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
 
 Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const {
     
-    const double CLIPPER_SCALE = 10000000.0;
-    
-    // Convert A to Clipper2 Path64 and scale up
-    Clipper2Lib::Path64 pathA;
+    // Convert A to Clipper2 PathD (double precision, no scaling)
+    Clipper2Lib::PathD pathA;
     pathA.reserve(A.points.size());
     for (const auto& pt : A.points) {
-        pathA.push_back(Clipper2Lib::Point64(
-            static_cast<int64_t>(pt.x * CLIPPER_SCALE),
-            static_cast<int64_t>(pt.y * CLIPPER_SCALE)
-        ));
+        pathA.push_back(Clipper2Lib::PointD(pt.x, pt.y));
     }
     
-    // Convert B to Clipper2 Path64, scale up, and NEGATE (critical for NFP)
-    Clipper2Lib::Path64 pathB;
+    // Convert B to Clipper2 PathD and NEGATE (critical for NFP)
+    Clipper2Lib::PathD pathB;
     pathB.reserve(B.points.size());
     for (const auto& pt : B.points) {
-        pathB.push_back(Clipper2Lib::Point64(
-            static_cast<int64_t>(-pt.x * CLIPPER_SCALE),  // Negate X
-            static_cast<int64_t>(-pt.y * CLIPPER_SCALE)   // Negate Y
-        ));
+        pathB.push_back(Clipper2Lib::PointD(-pt.x, -pt.y));  // Negate for NFP
     }
     
     // Call Clipper2::MinkowskiSum (equivalent to ClipperLib.Clipper.MinkowskiSum)
-    Clipper2Lib::Paths64 solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
+    Clipper2Lib::PathsD solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
 
 
     // JavaScript: Select polygon with largest area (lines 666-674)
@@ -122,15 +114,12 @@ Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const 
     double largestArea = 0.0;
 
     for (const auto& nfpPath : solution) {
-        // Convert from Clipper2 coordinates back to nest coordinates
+        // Convert from Clipper2 PathD to our Point type (no unscaling needed)
         std::vector<Point> nfpPoints;
         nfpPoints.reserve(nfpPath.size());
         
         for (const auto& pt : nfpPath) {
-            nfpPoints.push_back(Point{
-                static_cast<double>(pt.x) / CLIPPER_SCALE,
-                static_cast<double>(pt.y) / CLIPPER_SCALE
-            });
+            nfpPoints.push_back(Point{pt.x, pt.y});
         }
         
         // Calculate area (JavaScript uses negative area: -GeometryUtil.polygonArea(n))

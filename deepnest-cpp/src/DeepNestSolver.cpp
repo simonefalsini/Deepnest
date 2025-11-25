@@ -18,7 +18,6 @@ DeepNestSolver::DeepNestSolver(const DeepNestConfig& config)
     , running_(false)
 {
     // Copy configuration values
-    config_.clipperScale = config.clipperScale;
     config_.curveTolerance = config.curveTolerance;
     config_.spacing = config.spacing;
     config_.rotations = config.rotations;

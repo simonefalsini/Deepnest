@@ -1046,15 +1046,15 @@ void TestApplication::updateVisualization(const deepnest::NestResult& result) {
         log(QString("--- Sheet %1 ---").arg(sheetIdx));
 
         // Draw sheet boundary (green, thick border, no fill)
-        //if (sheetIdx < sheets_.size()) 
-        {
-            deepnest::Polygon sheetTranslated = sheets_[sheetIdx].translate(sheetOffsetX, 0);
+        // All sheets have the same dimensions, so we use the first sheet as a template
+        if (!sheets_.empty()) {
+            deepnest::Polygon sheetTranslated = sheets_[0].translate(sheetOffsetX, 0);
             QPainterPath sheetPath = sheetTranslated.toQPainterPath();
             scene_->addPath(sheetPath, QPen(Qt::darkGreen, 4), QBrush(Qt::NoBrush));
 
             // Add sheet label
             QGraphicsTextItem* sheetLabel = scene_->addText(
-                QString("SHEET %1").arg(sheetIdx),
+                QString("SHEET %1").arg(sheetIdx + 1),  // +1 for 1-based display
                 QFont("Arial", 14, QFont::Bold));
             sheetLabel->setDefaultTextColor(Qt::darkGreen);
             sheetLabel->setPos(sheetOffsetX + 10, -35);

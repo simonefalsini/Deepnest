@@ -102,10 +102,13 @@ public:
      * @brief Convert polygon points to Clipper coordinates
      *
      * Clipper works with integer coordinates, so we scale up floating point
-     * coordinates by clipperScale factor
+     * coordinates by the specified scale factor.
+     *
+     * Note: Most operations now use PathsD (double precision) which doesn't
+     * require scaling. This function is kept for legacy compatibility.
      *
      * @param poly Input polygon with floating point coordinates
-     * @param scale Scaling factor (default 10000000 from config)
+     * @param scale Scaling factor (default 10000000)
      * @return Clipper path with scaled integer coordinates
      */
     static std::vector<std::pair<long long, long long>> toClipperCoordinates(

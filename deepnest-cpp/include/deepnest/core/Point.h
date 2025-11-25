@@ -4,42 +4,64 @@
 #include "Types.h"
 #include <QPointF>
 #include <cmath>
+#include <cstdint>
 
 namespace deepnest {
 
 /**
- * @brief Point structure representing a 2D point
+ * @brief Point structure representing a 2D point with int32 coordinates
  *
- * This structure represents a point in 2D space and provides conversions
- * between different representations (Boost, Qt).
+ * This structure uses fixed-point integer coordinates for precision and performance.
+ * Scale factor: 1000 (1 unit = 0.001mm = 1 micron)
+ * 
+ * Coordinate range: ±2,147,483 mm (±2147 meters)
+ * Precision: 0.001mm (1 micron)
  */
 struct Point {
-    double x;
-    double y;
+    // Scaled integer coordinates (1 unit = 0.001mm)
+    int32_t x;
+    int32_t y;
+    
     bool exact;   // Used for merge detection - marks if this point is an exact match
     bool marked;  // Used for orbital tracing - tracks visited vertices
 
-    // Constructors
-    Point() : x(0.0), y(0.0), exact(true), marked(false) {}  // Default constructor
+    // Scale factor: 1 unit = 0.001mm = 1 micron
+    static constexpr int32_t SCALE = 1000;
+    static constexpr double INV_SCALE = 1.0 / 1000.0;
 
-    Point(double x_, double y_, bool exact_ = true)
+    // Constructors
+    Point() : x(0), y(0), exact(true), marked(false) {}
+
+    Point(int32_t x_, int32_t y_, bool exact_ = true)
         : x(x_), y(y_), exact(exact_), marked(false) {}
 
-    // LINE MERGE FIX: When creating points from explicit coordinates (not curve approximations),
-    // they should be marked as exact=true so that MergeDetection can use them.
-    // In JavaScript, points are marked exact if they appear in the original polygon.
-    // For programmatically generated shapes (rectangles, regular polygons), all points are exact.
+    // Factory methods for conversion from mm (millimeters)
+    static Point fromMM(double x_mm, double y_mm, bool exact_ = true) {
+        return Point(
+            static_cast<int32_t>(std::round(x_mm * SCALE)),
+            static_cast<int32_t>(std::round(y_mm * SCALE)),
+            exact_
+        );
+    }
+
+    static Point fromUnits(int32_t x_units, int32_t y_units, bool exact_ = true) {
+        return Point(x_units, y_units, exact_);
+    }
+
+    // Conversion to mm for display/export
+    double xMM() const { return static_cast<double>(x) * INV_SCALE; }
+    double yMM() const { return static_cast<double>(y) * INV_SCALE; }
 
     // Conversion to Boost point
     BoostPoint toBoost() const;
 
-    // Conversion from Boost point
+    // Conversion from Boost point (assumes Boost uses mm)
     static Point fromBoost(const BoostPoint& p, bool exact = false);
 
-    // Conversion from Qt point
+    // Conversion from Qt point (assumes Qt uses mm)
     static Point fromQt(const QPointF& p, bool exact = false);
 
-    // Conversion to Qt point
+    // Conversion to Qt point (returns mm)
     QPointF toQt() const;
 
     // Vector operations
@@ -51,11 +73,11 @@ struct Point {
         return Point(x - other.x, y - other.y, exact && other.exact);
     }
 
-    Point operator*(double scalar) const {
+    Point operator*(int32_t scalar) const {
         return Point(x * scalar, y * scalar, false);  // Scaling loses exactness
     }
 
-    Point operator/(double scalar) const {
+    Point operator/(int32_t scalar) const {
         return Point(x / scalar, y / scalar, false);  // Division loses exactness
     }
 
@@ -74,23 +96,23 @@ struct Point {
         return *this;
     }
 
-    Point& operator*=(double scalar) {
+    Point& operator*=(int32_t scalar) {
         x *= scalar;
         y *= scalar;
         exact = false;  // Scaling loses exactness
         return *this;
     }
 
-    Point& operator/=(double scalar) {
+    Point& operator/=(int32_t scalar) {
         x /= scalar;
         y /= scalar;
         exact = false;  // Division loses exactness
         return *this;
     }
 
-    // Comparison operators
+    // Comparison operators (exact integer comparison)
     bool operator==(const Point& other) const {
-        return almostEqual(x, other.x) && almostEqual(y, other.y);
+        return x == other.x && y == other.y;
     }
 
     bool operator!=(const Point& other) const {
@@ -100,79 +122,106 @@ struct Point {
     // Utility functions
 
     /**
-     * @brief Calculate the distance to another point
+     * @brief Calculate the distance to another point (in mm)
+     * Uses int64 for intermediate calculations to prevent overflow
      */
     double distanceTo(const Point& other) const {
-        double dx = x - other.x;
-        double dy = y - other.y;
-        return std::sqrt(dx * dx + dy * dy);
+        int64_t dx = static_cast<int64_t>(x) - other.x;
+        int64_t dy = static_cast<int64_t>(y) - other.y;
+        double distUnits = std::sqrt(static_cast<double>(dx * dx + dy * dy));
+        return distUnits * INV_SCALE;  // Return in mm
     }
 
     /**
-     * @brief Calculate the squared distance to another point (faster than distanceTo)
+     * @brief Calculate the squared distance to another point (in units²)
+     * Faster than distanceTo, useful for comparisons
      */
-    double distanceSquaredTo(const Point& other) const {
-        double dx = x - other.x;
-        double dy = y - other.y;
+    int64_t distanceSquaredTo(const Point& other) const {
+        int64_t dx = static_cast<int64_t>(x) - other.x;
+        int64_t dy = static_cast<int64_t>(y) - other.y;
         return dx * dx + dy * dy;
     }
 
     /**
      * @brief Check if this point is within a certain distance of another point
+     * @param distance Distance in mm
      */
-    bool withinDistance(const Point& other, double distance) const {
-        return distanceSquaredTo(other) < distance * distance;
+    bool withinDistance(const Point& other, double distanceMM) const {
+        int64_t distUnits = static_cast<int64_t>(distanceMM * SCALE);
+        return distanceSquaredTo(other) < distUnits * distUnits;
     }
 
     /**
-     * @brief Calculate the length (magnitude) of this point as a vector
+     * @brief Calculate the length (magnitude) of this point as a vector (in mm)
      */
     double length() const {
-        return std::sqrt(x * x + y * y);
+        int64_t x64 = static_cast<int64_t>(x);
+        int64_t y64 = static_cast<int64_t>(y);
+        double lenUnits = std::sqrt(static_cast<double>(x64 * x64 + y64 * y64));
+        return lenUnits * INV_SCALE;
     }
 
     /**
-     * @brief Calculate the squared length (magnitude) of this point as a vector
+     * @brief Calculate the squared length (magnitude) of this point as a vector (in units²)
      */
-    double lengthSquared() const {
-        return x * x + y * y;
+    int64_t lengthSquared() const {
+        int64_t x64 = static_cast<int64_t>(x);
+        int64_t y64 = static_cast<int64_t>(y);
+        return x64 * x64 + y64 * y64;
     }
 
     /**
      * @brief Normalize this point as a unit vector
+     * Returns a point with length ~1mm (1000 units)
      */
     Point normalize() const {
         double len = length();
-        if (almostEqual(len, 0.0)) {
+        if (len < 0.001) {  // Less than 1 micron
             return Point(0, 0, false);
         }
-        double inverse = 1.0 / len;
-        return Point(x * inverse, y * inverse, false);
+        double scale = 1.0 / len;  // Scale to 1mm
+        return Point::fromMM(xMM() * scale, yMM() * scale, false);
     }
 
     /**
-     * @brief Dot product with another point/vector
+     * @brief Dot product with another point/vector (in units²)
+     * Uses int64 to prevent overflow
      */
-    double dot(const Point& other) const {
-        return x * other.x + y * other.y;
+    int64_t dot(const Point& other) const {
+        int64_t x64 = static_cast<int64_t>(x);
+        int64_t y64 = static_cast<int64_t>(y);
+        int64_t ox64 = static_cast<int64_t>(other.x);
+        int64_t oy64 = static_cast<int64_t>(other.y);
+        return x64 * ox64 + y64 * oy64;
     }
 
     /**
-     * @brief Cross product (z-component) with another point/vector
+     * @brief Cross product (z-component) with another point/vector (in units²)
+     * Uses int64 to prevent overflow
      */
-    double cross(const Point& other) const {
-        return x * other.y - y * other.x;
+    int64_t cross(const Point& other) const {
+        int64_t x64 = static_cast<int64_t>(x);
+        int64_t y64 = static_cast<int64_t>(y);
+        int64_t ox64 = static_cast<int64_t>(other.x);
+        int64_t oy64 = static_cast<int64_t>(other.y);
+        return x64 * oy64 - y64 * ox64;
     }
 
     /**
      * @brief Rotate this point around origin by angle in radians
+     * Note: Rotation involves floating point, so result is not exact
      */
     Point rotate(double angleRadians) const {
         double cos_a = std::cos(angleRadians);
         double sin_a = std::sin(angleRadians);
-        return Point(
-            x * cos_a - y * sin_a,
-            x * sin_a + y * cos_a,
+        
+        // Convert to mm, rotate, convert back
+        double x_mm = xMM();
+        double y_mm = yMM();
+        
+        return Point::fromMM(
+            x_mm * cos_a - y_mm * sin_a,
+            x_mm * sin_a + y_mm * cos_a,
             false
         );
     }
@@ -187,10 +236,14 @@ struct Point {
     }
 
     /**
-     * @brief Floating point comparison with tolerance
+     * @brief Check if two points are almost equal within tolerance
+     * @param toleranceMM Tolerance in mm (default 0.001mm = 1 micron)
      */
-    static bool almostEqual(double a, double b, double tolerance = TOL) {
-        return std::abs(a - b) < tolerance;
+    static bool almostEqual(const Point& a, const Point& b, double toleranceMM = 0.001) {
+        int32_t toleranceUnits = static_cast<int32_t>(toleranceMM * SCALE);
+        int32_t dx = std::abs(a.x - b.x);
+        int32_t dy = std::abs(a.y - b.y);
+        return dx <= toleranceUnits && dy <= toleranceUnits;
     }
 };
 
