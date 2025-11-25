@@ -23,16 +23,16 @@ namespace GeometryUtil {
     // ========== Basic Utility Functions ==========
 
     /**
-     * @brief Check if two floating point values are almost equal within tolerance
+     * @brief Check if two integer coordinate values are almost equal within tolerance
      */
-    inline bool almostEqual(double a, double b, double tolerance = TOL) {
+    inline bool almostEqual(CoordType a, CoordType b, CoordType tolerance = TOL) {
         return Point::almostEqual(a, b, tolerance);
     }
 
     /**
      * @brief Check if two points are almost equal within tolerance
      */
-    bool almostEqualPoints(const Point& a, const Point& b, double tolerance = TOL);
+    bool almostEqualPoints(const Point& a, const Point& b, CoordType tolerance = TOL);
 
     /**
      * @brief Check if two points are within a given distance
@@ -65,7 +65,7 @@ namespace GeometryUtil {
     /**
      * @brief Check if point p lies on segment AB (not at endpoints)
      */
-    bool onSegment(const Point& A, const Point& B, const Point& p, double tolerance = TOL);
+    bool onSegment(const Point& A, const Point& B, const Point& p, CoordType tolerance = TOL);
 
     /**
      * @brief Calculate intersection of line segments AB and EF
@@ -92,14 +92,14 @@ namespace GeometryUtil {
     std::optional<bool> pointInPolygon(
         const Point& point,
         const std::vector<Point>& polygon,
-        double tolerance = TOL
+        CoordType tolerance = TOL
     );
 
     /**
-     * @brief Calculate the signed area of a polygon
-     * @return Positive for CCW, negative for CW winding
+     * @brief Calculate the signed area of a polygon (scaled by 2 to maintain integer precision)
+     * @return Positive for CCW, negative for CW winding (2x the actual area)
      */
-    double polygonArea(const std::vector<Point>& polygon);
+    int64_t polygonArea(const std::vector<Point>& polygon);
 
     /**
      * @brief Check if two polygons intersect
@@ -109,7 +109,7 @@ namespace GeometryUtil {
     /**
      * @brief Check if polygon is a rectangle
      */
-    bool isRectangle(const std::vector<Point>& poly, double tolerance = TOL);
+    bool isRectangle(const std::vector<Point>& poly, CoordType tolerance = TOL);
 
     /**
      * @brief Rotate polygon by angle in degrees

@@ -116,13 +116,16 @@ Transformation& Transformation::skewY(double angleDegrees) {
 }
 
 Point Transformation::apply(const Point& p, bool isRelative) const {
-    return apply(p.x, p.y, isRelative);
+    // Convert integer coordinates to double for transformation, then round back
+    return apply(static_cast<double>(p.x), static_cast<double>(p.y), isRelative);
 }
 
 Point Transformation::apply(double x, double y, bool isRelative) const {
     // Apply matrix transformation:
     // x' = a*x + c*y + e
     // y' = b*x + d*y + f
+    // Transformations (especially rotations) require double precision arithmetic.
+    // We compute in double and round to nearest integer at the end.
 
     double newX = matrix_[0] * x + matrix_[2] * y;
     double newY = matrix_[1] * x + matrix_[3] * y;
@@ -133,7 +136,12 @@ Point Transformation::apply(double x, double y, bool isRelative) const {
         newY += matrix_[5];
     }
 
-    return Point(newX, newY);
+    // Round to nearest integer coordinate
+    CoordType intX = static_cast<CoordType>(std::round(newX));
+    CoordType intY = static_cast<CoordType>(std::round(newY));
+
+    // Mark as not exact because transformations (especially rotations) lose precision
+    return Point(intX, intY, false);
 }
 
 std::vector<Point> Transformation::apply(const std::vector<Point>& points, bool isRelative) const {

@@ -47,13 +47,17 @@ private:
     static Point findAnchorPoint(const std::vector<Point>& points, size_t& anchorIndex);
 
     /**
-     * @brief Calculate polar angle from anchor to point
+     * @brief Compare two points by polar angle with respect to anchor
      *
-     * @param anchor Anchor point
-     * @param point Target point
-     * @return Angle in degrees
+     * Uses cross product instead of atan2 for integer arithmetic.
+     * Returns negative if a comes before b, positive if b comes before a, 0 if equal angle.
+     *
+     * @param anchor Reference point
+     * @param a First point
+     * @param b Second point
+     * @return Comparison result for sorting
      */
-    static double findPolarAngle(const Point& anchor, const Point& point);
+    static int polarCompare(const Point& anchor, const Point& a, const Point& b);
 
     /**
      * @brief Cross product to determine turn direction
@@ -63,7 +67,7 @@ private:
      * @param p3 Third point
      * @return Positive if counter-clockwise, negative if clockwise, zero if collinear
      */
-    static double crossProduct(const Point& p1, const Point& p2, const Point& p3);
+    static int64_t crossProduct(const Point& p1, const Point& p2, const Point& p3);
 
     /**
      * @brief Check if three points make a counter-clockwise turn

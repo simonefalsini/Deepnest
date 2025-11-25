@@ -11,10 +11,12 @@ namespace deepnest {
 namespace GeometryUtil {
 
 
-bool almostEqualPoints(const Point& a, const Point& b, double tolerance) {
-    double dx = a.x - b.x;
-    double dy = a.y - b.y;
-    return (dx * dx + dy * dy) < (tolerance * tolerance);
+bool almostEqualPoints(const Point& a, const Point& b, CoordType tolerance) {
+    // Use integer arithmetic for distance squared comparison
+    int64_t dx = a.x - b.x;
+    int64_t dy = a.y - b.y;
+    int64_t tolSq = static_cast<int64_t>(tolerance) * tolerance;
+    return (dx * dx + dy * dy) < tolSq;
 }
 
 Point normalizeVector(const Point& v) {
@@ -26,7 +28,7 @@ Point normalizeVector(const Point& v) {
 
 // ========== Line Segment Functions ==========
 
-bool onSegment(const Point& A, const Point& B, const Point& p, double tolerance) {
+bool onSegment(const Point& A, const Point& B, const Point& p, CoordType tolerance) {
     // Vertical line
     if (almostEqual(A.x, B.x, tolerance) && almostEqual(p.x, A.x, tolerance)) {
         if (!almostEqual(p.y, B.y, tolerance) && !almostEqual(p.y, A.y, tolerance) &&
@@ -57,17 +59,21 @@ bool onSegment(const Point& A, const Point& B, const Point& p, double tolerance)
         return false;
     }
 
-    double cross = (p.y - A.y) * (B.x - A.x) - (p.x - A.x) * (B.y - A.y);
+    // Use integer cross product
+    Point AP(p.x - A.x, p.y - A.y);
+    Point AB(B.x - A.x, B.y - A.y);
+    int64_t cross = AP.cross(AB);
     if (std::abs(cross) > tolerance) {
         return false;
     }
 
-    double dot = (p.x - A.x) * (B.x - A.x) + (p.y - A.y) * (B.y - A.y);
+    // Dot product to check if p is between A and B
+    int64_t dot = AP.dot(AB);
     if (dot < 0 || almostEqual(dot, 0, tolerance)) {
         return false;
     }
 
-    double len2 = (B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y);
+    int64_t len2 = AB.dot(AB);
     if (dot > len2 || almostEqual(dot, len2, tolerance)) {
         return false;
     }
@@ -78,22 +84,38 @@ bool onSegment(const Point& A, const Point& B, const Point& p, double tolerance)
 std::optional<Point> lineIntersect(const Point& A, const Point& B,
                                    const Point& E, const Point& F,
                                    bool infinite) {
-    double a1 = B.y - A.y;
-    double b1 = A.x - B.x;
-    double c1 = B.x * A.y - A.x * B.y;
+    // Calculate line coefficients using integer arithmetic
+    // Line AB: a1*x + b1*y + c1 = 0
+    // Line EF: a2*x + b2*y + c2 = 0
+    int64_t a1 = B.y - A.y;
+    int64_t b1 = A.x - B.x;
+    int64_t c1 = A.cross(B);  // B.x * A.y - A.x * B.y
 
-    double a2 = F.y - E.y;
-    double b2 = E.x - F.x;
-    double c2 = F.x * E.y - E.x * F.y;
+    int64_t a2 = F.y - E.y;
+    int64_t b2 = E.x - F.x;
+    int64_t c2 = E.cross(F);  // F.x * E.y - E.x * F.y
 
-    double denom = a1 * b2 - a2 * b1;
+    // Calculate determinant (cross product of direction vectors)
+    int64_t denom = a1 * b2 - a2 * b1;
 
-    double x = (b1 * c2 - b2 * c1) / denom;
-    double y = (a2 * c1 - a1 * c2) / denom;
-
-    if (!std::isfinite(x) || !std::isfinite(y)) {
+    // Lines are parallel if denom == 0
+    if (denom == 0) {
         return std::nullopt;
     }
+
+    // Calculate intersection using double for precise division, then round to int64_t
+    // x = (b1 * c2 - b2 * c1) / denom
+    // y = (a2 * c1 - a1 * c2) / denom
+    double x_exact = static_cast<double>(b1 * c2 - b2 * c1) / denom;
+    double y_exact = static_cast<double>(a2 * c1 - a1 * c2) / denom;
+
+    if (!std::isfinite(x_exact) || !std::isfinite(y_exact)) {
+        return std::nullopt;
+    }
+
+    // Round to nearest integer coordinate
+    CoordType x = static_cast<CoordType>(std::round(x_exact));
+    CoordType y = static_cast<CoordType>(std::round(y_exact));
 
     if (!infinite) {
         // Check if intersection point is within both segments
@@ -135,7 +157,7 @@ BoundingBox getPolygonBounds(const std::vector<Point>& polygon) {
 
 std::optional<bool> pointInPolygon(const Point& point,
                                    const std::vector<Point>& polygon,
-                                   double tolerance) {
+                                   CoordType tolerance) {
     if (polygon.size() < 3) {
         return std::nullopt;
     }
@@ -146,7 +168,7 @@ std::optional<bool> pointInPolygon(const Point& point,
         const Point& pi = polygon[i];
         const Point& pj = polygon[j];
 
-        // Check if point is exactly on a vertex
+        // Check if point is exactly on a vertex (using integer tolerance)
         if (almostEqual(pi.x, point.x, tolerance) &&
             almostEqual(pi.y, point.y, tolerance)) {
             return std::nullopt;
@@ -162,7 +184,7 @@ std::optional<bool> pointInPolygon(const Point& point,
             continue;
         }
 
-        // Ray casting algorithm
+        // Ray casting algorithm using integer arithmetic
         bool intersect = ((pi.y > point.y) != (pj.y > point.y)) &&
                         (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x);
         if (intersect) {
@@ -173,12 +195,16 @@ std::optional<bool> pointInPolygon(const Point& point,
     return inside;
 }
 
-double polygonArea(const std::vector<Point>& polygon) {
-    double area = 0.0;
+int64_t polygonArea(const std::vector<Point>& polygon) {
+    // Return 2x the actual area to maintain integer precision
+    // Using the shoelace formula: area = 0.5 * sum((x[j] + x[i]) * (y[j] - y[i]))
+    // We return the sum before dividing by 2
+    int64_t area2 = 0;
     for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
-        area += (polygon[j].x + polygon[i].x) * (polygon[j].y - polygon[i].y);
+        area2 += static_cast<int64_t>(polygon[j].x + polygon[i].x) *
+                 static_cast<int64_t>(polygon[j].y - polygon[i].y);
     }
-    return 0.5 * area;
+    return area2;
 }
 
 bool intersect(const std::vector<Point>& A, const std::vector<Point>& B) {
@@ -225,7 +251,7 @@ bool intersect(const std::vector<Point>& A, const std::vector<Point>& B) {
     return false;
 }
 
-bool isRectangle(const std::vector<Point>& poly, double tolerance) {
+bool isRectangle(const std::vector<Point>& poly, CoordType tolerance) {
     BoundingBox bb = getPolygonBounds(poly);
 
     for (const auto& p : poly) {

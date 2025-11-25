@@ -28,28 +28,40 @@ Point ConvexHull::findAnchorPoint(const std::vector<Point>& points, size_t& anch
     return anchor;
 }
 
-double ConvexHull::findPolarAngle(const Point& anchor, const Point& point) {
-    double dx = point.x - anchor.x;
-    double dy = point.y - anchor.y;
+int ConvexHull::polarCompare(const Point& anchor, const Point& a, const Point& b) {
+    // Compare two points by polar angle with respect to anchor using cross product
+    // This avoids using atan2 and works with integer arithmetic
 
-    if (Point::almostEqual(dx, 0.0) && Point::almostEqual(dy, 0.0)) {
-        return 0.0;
+    // Create vectors from anchor to a and b
+    Point va(a.x - anchor.x, a.y - anchor.y);
+    Point vb(b.x - anchor.x, b.y - anchor.y);
+
+    // Use cross product to determine relative angle
+    // If cross(va, vb) > 0, then va is counter-clockwise from vb (a comes before b)
+    // If cross(va, vb) < 0, then va is clockwise from vb (b comes before a)
+    // If cross(va, vb) == 0, they are collinear, sort by distance
+    int64_t cross = va.cross(vb);
+
+    if (cross > 0) {
+        return -1;  // a comes before b
+    } else if (cross < 0) {
+        return 1;   // b comes before a
+    } else {
+        // Collinear: sort by distance from anchor (closer points first)
+        int64_t distA = va.dot(va);  // distanceSquared
+        int64_t distB = vb.dot(vb);
+        if (distA < distB) return -1;
+        if (distA > distB) return 1;
+        return 0;
     }
-
-    // atan2 returns angle in radians, convert to degrees
-    double angle = std::atan2(dy, dx) * 180.0 / M_PI;
-
-    // Normalize to [0, 360)
-    if (angle < 0) {
-        angle += 360.0;
-    }
-
-    return angle;
 }
 
-double ConvexHull::crossProduct(const Point& p1, const Point& p2, const Point& p3) {
+int64_t ConvexHull::crossProduct(const Point& p1, const Point& p2, const Point& p3) {
     // Cross product of vectors (p1->p2) and (p1->p3)
-    return (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+    // Uses integer arithmetic for precision
+    Point v1(p2.x - p1.x, p2.y - p1.y);
+    Point v2(p3.x - p1.x, p3.y - p1.y);
+    return v1.cross(v2);
 }
 
 bool ConvexHull::isCCW(const Point& p1, const Point& p2, const Point& p3) {
@@ -75,20 +87,10 @@ std::vector<Point> ConvexHull::computeHull(const std::vector<Point>& points) {
         }
     }
 
-    // Sort points by polar angle with respect to anchor
+    // Sort points by polar angle with respect to anchor using cross product
     std::sort(sortedPoints.begin(), sortedPoints.end(),
         [&anchor](const Point& a, const Point& b) {
-            double angleA = findPolarAngle(anchor, a);
-            double angleB = findPolarAngle(anchor, b);
-
-            if (Point::almostEqual(angleA, angleB)) {
-                // If angles are equal, sort by distance
-                double distA = anchor.distanceSquaredTo(a);
-                double distB = anchor.distanceSquaredTo(b);
-                return distA < distB;
-            }
-
-            return angleA < angleB;
+            return polarCompare(anchor, a, b) < 0;
         }
     );
 
