@@ -23,6 +23,7 @@ DeepNestConfig& DeepNestConfig::getInstance() {
 
 void DeepNestConfig::resetToDefaults() {
     // Default values from deepnest.js (lines 20-33)
+    clipperScale = 10000000.0;
     curveTolerance = 0.3;
     spacing = 0.0;
     rotations = 4;
@@ -65,7 +66,9 @@ void DeepNestConfig::loadFromJson(const QString& path) {
     QJsonObject obj = doc.object();
 
     // Load parameters with validation (similar to svgnest.js config() method)
-
+    if (obj.contains("clipperScale")) {
+        clipperScale = obj["clipperScale"].toDouble(clipperScale);
+    }
 
     if (obj.contains("curveTolerance")) {
         double val = obj["curveTolerance"].toDouble();
@@ -154,7 +157,7 @@ void DeepNestConfig::loadFromJson(const QString& path) {
 void DeepNestConfig::saveToJson(const QString& path) const {
     QJsonObject obj;
 
-
+    obj["clipperScale"] = clipperScale;
     obj["curveTolerance"] = curveTolerance;
     obj["spacing"] = spacing;
     obj["rotations"] = rotations;
@@ -185,6 +188,14 @@ void DeepNestConfig::saveToJson(const QString& path) const {
 }
 
 // Setter methods with validation
+
+void DeepNestConfig::setClipperScale(double value) {
+    if (value > 0) {
+        clipperScale = value;
+    } else {
+        throw std::invalid_argument("Clipper scale must be positive");
+    }
+}
 
 void DeepNestConfig::setSpacing(double value) {
     if (value >= 0) {

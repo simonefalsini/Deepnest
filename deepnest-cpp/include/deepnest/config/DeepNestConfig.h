@@ -56,6 +56,14 @@ public:
     // Configuration parameters (from deepnest.js lines 20-33)
 
     /**
+     * @brief Scaling factor for Clipper library operations
+     *
+     * Clipper works with integers, so floating point coordinates
+     * need to be scaled up for precision
+     */
+    double clipperScale;
+
+    /**
      * @brief Tolerance for curve approximation
      *
      * Controls how closely curves (Bezier, arcs) are approximated
@@ -210,6 +218,16 @@ public:
     unsigned int randomSeed;
 
     // Getter methods with validation
+
+    /**
+     * @brief Get clipper scale with validation
+     */
+    double getClipperScale() const { return clipperScale; }
+
+    /**
+     * @brief Set clipper scale with validation
+     */
+    void setClipperScale(double value);
 
     /**
      * @brief Get spacing with validation
