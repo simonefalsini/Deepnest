@@ -41,16 +41,17 @@ private:
      */
     Polygon computeNFP(const Polygon& A, const Polygon& B) const;
 
-    /**
+ 
+public:
+   /**
      * @brief Create a rectangular frame around a polygon
      * @param A The polygon to frame
      * @return Frame polygon with A as a child (hole)
      *
      * The frame bounds are expanded by 10% as in the original JavaScript code
      */
-    Polygon createFrame(const Polygon& A) const;
+    static Polygon createFrame(const Polygon& A);
 
-public:
     /**
      * @brief Constructor
      * @param cache Reference to NFP cache for storing/retrieving results

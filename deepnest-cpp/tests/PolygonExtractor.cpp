@@ -12,6 +12,7 @@
 
 #include "SVGLoader.h"
 #include "../include/deepnest/nfp/MinkowskiSum.h"
+#include "../include/deepnest/nfp/NFPCalculator.h"
 #include "../include/deepnest/geometry/GeometryUtil.h"
 #include "../include/deepnest/geometry/ConvexHull.h"
 #include "../include/deepnest/geometry/PolygonOperations.h"
@@ -367,7 +368,7 @@ std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, 
         // Save combined visualization
         QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
                           .arg(polyA.id).arg(polyB.id);
-        savePairToSVG(polyA, polyB, nfps, filename);
+        //savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
@@ -383,8 +384,10 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
     std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
     std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
-    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
+    auto nfps = deepnest::trunk::MinkowskiSum::calculateNFP(polyA, polyB);
 
+    //auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
+    /*
     std::vector<deepnest::Polygon> nfps;
 
     if (nfpPoints.empty() || nfpPoints[0].empty()) {
@@ -404,7 +407,29 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
 
         QString filename = QString("polygon_pair_%1_%2_orbital.svg")
                           .arg(polyA.id).arg(polyB.id);
-        savePairToSVG(polyA, polyB, nfps, filename);
+        //savePairToSVG(polyA, polyB, nfps, filename);
+        std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
+    }*/
+    if (!nfps.empty() && !polyB.points.empty()) {
+        for (auto& nfp : nfps) {
+            nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
+        }
+        std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
+    }
+
+    if (nfps.empty()) {
+        std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
+    }
+    else {
+        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
+        for (size_t i = 0; i < nfps.size(); ++i) {
+            std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+        }
+
+        // Save combined visualization
+        QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
+            .arg(polyA.id).arg(polyB.id);
+        //savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
@@ -442,7 +467,7 @@ std::vector<deepnest::Polygon> testTrunkMinkowski(const deepnest::Polygon& polyA
         // Save combined visualization
         QString filename = QString("polygon_pair_%1_%2_trunk.svg")
             .arg(polyA.id).arg(polyB.id);
-        savePairToSVG(polyA, polyB, nfps, filename);
+        //savePairToSVG(polyA, polyB, nfps, filename);
         std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
@@ -671,7 +696,83 @@ int main(int argc, char *argv[]) {
         std::cout << "========================================" << std::endl;
         std::cout << "Skipping INNER NFP tests (focus on OUTER for now)" << std::endl;
         // Note: INNER NFP testing can be added later if needed
+        deepnest::Polygon sheet = deepnest::Polygon( std::vector<deepnest::Point>( { deepnest::Point(383,0), deepnest::Point(383,254), deepnest::Point(0,254), deepnest::Point(0,0) }));
+        for (size_t j = 0; j < polygons.size(); j++) {
+                testsCompleted++;
 
+                // Progress indicator every 100 tests
+                if (testsCompleted % 100 == 0 || testsCompleted == 1) {
+                    std::cerr << "  Progress: " << testsCompleted << "/" << totalTests
+                        << " (Pass: " << testsPassed << ", Fail: " << (testsCompleted - testsPassed) << ")" << std::endl;
+                }
+
+                deepnest::Polygon A = deepnest::NFPCalculator::createFrame(sheet);
+
+                try {
+
+                    // Test both algorithms with OUTSIDE mode (part-to-part collision)
+                    auto minkowskiNFPs = testMinkowskiSum(A, polygons[j], false);
+                    auto orbitalNFPs = testTrunkMinkowski(A, polygons[j], false);
+
+                    // Compare results
+                    auto comparison = compareNFPsSilent(minkowskiNFPs, orbitalNFPs);
+
+                    if (comparison.passed) {
+                        testsPassed++;
+                    }
+                    else {
+                        // Record failure
+                        NFPComparisonFailure failure;
+                        failure.idA = A.id;
+                        failure.idB = polygons[j].id;
+                        failure.isInner = false;
+                        failure.failureType = comparison.failureType;
+                        failure.hausdorffDistance = comparison.hausdorffDistance;
+                        failure.areaPercent = comparison.areaPercent;
+                        failure.minkowskiPoints = comparison.minkowskiPoints;
+                        failure.orbitalPoints = comparison.orbitalPoints;
+                        failures.push_back(failure);
+
+                        if (comparison.failureType == "minor_mismatch") {
+                            testsMinorDiff++;
+                        }
+                        else if (comparison.failureType == "major_mismatch") {
+                            testsMajorMismatch++;
+                        }
+                        else {
+                            testsEmpty++;
+                        }
+                    }
+
+                }
+                catch (const std::exception& e) {
+                    NFPComparisonFailure failure;
+                    failure.idA = A.id;
+                    failure.idB = polygons[j].id;
+                    failure.isInner = false;
+                    failure.failureType = "exception: " + std::string(e.what());
+                    failure.hausdorffDistance = std::numeric_limits<double>::infinity();
+                    failure.areaPercent = 100.0;
+                    failure.minkowskiPoints = 0;
+                    failure.orbitalPoints = 0;
+                    failures.push_back(failure);
+                    testsEmpty++;
+                }
+                catch (...) {
+                    NFPComparisonFailure failure;
+                    failure.idA = A.id;
+                    failure.idB = polygons[j].id;
+                    failure.isInner = false;
+                    failure.failureType = "unknown_exception";
+                    failure.hausdorffDistance = std::numeric_limits<double>::infinity();
+                    failure.areaPercent = 100.0;
+                    failure.minkowskiPoints = 0;
+                    failure.orbitalPoints = 0;
+                    failures.push_back(failure);
+                    testsEmpty++;
+                }
+            }
+   
         // ========== SUMMARY ==========
         std::cout << "\n========================================" << std::endl;
         std::cout << "  ALL PAIRS TEST SUMMARY" << std::endl;

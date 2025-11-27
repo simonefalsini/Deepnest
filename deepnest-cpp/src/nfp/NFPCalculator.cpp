@@ -7,6 +7,7 @@
 #include <clipper2/clipper.minkowski.h>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 namespace deepnest {
 
@@ -64,7 +65,7 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
     double largestArea = 0.0;
 
     for (const auto& nfp : nfps) {
-        double area = std::abs(GeometryUtil::polygonArea(nfp.points));
+        double area =-GeometryUtil::polygonArea(nfp.points);
         if (area > largestArea) {
             largestArea = area;
             largestNFP = nfp;
@@ -81,12 +82,16 @@ Polygon NFPCalculator::computeNFP(const Polygon& A, const Polygon& B) const {
 
 Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const {
     
-    const double CLIPPER_SCALE = 10000000.0;
+    const double CLIPPER_SCALE = 10000.0;
     
     // Convert A to Clipper2 Path64 and scale up
     Clipper2Lib::Path64 pathA;
     pathA.reserve(A.points.size());
     for (const auto& pt : A.points) {
+        if (std::isnan(pt.x) || std::isnan(pt.y) || std::isinf(pt.x) || std::isinf(pt.y)) {
+            std::cerr << "ERROR: NaN or Inf detected in polygon A points during NFP calculation" << std::endl;
+            return Polygon();
+        }
         pathA.push_back(Clipper2Lib::Point64(
             static_cast<int64_t>(pt.x * CLIPPER_SCALE),
             static_cast<int64_t>(pt.y * CLIPPER_SCALE)
@@ -97,6 +102,10 @@ Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const 
     Clipper2Lib::Path64 pathB;
     pathB.reserve(B.points.size());
     for (const auto& pt : B.points) {
+        if (std::isnan(pt.x) || std::isnan(pt.y) || std::isinf(pt.x) || std::isinf(pt.y)) {
+            std::cerr << "ERROR: NaN or Inf detected in polygon B points during NFP calculation" << std::endl;
+            return Polygon();
+        }
         pathB.push_back(Clipper2Lib::Point64(
             static_cast<int64_t>(-pt.x * CLIPPER_SCALE),  // Negate X
             static_cast<int64_t>(-pt.y * CLIPPER_SCALE)   // Negate Y
@@ -191,7 +200,7 @@ Polygon NFPCalculator::getOuterNFP(const Polygon& A, const Polygon& B, bool insi
     return nfp;
 }
 
-Polygon NFPCalculator::createFrame(const Polygon& A) const {
+Polygon NFPCalculator::createFrame(const Polygon& A)  {
     // Get bounding box (background.js line 713)
     BoundingBox bounds = A.bounds();
 

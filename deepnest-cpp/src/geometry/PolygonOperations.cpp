@@ -26,6 +26,30 @@ static std::vector<Point> fromClipperPathD(const PathD& path) {
     return poly;
 }
 
+static Path64 toClipperPath64(const std::vector<Point>& poly, double scale) {
+    Path64 path;
+    path.reserve(poly.size());
+    for (const auto& p : poly) {
+        path.push_back(Point64(
+            static_cast<int64_t>(p.x * scale),
+            static_cast<int64_t>(p.y * scale)
+        ));
+    }
+    return path;
+}
+
+static std::vector<Point> fromClipperPath64(const Path64& path, double scale) {
+    std::vector<Point> poly;
+    poly.reserve(path.size());
+    double invScale = 1.0 / scale;
+    for (const auto& p : path) {
+        poly.emplace_back(
+            static_cast<double>(p.x) * invScale,
+            static_cast<double>(p.y) * invScale
+        );
+    }
+    return poly;
+}
 
 // ========== Public Methods ==========
 
@@ -67,29 +91,34 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         return {};
     }
 
-    // Convert to Clipper PathD (double precision, no scaling needed)
-    PathD path = toClipperPathD(poly);
+    // Get clipper scale from config
+    auto& config = DeepNestConfig::getInstance();
+    double scale = config.getClipperScale();
+
+    // Convert to Clipper path
+    Path64 path = toClipperPath64(poly, scale);
 
     // Check for degenerate polygon before processing
     if (path.size() < 3) {
-        std::cerr << "WARNING: cleanPolygon received degenerate polygon (< 3 points)" << std::endl;
+        std::cerr << "WARNING: cleanPolygon received degenerate polygon after scaling (< 3 points)" << std::endl;
         return {};
     }
 
-    // Use absolute epsilon value (no scaling needed with PathsD)
-    // 0.01 provides good balance between cleaning and preserving shape
-    double epsilon = 0.01;
+    // CRITICAL FIX: Use more aggressive epsilon to handle spacing-induced self-intersections
+    // The original epsilon (0.0001 * scale) was too small for polygons with tight angles
+    // Increase to 0.01 * scale for better robustness
+    double epsilon = scale * 0.01;
 
     // Simplify to remove self-intersections, collinear points, and tiny edges
-    PathsD solution = SimplifyPaths(PathsD{path}, epsilon);
+    Paths64 solution = SimplifyPaths<int64_t>({path}, epsilon);
 
     if (solution.empty()) {
         std::cerr << "WARNING: cleanPolygon SimplifyPaths returned empty result" << std::endl;
         std::cerr << "  Input polygon had " << poly.size() << " points" << std::endl;
-        std::cerr << "  Epsilon: " << epsilon << std::endl;
+        std::cerr << "  Epsilon: " << epsilon << ", Scale: " << scale << std::endl;
 
-        // Last resort: Try with larger epsilon
-        solution = SimplifyPaths(PathsD{path}, 0.1);
+        // Last resort: Try with even larger epsilon (0.1 * scale)
+        solution = SimplifyPaths<int64_t>({path}, scale * 0.1);
 
         if (solution.empty()) {
             std::cerr << "  Even aggressive simplification failed, returning empty" << std::endl;
@@ -99,7 +128,7 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     }
 
     // Find the largest polygon (by area)
-    PathD biggest = solution[0];
+    Path64 biggest = solution[0];
     double biggestArea = std::abs(Area(biggest));
 
     for (size_t i = 1; i < solution.size(); i++) {
@@ -116,8 +145,8 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
         return {};
     }
 
-    // Convert back (no unscaling needed)
-    std::vector<Point> result = fromClipperPathD(biggest);
+    // Convert back
+    std::vector<Point> result = fromClipperPath64(biggest, scale);
 
     // Validate result
     if (result.size() < 3) {
@@ -136,6 +165,10 @@ std::vector<Point> PolygonOperations::simplifyPolygon(
         return poly;
     }
 
+    // Get clipper scale from config
+    auto& config = DeepNestConfig::getInstance();
+    double scale = config.getClipperScale();
+
     // Convert to Clipper path
     PathD pathD = toClipperPathD(poly);
 
@@ -153,11 +186,15 @@ std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
         return {};
     }
 
-    // Convert all polygons to Clipper PathsD (no scaling needed)
-    PathsD paths;
+    // Get clipper scale from config
+    auto& config = DeepNestConfig::getInstance();
+    double scale = config.getClipperScale();
+
+    // Convert all polygons to Clipper paths
+    Paths64 paths;
     for (const auto& poly : polygons) {
         if (poly.size() >= 3) {
-            paths.push_back(toClipperPathD(poly));
+            paths.push_back(toClipperPath64(poly, scale));
         }
     }
 
@@ -166,13 +203,13 @@ std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
     }
 
     // Perform union
-    PathsD solution = Union(paths, FillRule::NonZero);
+    Paths64 solution = Union(paths, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path, scale));
     }
 
     return result;
@@ -186,18 +223,22 @@ std::vector<std::vector<Point>> PolygonOperations::intersectPolygons(
         return {};
     }
 
-    // Convert to Clipper PathsD (no scaling needed)
-    PathD pathA = toClipperPathD(polyA);
-    PathD pathB = toClipperPathD(polyB);
+    // Get clipper scale from config
+    auto& config = DeepNestConfig::getInstance();
+    double scale = config.getClipperScale();
+
+    // Convert to Clipper paths
+    Path64 pathA = toClipperPath64(polyA, scale);
+    Path64 pathB = toClipperPath64(polyB, scale);
 
     // Perform intersection
-    PathsD solution = Intersect(PathsD{pathA}, PathsD{pathB}, FillRule::NonZero);
+    Paths64 solution = Intersect({pathA}, {pathB}, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path, scale));
     }
 
     return result;
@@ -207,22 +248,30 @@ std::vector<std::vector<Point>> PolygonOperations::differencePolygons(
     const std::vector<Point>& polyA,
     const std::vector<Point>& polyB) {
 
-    if (polyA.size() < 3 || polyB.size() < 3) {
+    if (polyA.size() < 3) {
         return {};
     }
 
-    // Convert to Clipper PathsD (no scaling needed)
-    PathD pathA = toClipperPathD(polyA);
-    PathD pathB = toClipperPathD(polyB);
+    if (polyB.size() < 3) {
+        return {polyA};  // Nothing to subtract
+    }
+
+    // Get clipper scale from config
+    auto& config = DeepNestConfig::getInstance();
+    double scale = config.getClipperScale();
+
+    // Convert to Clipper paths
+    Path64 pathA = toClipperPath64(polyA, scale);
+    Path64 pathB = toClipperPath64(polyB, scale);
 
     // Perform difference
-    PathsD solution = Difference(PathsD{pathA}, PathsD{pathB}, FillRule::NonZero);
+    Paths64 solution = Difference({pathA}, {pathB}, FillRule::NonZero);
 
     // Convert results back
     std::vector<std::vector<Point>> result;
     result.reserve(solution.size());
     for (const auto& path : solution) {
-        result.push_back(fromClipperPathD(path));
+        result.push_back(fromClipperPath64(path, scale));
     }
 
     return result;

@@ -83,30 +83,7 @@ public:
     /**
      * @brief Construct from points with id
      */
-    /**
-     * @brief Construct from points with id
-     */
     Polygon(const std::vector<Point>& pts, int polygonId);
-
-    /**
-     * @brief Move constructor
-     */
-    Polygon(Polygon&& other) noexcept;
-
-    /**
-     * @brief Move assignment operator
-     */
-    Polygon& operator=(Polygon&& other) noexcept;
-
-    /**
-     * @brief Copy constructor (default is fine, but explicit for clarity alongside move)
-     */
-    Polygon(const Polygon& other) = default;
-
-    /**
-     * @brief Copy assignment operator
-     */
-    Polygon& operator=(const Polygon& other) = default;
 
     // ========== Geometric Properties ==========
 

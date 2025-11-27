@@ -51,8 +51,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     std::cout << "Number of sheets: " << sheets.size() << std::endl;
     std::cout.flush();
 #endif
-    
-    // Optimize: Rotate in-place instead of creating new vector
+    std::vector<Polygon> rotatedParts;
     for (size_t idx = 0; idx < parts.size(); ++idx) {
         auto& part = parts[idx];
         Polygon rotated = part.rotate(part.rotation);
@@ -78,32 +77,22 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         }
 #endif
 
-        parts[idx] = rotated;
+        rotatedParts.push_back(rotated);
     }
+    parts = rotatedParts;
 
     // JavaScript: var allplacements = [];
     //             var fitness = 0;
     std::vector<std::vector<Placement>> allPlacements;
-    allPlacements.reserve(sheets.size()); // Reserve for expected number of sheets
-    
     double fitness = 0.0;
     double totalSheetArea = 0.0;
 
     // JavaScript: while(parts.length > 0)
-    int sheetIndex = 0;
     while (!parts.empty() && !sheets.empty()) {
-        sheetIndex++;
-#ifdef PLACEMENTDEBUG        
-        std::cout << "Processing sheet " << sheetIndex << ", remaining parts: " << parts.size() << ", remaining sheets: " << sheets.size() << std::endl;
-
-#endif
         // JavaScript: var placed = [];
         //             var placements = [];
         std::vector<Polygon> placed;
-        placed.reserve(parts.size()); // Reserve max possible
-        
         std::vector<Placement> placements;
-        placements.reserve(parts.size()); // Reserve max possible
 
         // JavaScript background.js:1142: fitness += (minwidth/binarea) + minarea
         double minarea_accumulator = 0.0;
@@ -112,8 +101,8 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         //             var sheetarea = Math.abs(GeometryUtil.polygonArea(sheet));
         //             totalsheetarea += sheetarea;
         //             fitness += sheetarea;
-        // NOTE: Don't remove sheet yet - only remove if we actually place parts on it
         Polygon sheet = sheets.front();
+        sheets.erase(sheets.begin());
 
         double sheetArea = std::abs(GeometryUtil::polygonArea(sheet.points));
         totalSheetArea += sheetArea;
@@ -491,7 +480,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
             // JavaScript: if(!finalNfp || finalNfp.length == 0) { continue; }
             if (finalNfp.empty()) {
-                //std::cerr << "  WARNING: finalNfp is empty after difference, skipping part" << std::endl;
+                std::cerr << "  WARNING: finalNfp is empty after difference, skipping part" << std::endl;
                 i++;
                 continue;
             }
@@ -606,9 +595,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         //               allplacements.push(placements);
         //             }
         if (!placements.empty()) {
-            // Sheet was used - remove it from the list
-            sheets.erase(sheets.begin());
-            
             // Calculate bounds fitness (minwidth/binarea)
             // JavaScript: if(minwidth) { fitness += minwidth/binarea; }
             std::vector<Point> allPlacedPoints;
@@ -639,20 +625,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
             allPlacements.push_back(placements);
         }
         else {
-            // No parts placed on this sheet
-            // This can happen if:
-            // 1. Parts don't fit geometrically
-            // 2. All remaining parts have overlap issues
-            // 3. Sheet is too small for any remaining part
-            
-            // Remove this sheet and try the next one
-            sheets.erase(sheets.begin());
-            
-            // If no more sheets available, break
-            if (sheets.empty()) {
-                break;
-            }
-            // Otherwise continue to next sheet
+            break; // No progress made
         }
     }
 
@@ -666,7 +639,7 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     // Calculate total merged length
     // JavaScript: totalMerged = ... (calculated in separate loop)
     if (config_.mergeLines) {
-        totalMerged = calculateTotalMergedLength(allPlacements, parts);
+        totalMerged = calculateTotalMergedLength(allPlacements, rotatedParts);
         // JavaScript: fitness -= totalMerged * config.mergeLines;
         // Note: config.mergeLines is a boolean in C++, but in JS it seemed to be used as a weight?
         // Checking JS: if(config.mergeLines) { ... fitness -= merged * config.mergeLines; }
