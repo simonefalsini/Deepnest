@@ -48,16 +48,21 @@ BestPositionResult GravityPlacement::findBestPosition(
         return BestPositionResult(); // No valid positions
     }
 
+    // CRITICAL FIX: Match JavaScript tie-breaking logic exactly
+    // JavaScript background.js:1099-1113 uses ABSOLUTE minimum x/y values
+    // NOT the x/y of the currently selected position!
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
     double bestMergedLength = 0.0;
     bool foundValid = false;
-    
-    // Tie-breaking values based on gravity direction
-    double tieBreakValue = std::numeric_limits<double>::max();
+
+    // These track ABSOLUTE minimum x/y values seen across ALL selected positions
+    // (matching JavaScript behavior where minx/miny are updated conditionally)
+    double minX = std::numeric_limits<double>::max();
+    double minY = std::numeric_limits<double>::max();
 
     // Evaluate each candidate position
-    // JavaScript: for(j=0; j<finalNfp.length; j++) { for(k=0; k<nf.length; k++)
+    // JavaScript: for(j=0; j<finalNfp.length; j++) { for(k=0; k<nf.length; k())
     for (const auto& position : candidatePositions) {
         // Calculate base area metric
         double metric = calculateMetric(part, position, placed);
@@ -110,52 +115,48 @@ BestPositionResult GravityPlacement::findBestPosition(
             metric -= mergedLength * config.timeRatio;
         }
 
-        // Calculate tie-break value based on gravity direction
-        double currentTieBreak;
-        switch (config.gravityDirection) {
-            case GravityDirection::LEFT:
-                currentTieBreak = position.x;  // Prefer leftmost (minimize x)
-                break;
-            case GravityDirection::RIGHT:
-                currentTieBreak = -position.x;  // Prefer rightmost (maximize x)
-                break;
-            case GravityDirection::BOTTOM:
-                currentTieBreak = position.y;  // Prefer bottom (minimize y)
-                break;
-            case GravityDirection::TOP:
-                currentTieBreak = -position.y;  // Prefer top (maximize y)
-                break;
-            case GravityDirection::BOTTOM_LEFT:
-                currentTieBreak = position.x + position.y;  // Prefer bottom-left (minimize x+y)
-                break;
-            default:
-                currentTieBreak = position.x;  // Default to LEFT
-                break;
-        }
+        // CRITICAL FIX: Three-level tie-breaking matching JavaScript background.js:1099-1104
+        // JavaScript logic:
+        // if(minarea === null ||
+        //    area < minarea ||
+        //    (GeometryUtil.almostEqual(minarea, area) && (minx === null || shiftvector.x < minx)) ||
+        //    (GeometryUtil.almostEqual(minarea, area) && (minx !== null &&
+        //     GeometryUtil.almostEqual(shiftvector.x, minx) && shiftvector.y < miny)))
 
-        // Selection logic with tie-breaking
-        // JavaScript placementworker.js:252:
-        // if(minarea === null || area < minarea || 
-        //    (GeometryUtil.almostEqual(minarea, area) && (minx === null || shiftvector.x < minx)))
         const double TOLERANCE = 0.001;  // almostEqual tolerance
-        
+
         bool selectThis = false;
         if (!foundValid) {
+            // First position - always select
             selectThis = true;
         } else if (metric < minMetric - TOLERANCE) {
-            // Clearly better metric
+            // Level 1: Clearly better metric (area)
             selectThis = true;
-        } else if (std::abs(metric - minMetric) < TOLERANCE && currentTieBreak < tieBreakValue) {
-            // Metrics are equal (within tolerance), use tie-breaker
-            selectThis = true;
+        } else if (std::abs(metric - minMetric) < TOLERANCE) {
+            // Metric is approximately equal, use tie-breaking
+            if (position.x < minX - TOLERANCE) {
+                // Level 2: X is better (smaller)
+                selectThis = true;
+            } else if (std::abs(position.x - minX) < TOLERANCE && position.y < minY - TOLERANCE) {
+                // Level 3: X is approximately equal, Y is better (smaller)
+                selectThis = true;
+            }
         }
 
         if (selectThis) {
             minMetric = metric;
             bestPosition = position;
             bestMergedLength = mergedLength;
-            tieBreakValue = currentTieBreak;
             foundValid = true;
+
+            // CRITICAL: Update minX/minY ONLY if this position has smaller values
+            // This matches JavaScript: if(minx === null || shiftvector.x < minx) { minx = shiftvector.x; }
+            if (position.x < minX) {
+                minX = position.x;
+            }
+            if (position.y < minY) {
+                minY = position.y;
+            }
         }
     }
 
@@ -260,10 +261,15 @@ BestPositionResult BoundingBoxPlacement::findBestPosition(
         return BestPositionResult();
     }
 
+    // CRITICAL FIX: Match JavaScript tie-breaking logic exactly
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
     double bestMergedLength = 0.0;
     bool foundValid = false;
+
+    // These track ABSOLUTE minimum x/y values seen across ALL selected positions
+    double minX = std::numeric_limits<double>::max();
+    double minY = std::numeric_limits<double>::max();
 
     for (const auto& position : candidatePositions) {
         double metric = calculateMetric(part, position, placed);
@@ -308,11 +314,40 @@ BestPositionResult BoundingBoxPlacement::findBestPosition(
             metric -= mergedLength * config.timeRatio;
         }
 
-        if (metric < minMetric) {
+        // CRITICAL FIX: Three-level tie-breaking matching JavaScript
+        const double TOLERANCE = 0.001;
+
+        bool selectThis = false;
+        if (!foundValid) {
+            // First position - always select
+            selectThis = true;
+        } else if (metric < minMetric - TOLERANCE) {
+            // Level 1: Clearly better metric (area)
+            selectThis = true;
+        } else if (std::abs(metric - minMetric) < TOLERANCE) {
+            // Metric is approximately equal, use tie-breaking
+            if (position.x < minX - TOLERANCE) {
+                // Level 2: X is better (smaller)
+                selectThis = true;
+            } else if (std::abs(position.x - minX) < TOLERANCE && position.y < minY - TOLERANCE) {
+                // Level 3: X is approximately equal, Y is better (smaller)
+                selectThis = true;
+            }
+        }
+
+        if (selectThis) {
             minMetric = metric;
             bestPosition = position;
             bestMergedLength = mergedLength;
             foundValid = true;
+
+            // CRITICAL: Update minX/minY ONLY if this position has smaller values
+            if (position.x < minX) {
+                minX = position.x;
+            }
+            if (position.y < minY) {
+                minY = position.y;
+            }
         }
     }
 
@@ -404,10 +439,15 @@ BestPositionResult ConvexHullPlacement::findBestPosition(
         return BestPositionResult();
     }
 
+    // CRITICAL FIX: Match JavaScript tie-breaking logic exactly
     double minMetric = std::numeric_limits<double>::max();
     Point bestPosition;
     double bestMergedLength = 0.0;
     bool foundValid = false;
+
+    // These track ABSOLUTE minimum x/y values seen across ALL selected positions
+    double minX = std::numeric_limits<double>::max();
+    double minY = std::numeric_limits<double>::max();
 
     for (const auto& position : candidatePositions) {
         double metric = calculateMetric(part, position, placed);
@@ -452,11 +492,40 @@ BestPositionResult ConvexHullPlacement::findBestPosition(
             metric -= mergedLength * config.timeRatio;
         }
 
-        if (metric < minMetric) {
+        // CRITICAL FIX: Three-level tie-breaking matching JavaScript
+        const double TOLERANCE = 0.001;
+
+        bool selectThis = false;
+        if (!foundValid) {
+            // First position - always select
+            selectThis = true;
+        } else if (metric < minMetric - TOLERANCE) {
+            // Level 1: Clearly better metric (area)
+            selectThis = true;
+        } else if (std::abs(metric - minMetric) < TOLERANCE) {
+            // Metric is approximately equal, use tie-breaking
+            if (position.x < minX - TOLERANCE) {
+                // Level 2: X is better (smaller)
+                selectThis = true;
+            } else if (std::abs(position.x - minX) < TOLERANCE && position.y < minY - TOLERANCE) {
+                // Level 3: X is approximately equal, Y is better (smaller)
+                selectThis = true;
+            }
+        }
+
+        if (selectThis) {
             minMetric = metric;
             bestPosition = position;
             bestMergedLength = mergedLength;
             foundValid = true;
+
+            // CRITICAL: Update minX/minY ONLY if this position has smaller values
+            if (position.x < minX) {
+                minX = position.x;
+            }
+            if (position.y < minY) {
+                minY = position.y;
+            }
         }
     }
 
