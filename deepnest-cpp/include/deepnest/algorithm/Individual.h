@@ -126,13 +126,18 @@ public:
      * 1. With probability mutationRate%, swap adjacent parts in placement sequence
      * 2. With probability mutationRate%, assign a new random rotation
      *
+     * CRITICAL FIX: Changed to accept RNG by reference instead of seed.
+     * This prevents seed correlation issues where sequential seeds produce
+     * correlated mutation sequences, reducing genetic diversity.
+     * Matches JavaScript behavior where Math.random() is a shared global RNG.
+     *
      * @param mutationRate Mutation rate as percentage (0-100)
      * @param numRotations Number of allowed rotations (e.g., 4 for 90° increments)
-     * @param seed Random seed (optional)
+     * @param rng Random number generator (passed by reference for shared state)
      *
      * Corresponds to JavaScript mutate() (line 1349-1371)
      */
-    void mutate(double mutationRate, int numRotations, unsigned int seed = std::random_device{}());
+    void mutate(double mutationRate, int numRotations, std::mt19937& rng);
 
     /**
      * @brief Check if this individual has been evaluated

@@ -44,9 +44,10 @@ Individual Individual::clone() const {
     return copy;
 }
 
-void Individual::mutate(double mutationRate, int numRotations, unsigned int seed) {
-    // Initialize random number generator
-    std::mt19937 rng(seed);
+void Individual::mutate(double mutationRate, int numRotations, std::mt19937& rng) {
+    // CRITICAL FIX: Now uses shared RNG passed by reference instead of creating new one
+    // This prevents seed correlation issues and matches JavaScript's Math.random() behavior
+
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
     // Convert mutation rate from percentage (0-100) to probability (0.0-1.0)

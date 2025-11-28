@@ -43,9 +43,10 @@ void Population::initialize(const std::vector<std::shared_ptr<Polygon>>& parts) 
 
     // Fill rest of population with mutated versions of adam
     // JavaScript: while(this.population.length < config.populationSize)
+    // CRITICAL FIX: Pass rng_ by reference to prevent seed correlation
     while (individuals_.size() < static_cast<size_t>(config_.populationSize)) {
         Individual mutant = adam.clone();
-        mutant.mutate(config_.mutationRate, config_.rotations, rng_());
+        mutant.mutate(config_.mutationRate, config_.rotations, rng_);
         individuals_.push_back(mutant);
 #ifdef DEBUG_GA
         // Show first mutant's rotations to verify diversity
@@ -241,14 +242,15 @@ void Population::nextGeneration() {
 
         // Mutate and add first child
         // JavaScript: newpopulation.push(this.mutate(children[0]));
-        children.first.mutate(config_.mutationRate, config_.rotations, rng_());
+        // CRITICAL FIX: Pass rng_ by reference to prevent seed correlation
+        children.first.mutate(config_.mutationRate, config_.rotations, rng_);
         newPopulation.push_back(children.first);
         childCount++;
 
         // Mutate and add second child if there's room
         // JavaScript: if(newpopulation.length < this.population.length)
         if (newPopulation.size() < targetSize) {
-            children.second.mutate(config_.mutationRate, config_.rotations, rng_());
+            children.second.mutate(config_.mutationRate, config_.rotations, rng_);
             newPopulation.push_back(children.second);
             childCount++;
         }
