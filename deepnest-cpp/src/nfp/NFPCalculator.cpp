@@ -3,7 +3,6 @@
 #include "../../include/deepnest/geometry/GeometryUtil.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
 #include "../../include/deepnest/config/DeepNestConfig.h"
-#include "../../include/deepnest/threading/Clipper2ThreadGuard.h"
 #include <clipper2/clipper.engine.h>
 #include <clipper2/clipper.minkowski.h>
 #include <algorithm>
@@ -105,12 +104,8 @@ Polygon NFPCalculator::computeDiffNFP(const Polygon& A, const Polygon& B) const 
     }
     
     // Call Clipper2::MinkowskiSum (equivalent to ClipperLib.Clipper.MinkowskiSum)
-    // THREAD SAFETY: Protect Clipper2 call with mutex (Clipper2 is NOT thread-safe)
-    Clipper2Lib::Paths64 solution;
-    {
-        threading::Clipper2Guard guard;
-        solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
-    }
+    // Clipper2 IS thread-safe when each thread uses local instances (which we do)
+    Clipper2Lib::Paths64 solution = Clipper2Lib::MinkowskiSum(pathA, pathB, true);
 
 
     // JavaScript: Select polygon with largest area (lines 666-674)

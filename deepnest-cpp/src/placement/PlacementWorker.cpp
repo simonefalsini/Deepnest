@@ -3,7 +3,6 @@
 #include "../../include/deepnest/geometry/Transformation.h"
 #include "../../include/deepnest/geometry/PolygonOperations.h"
 #include "../../include/deepnest/placement/MergeDetection.h"
-#include "../../include/deepnest/threading/Clipper2ThreadGuard.h"
 #include <clipper2/clipper.h>
 #include <algorithm>
 #include <limits>
@@ -882,9 +881,6 @@ bool PlacementWorker::hasSignificantOverlap(
     if (!bboxesIntersect) {
         return false;  // No overlap possible
     }
-
-    // THREAD SAFETY: Protect Clipper2 operations with mutex
-    threading::Clipper2Guard guard;
 
     // Convert to Clipper2 paths
     PathsD pathsA, pathsB;

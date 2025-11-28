@@ -143,7 +143,8 @@ void ParallelProcessor::processPopulation(
         // Each thread needs its own copy to modify independently.
         std::vector<Polygon> sheetsCopy = sheets;
 
-        enqueue([&population, sheetsCopy, &worker, index, this]() {
+        enqueue([&population, sheetsCopy, &worker, index, this]() mutable {
+            // ^^^^^^^ MUTABLE: Allows sheetsCopy to be modified inside lambda
             // Create a thread-local copy of the individual to work on
             // We need to read the input data safely.
             // The individual at 'index' is stable in the vector (vector doesn't resize here).
