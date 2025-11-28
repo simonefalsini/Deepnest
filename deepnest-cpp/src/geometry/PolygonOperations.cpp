@@ -1,5 +1,6 @@
 #include "../../include/deepnest/geometry/PolygonOperations.h"
 #include "../../include/deepnest/config/DeepNestConfig.h"
+#include "../../include/deepnest/threading/Clipper2ThreadGuard.h"
 #include <clipper2/clipper.h>
 #include <algorithm>
 
@@ -39,6 +40,9 @@ std::vector<std::vector<Point>> PolygonOperations::offset(
         return {};
     }
 
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
+
     // Convert to Clipper path
     PathD pathD = toClipperPathD(poly);
 
@@ -66,6 +70,9 @@ std::vector<Point> PolygonOperations::cleanPolygon(const std::vector<Point>& pol
     if (poly.size() < 3) {
         return {};
     }
+
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
 
     // Convert to Clipper PathD (double precision, no scaling needed)
     PathD path = toClipperPathD(poly);
@@ -136,6 +143,9 @@ std::vector<Point> PolygonOperations::simplifyPolygon(
         return poly;
     }
 
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
+
     // Convert to Clipper path
     PathD pathD = toClipperPathD(poly);
 
@@ -152,6 +162,9 @@ std::vector<std::vector<Point>> PolygonOperations::unionPolygons(
     if (polygons.empty()) {
         return {};
     }
+
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
 
     // Convert all polygons to Clipper PathsD (no scaling needed)
     PathsD paths;
@@ -186,6 +199,9 @@ std::vector<std::vector<Point>> PolygonOperations::intersectPolygons(
         return {};
     }
 
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
+
     // Convert to Clipper PathsD (no scaling needed)
     PathD pathA = toClipperPathD(polyA);
     PathD pathB = toClipperPathD(polyB);
@@ -210,6 +226,9 @@ std::vector<std::vector<Point>> PolygonOperations::differencePolygons(
     if (polyA.size() < 3 || polyB.size() < 3) {
         return {};
     }
+
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
 
     // Convert to Clipper PathsD (no scaling needed)
     PathD pathA = toClipperPathD(polyA);
@@ -267,6 +286,9 @@ double PolygonOperations::area(const std::vector<Point>& poly) {
     if (poly.size() < 3) {
         return 0.0;
     }
+
+    // THREAD SAFETY: Protect all Clipper2 operations
+    threading::Clipper2Guard guard;
 
     // Use Clipper's area function
     PathD pathD = toClipperPathD(poly);

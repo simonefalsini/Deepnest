@@ -63,6 +63,9 @@ set(DEEPNEST_SOURCES
     # Parallel
     src/parallel/ParallelProcessor.cpp
 
+    # Threading
+    src/threading/Clipper2ThreadGuard.cpp
+
     # Engine
     src/engine/NestingEngine.cpp
 
@@ -112,6 +115,9 @@ set(DEEPNEST_HEADERS
 
     # Parallel
     include/deepnest/parallel/ParallelProcessor.h
+
+    # Threading
+    include/deepnest/threading/Clipper2ThreadGuard.h
 
     # Engine
     include/deepnest/engine/NestingEngine.h

@@ -65,6 +65,7 @@ HEADERS += \
     include/deepnest/placement/MergeDetection.h \
     include/deepnest/placement/PlacementWorker.h \
     include/deepnest/parallel/ParallelProcessor.h \
+    include/deepnest/threading/Clipper2ThreadGuard.h \
     include/deepnest/engine/NestingEngine.h \
     include/deepnest/DeepNestSolver.h
 
@@ -90,6 +91,7 @@ SOURCES += \
     src/placement/MergeDetection.cpp \
     src/placement/PlacementWorker.cpp \
     src/parallel/ParallelProcessor.cpp \
+    src/threading/Clipper2ThreadGuard.cpp \
     src/engine/NestingEngine.cpp \
     src/converters/QtBoostConverter.cpp \
     src/DeepNestSolver.cpp
