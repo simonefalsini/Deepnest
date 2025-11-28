@@ -136,21 +136,27 @@ void ParallelProcessor::processPopulation(
     for(size_t i : indicesToProcess) {
         // Capture BY VALUE
             size_t index = i;
-        
-        enqueue([&population, &sheets, &worker, index, this]() {
+
+        // CRITICAL FIX: Create thread-local copy of sheets
+        // PlacementWorker::placeParts MODIFIES sheets (calls sheets.erase),
+        // causing race condition when multiple threads share the same vector!
+        // Each thread needs its own copy to modify independently.
+        std::vector<Polygon> sheetsCopy = sheets;
+
+        enqueue([&population, sheetsCopy, &worker, index, this]() {
             // Create a thread-local copy of the individual to work on
-            // We need to read the input data safely. 
+            // We need to read the input data safely.
             // The individual at 'index' is stable in the vector (vector doesn't resize here).
             // But we should copy it to avoid reading it while main thread might be reading it?
-            // Actually, main thread only reads 'processing' and results. 
+            // Actually, main thread only reads 'processing' and results.
             // Input data (parts, rotation) is constant during evaluation.
-            
+
             Individual individualCopy;
             {
                 boost::lock_guard<boost::mutex> lock(mutex_);
                 individualCopy = population.getIndividuals()[index];
             }
-            
+
             // Perform the heavy lifting WITHOUT the lock
                 // Prepare parts with rotations
                 std::vector<Polygon> parts;
@@ -159,7 +165,8 @@ void ParallelProcessor::processPopulation(
                     part.rotation = individualCopy.rotation[j];
                     parts.push_back(part);
                 }
-            PlacementWorker::PlacementResult result = worker.placeParts(sheets, parts);
+            // Use thread-local sheetsCopy instead of shared sheets reference
+            PlacementWorker::PlacementResult result = worker.placeParts(sheetsCopy, parts);
             
             // Update the results WITH the lock
                 {
