@@ -160,3 +160,184 @@ set_target_properties(NFPDebug PROPERTIES
 )
 
 message(STATUS "NFPDebug configured")
+
+# ===== TestApplication (GUI) =====
+add_executable(TestApplication
+    main.cpp
+    TestApplication.cpp
+    SVGLoader.cpp
+    ConfigDialog.cpp
+    ContainerDialog.cpp
+)
+
+target_include_directories(TestApplication PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(TestApplication
+    deepnest
+    Qt5::Core
+    Qt5::Gui
+    Qt5::Widgets
+    Qt5::Xml
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(TestApplication PRIVATE cxx_std_17)
+
+set_target_properties(TestApplication PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS TestApplication RUNTIME DESTINATION bin)
+
+message(STATUS "TestApplication configured")
+
+# ===== DeepnestLibTests (Suite) =====
+add_executable(DeepnestLibTests
+    DeepnestLibTests.cpp
+    FitnessTests.cpp
+    GeneticAlgorithmTests.cpp
+    JSComparisonTests.cpp
+    StepVerificationTests.cpp
+    SVGLoader.cpp
+    RandomShapeGenerator.cpp
+)
+
+target_include_directories(DeepnestLibTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(DeepnestLibTests
+    deepnest
+    Qt5::Core
+    Qt5::Xml
+    Qt5::Widgets
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(DeepnestLibTests PRIVATE cxx_std_17)
+
+set_target_properties(DeepnestLibTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS DeepnestLibTests RUNTIME DESTINATION bin)
+
+message(STATUS "DeepnestLibTests configured")
+
+# ===== PolygonHierarchyTest =====
+add_executable(PolygonHierarchyTest
+    PolygonHierarchyTest.cpp
+)
+
+target_include_directories(PolygonHierarchyTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(PolygonHierarchyTest
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(PolygonHierarchyTest PRIVATE cxx_std_17)
+
+set_target_properties(PolygonHierarchyTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS PolygonHierarchyTest RUNTIME DESTINATION bin)
+
+message(STATUS "PolygonHierarchyTest configured")
+
+# ===== OverlapDetectionTest =====
+add_executable(OverlapDetectionTest
+    OverlapDetectionTest.cpp
+)
+
+target_include_directories(OverlapDetectionTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(OverlapDetectionTest
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(OverlapDetectionTest PRIVATE cxx_std_17)
+
+set_target_properties(OverlapDetectionTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS OverlapDetectionTest RUNTIME DESTINATION bin)
+
+message(STATUS "OverlapDetectionTest configured")
+
+# ===== MinkowskiSumComparisonTest =====
+add_executable(MinkowskiSumComparisonTest
+    MinkowskiSumComparisonTest.cpp
+)
+
+target_include_directories(MinkowskiSumComparisonTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(MinkowskiSumComparisonTest
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(MinkowskiSumComparisonTest PRIVATE cxx_std_17)
+
+set_target_properties(MinkowskiSumComparisonTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS MinkowskiSumComparisonTest RUNTIME DESTINATION bin)
+
+message(STATUS "MinkowskiSumComparisonTest configured")
+
+# ===== DiagnosticTool =====
+add_executable(DiagnosticTool
+    DiagnosticTool.cpp
+)
+
+target_include_directories(DiagnosticTool PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Clipper2Lib/include
+    ${Boost_INCLUDE_DIRS}
+)
+
+target_link_libraries(DiagnosticTool
+    deepnest
+    ${Boost_LIBRARIES}
+    pthread
+)
+
+target_compile_features(DiagnosticTool PRIVATE cxx_std_17)
+
+set_target_properties(DiagnosticTool PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+install(TARGETS DiagnosticTool RUNTIME DESTINATION bin)
+
+message(STATUS "DiagnosticTool configured")

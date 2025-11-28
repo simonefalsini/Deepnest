@@ -260,6 +260,44 @@ std::vector<Point> rotatePolygon(const std::vector<Point>& polygon, double angle
     return rotated;
 }
 
+bool isValidPolygon(const Polygon& poly, int maxDepth) {
+    // Check minimum points
+    if (poly.points.size() < 3) {
+        return false;
+    }
+    
+    // Check for NaN or Inf in coordinates
+    for (const auto& pt : poly.points) {
+        if (!std::isfinite(pt.x) || !std::isfinite(pt.y)) {
+            return false;
+        }
+        
+        // CRITICAL: Conservative limit to prevent Clipper2 internal overflow
+        // Clipper2 does internal multiplications: x1 * x2
+        // To prevent overflow: scaled values must be < sqrt(INT64_MAX) ≈ 3e9
+        // With SCALE=1000: original coords must be < 3e6
+        // This prevents: (3e6 * 1000) * (3e6 * 1000) = 9e18 < INT64_MAX
+        const double MAX_COORD = 3e6;  // 3 million (very conservative)
+        if (std::abs(pt.x) > MAX_COORD || std::abs(pt.y) > MAX_COORD) {
+            return false;
+        }
+    }
+    
+    // Check children recursively with depth limit
+    if (maxDepth > 0) {
+        for (const auto& child : poly.children) {
+            if (!isValidPolygon(child, maxDepth - 1)) {
+                return false;
+            }
+        }
+    } else if (!poly.children.empty()) {
+        // Too deep - reject to prevent stack overflow
+        return false;
+    }
+    
+    return true;
+}
+
 // ========== Bezier Curve Functions ==========
 
 namespace QuadraticBezier {

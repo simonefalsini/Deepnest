@@ -51,14 +51,27 @@ bool NFPCache::has(const NFPKey& key) const {
 }
 
 bool NFPCache::find(const NFPKey& key, std::vector<Polygon>& result) const {
-    boost::shared_lock<boost::shared_mutex> lock(mutex_);
+    boost::unique_lock<boost::shared_mutex> lock(mutex_);
 
     auto it = cache_.find(key);
 
     if (it != cache_.end()) {
-        result = it->second;  // Copy the cached NFP
-        ++hits_;
-        return true;
+        // Safe copy with exception handling
+        try {
+            result = it->second;  // Copy the cached NFP
+            ++hits_;
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR: Exception during NFP cache copy: " << e.what() << std::endl;
+            std::cerr << "  Key: A=" << key.idA << " B=" << key.idB 
+                      << " rotA=" << key.rotationA << " rotB=" << key.rotationB << std::endl;
+            ++misses_;
+            return false;
+        } catch (...) {
+            std::cerr << "ERROR: Unknown exception during NFP cache copy" << std::endl;
+            ++misses_;
+            return false;
+        }
     }
 
     ++misses_;
@@ -67,7 +80,6 @@ bool NFPCache::find(const NFPKey& key, std::vector<Polygon>& result) const {
 
 void NFPCache::insert(const NFPKey& key, const std::vector<Polygon>& nfp) {
     boost::unique_lock<boost::shared_mutex> lock(mutex_);
-
     cache_[key] = nfp;  // Store a copy of the NFP
 }
 

@@ -106,27 +106,14 @@ void ParallelProcessor::processPopulation(
         
         if (stopped_) return;
 
-        int running = 0;
-        for(const auto& ind : population.getIndividuals()) {
-            if(ind.processing) running++;
-        }
-
-        int availableSlots = (maxConcurrent > 0) ? maxConcurrent : threadCount_;
-        // If maxConcurrent is 0 (default), use thread count. If thread count is 0 (hardware), 
-        // we need to know what that is. The constructor handles this, but let's be safe.
-        if (availableSlots <= 0) availableSlots = boost::thread::hardware_concurrency();
-
-    auto& individuals = population.getIndividuals();
+        auto& individuals = population.getIndividuals();
         for(size_t i = 0; i < individuals.size(); ++i) {
-            if(running >= availableSlots) break;
-
             auto& individual = individuals[i];
             
             // Check if needs processing: fitness not valid and not currently processing
             if(!individual.hasValidFitness() && !individual.processing) {
                 individual.processing = true; // Mark as processing IMMEDIATELY under lock
                 indicesToProcess.push_back(i);
-            running++;
             }
         }
     }
@@ -134,10 +121,8 @@ void ParallelProcessor::processPopulation(
     // Now enqueue the tasks. The 'processing' flag is already set, so other calls
     // to processPopulation won't pick these up.
     for(size_t i : indicesToProcess) {
-        // Capture BY VALUE
-            size_t index = i;
-        
-        enqueue([&population, &sheets, &worker, index, this]() {
+
+        enqueue([&population, sheets, &worker, i, this]() {
             // Create a thread-local copy of the individual to work on
             // We need to read the input data safely. 
             // The individual at 'index' is stable in the vector (vector doesn't resize here).
@@ -148,7 +133,7 @@ void ParallelProcessor::processPopulation(
             Individual individualCopy;
             {
                 boost::lock_guard<boost::mutex> lock(mutex_);
-                individualCopy = population.getIndividuals()[index];
+                individualCopy = population.getIndividuals()[i];
             }
             
             // Perform the heavy lifting WITHOUT the lock
@@ -165,7 +150,7 @@ void ParallelProcessor::processPopulation(
                 {
                 boost::lock_guard<boost::mutex> lock(mutex_);
                 // Update the original individual with results
-                auto& originalIndividual = population.getIndividuals()[index];
+                auto& originalIndividual = population.getIndividuals()[i];
                 originalIndividual.fitness = result.fitness;
                 originalIndividual.area = result.area;
                 originalIndividual.mergedLength = result.mergedLength;
@@ -176,7 +161,7 @@ void ParallelProcessor::processPopulation(
                         static int evalCount = 0;
                         evalCount++;
                         if (evalCount <= 10) {
-                            LOG_GA("[Eval #" << evalCount << "] Individual[" << index
+                            LOG_GA("[Eval #" << evalCount << "] Individual[" << i
                                       << "] fitness=" << result.fitness
                                       << ", area=" << result.area
                                       << ", merged=" << result.mergedLength);

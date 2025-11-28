@@ -56,7 +56,6 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
         auto& part = parts[idx];
         Polygon rotated = part.rotate(part.rotation);
 
-        // CRITICAL FIX: DO NOT NORMALIZE after rotation!
         // The JavaScript code does NOT normalize - it keeps negative coordinates
         // NFP calculation DEPENDS on parts[0] being at the rotated position
         // Normalization breaks the coordinate system contract
@@ -416,7 +415,18 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 #ifdef PLACEMENTDEBUG
                 std::cerr << "  Calling PolygonOperations::unionPolygons..." << std::endl;
 #endif
-                combinedNfpPoints = PolygonOperations::unionPolygons(outerNfpPoints);
+                try {
+                    combinedNfpPoints = PolygonOperations::unionPolygons(outerNfpPoints);
+                }
+                catch (const std::exception& e) {
+                    std::cerr << " PolygonOperations::unionPolygons " << ": " << e.what() << std::endl;
+                    break;
+                }
+                catch (...) {
+                    std::cerr << " PolygonOperations::unionPolygon failed with unknown exception" << std::endl;
+                    break;
+                }
+
 #ifdef PLACEMENTDEBUG
                 std::cerr << "  unionPolygons completed successfully! Result: " << combinedNfpPoints.size() << " polygon(s)" << std::endl;
 #endif
@@ -653,14 +663,14 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
     }
 
     // GA DEBUG: Log fitness calculation with CORRECTED formulas (FIX 1.1, 1.2, 1.3)
+#ifdef PLACEMENTDEBUG
     static int placementCount = 0;
     if (placementCount < 3) {  // Log first 3 placements only
-#ifdef PLACEMENTDEBUG
+
         std::cout << "\n=== PLACEMENT RESULT #" << placementCount << " (CORRECTED FITNESS) ===" << std::endl;
         std::cout << "  Sheets used: " << allPlacements.size() << std::endl;
         std::cout << "  Total sheet area: " << totalSheetArea << std::endl;
         std::cout << "  Unplaced parts: " << parts.size() << std::endl;
-#endif
         // Calculate fitness breakdown with CORRECTED formulas
         double sheetAreaPenalty = 0.0;
         for (const auto& placements : allPlacements) {
@@ -676,16 +686,15 @@ PlacementWorker::PlacementResult PlacementWorker::placeParts(
 
         // Remaining is bounds+minarea component
         double boundsAndMinarea = fitness - sheetAreaPenalty - unplacedPenalty;
-#ifdef PLACEMENTDEBUG
         std::cout << "  FINAL FITNESS: " << fitness << std::endl;
         std::cout << "    = sheet area penalty (" << sheetAreaPenalty << ")"
                   << " + bounds+minarea (" << boundsAndMinarea << ")"
                   << " + unplaced penalty (" << unplacedPenalty << ")" << std::endl;
         std::cout << "  [NOTE: Should be >> 1.0 if fixes working. Typical range: 100k-10M]" << std::endl;
         std::cout.flush();
-#endif
         placementCount++;
     }
+#endif
 
     result.placements = allPlacements;
     result.fitness = fitness;
@@ -725,6 +734,7 @@ std::vector<Point> PlacementWorker::extractCandidatePositions(
             continue;
         }
 
+        // 1. Add all vertices (original behavior)
         for (const auto& point : nfp.points) {
             // Subtract part's reference point (bbox min) to get actual placement position
             // After normalization, bbox min is (0,0), so this just returns point

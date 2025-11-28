@@ -201,10 +201,22 @@ void Population::nextGeneration() {
               << ", Worst fitness: " << individuals_[individuals_.size()-1].fitness << std::endl;
 #endif
 
-    // Create new population starting with best individual (elitism)
+    // CRITICAL FIX: Elitism - preserve top 10% of population
+    // Original JavaScript only keeps best 1 (elitism = 1/popSize ≈ 1-2%)
+    // Increase to 10% for faster convergence and more genetic diversity preservation
     // JavaScript: var newpopulation = [this.population[0]];
     std::vector<Individual> newPopulation;
-    newPopulation.push_back(individuals_[0]);
+    
+    size_t eliteCount = std::max(size_t(1), static_cast<size_t>(individuals_.size() * 0.10));  // At least 1, ideally 10%
+    
+    for (size_t i = 0; i < std::min(eliteCount, individuals_.size()); ++i) {
+        newPopulation.push_back(individuals_[i]);
+    }
+    
+#ifdef DEBUG_GA
+    std::cout << "Elitism: Preserving top " << elite Count << " individuals ("
+              << (100.0 * eliteCount / individuals_.size()) << "%)" << std::endl;
+#endif
 
     // Fill rest of population with children from crossover + mutation
     // JavaScript: while(newpopulation.length < this.population.length)
@@ -242,7 +254,8 @@ void Population::nextGeneration() {
         }
     }
 #ifdef DEBUG_GA
-    std::cout << "Created " << childCount << " new children (+ 1 elite = " << newPopulation.size() << " total)" << std::endl;
+    std::cout << "Created " << childCount << " new children (+ " << eliteCount 
+              << " elites = " << newPopulation.size() << " total)" << std::endl;
     std::cout << "=== GA: nextGeneration() END ===" << std::endl;
     std::cout.flush();
 #endif

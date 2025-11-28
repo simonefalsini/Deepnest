@@ -200,7 +200,7 @@ Polygon NFPCalculator::getOuterNFP(const Polygon& A, const Polygon& B, bool insi
     return nfp;
 }
 
-Polygon NFPCalculator::createFrame(const Polygon& A)  {
+Polygon NFPCalculator::createFrame(const Polygon& A) const {
     // Get bounding box (background.js line 713)
     BoundingBox bounds = A.bounds();
 
@@ -238,10 +238,10 @@ Polygon NFPCalculator::getFrame(const Polygon& A) const {
 std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon& B) {
     // Try cache lookup first (background.js line 735-742)
     // For inner NFP, rotation of A is always 0
-    //std::vector<Polygon> cached;
-    //if (cache_.find(A.source, B.source, 0.0, B.rotation, cached, true)) {
-    //    return cached;
-    //}
+    std::vector<Polygon> cached;
+    if (cache_.find(A.source, B.source, 0.0, B.rotation, cached, true)) {
+        return cached;
+    }
 
     // DEBUG LOGGING - DISABLED for cleaner output
     // static bool first_call = true;
@@ -346,10 +346,10 @@ std::vector<Polygon> NFPCalculator::getInnerNFP(const Polygon& A, const Polygon&
         }
     }
 
-    // Cache the result (using source IDs and rotation)
-    //if (!result.empty()) {
-    //    cache_.insert(A.source, B.source, 0.0, B.rotation, result, true);
-    //}
+    //Cache the result (using source IDs and rotation)
+    if (!result.empty()) {
+       cache_.insert(A.source, B.source, 0.0, B.rotation, result, true);
+    }
 
     return result;
 }

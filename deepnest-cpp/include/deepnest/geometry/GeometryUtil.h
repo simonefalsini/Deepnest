@@ -113,6 +113,20 @@ namespace GeometryUtil {
     bool isRectangle(const std::vector<Point>& poly, double tolerance = TOL);
 
     /**
+     * @brief Validate polygon for safe usage
+     * 
+     * Checks for:
+     * - Minimum 3 points
+     * - No NaN or Inf coordinates
+     * - Reasonable coordinate values
+     * 
+     * @param poly Polygon to validate
+     * @param maxDepth Maximum recursion depth for children (default 5)
+     * @return true if valid, false otherwise
+     */
+    bool isValidPolygon(const Polygon& poly, int maxDepth = 5);
+
+    /**
      * @brief Rotate polygon by angle in degrees
      */
     std::vector<Point> rotatePolygon(const std::vector<Point>& polygon, double angle);
