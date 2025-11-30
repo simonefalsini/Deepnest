@@ -178,7 +178,13 @@ namespace deepnest {
         };
     };
 
+    namespace newmnk {
 
+        std::vector<Polygon> calculateNFP(
+            const Polygon& A,
+            const Polygon& B);
+
+    };
 } // namespace deepnest
 
 #endif // DEEPNEST_MINKOWSKISUM_H

@@ -15,6 +15,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StepVerificationTests", "te
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PolygonExtractor", "tests\PolygonExtractor.vcxproj", "{4FCA5717-0D45-3460-BB57-5DD095318C5F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6A82072D-2DD7-35EF-AD24-5A40BE19F5A5} = {6A82072D-2DD7-35EF-AD24-5A40BE19F5A5}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "svgbrowser", "tests\svgbrowser\svgbrowser.vcxproj", "{47D7B428-2CAC-4257-A09A-E6391CCED078}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6A82072D-2DD7-35EF-AD24-5A40BE19F5A5} = {6A82072D-2DD7-35EF-AD24-5A40BE19F5A5}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,6 +46,10 @@ Global
 		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Debug|x64.Build.0 = Debug|x64
 		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Release|x64.ActiveCfg = Release|x64
 		{4FCA5717-0D45-3460-BB57-5DD095318C5F}.Release|x64.Build.0 = Release|x64
+		{47D7B428-2CAC-4257-A09A-E6391CCED078}.Debug|x64.ActiveCfg = Debug|x64
+		{47D7B428-2CAC-4257-A09A-E6391CCED078}.Debug|x64.Build.0 = Debug|x64
+		{47D7B428-2CAC-4257-A09A-E6391CCED078}.Release|x64.ActiveCfg = Release|x64
+		{47D7B428-2CAC-4257-A09A-E6391CCED078}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

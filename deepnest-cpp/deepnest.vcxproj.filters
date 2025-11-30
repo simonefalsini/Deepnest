@@ -96,6 +96,12 @@
     <ClCompile Include="src\geometry\PolygonHierarchy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\nfp\calculatenfp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nfp\Libnest2D_NFP.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\deepnest\core\BoundingBox.h">
@@ -171,6 +177,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\deepnest\geometry\PolygonHierarchy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\deepnest\nfp\calculatenfp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\deepnest\nfp\Libnest2D_NFP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

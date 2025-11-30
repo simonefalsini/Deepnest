@@ -356,6 +356,7 @@ namespace deepnest {
         return results;
     }
 }
+
 namespace trunk {
     using namespace boost::polygon;
 
@@ -611,5 +612,8 @@ namespace trunk {
         return results;
     }
 }
+
+
+
 
 } // namespace deepnest

@@ -43,6 +43,8 @@ set(DEEPNEST_SOURCES
     src/nfp/NFPCache.cpp
     src/nfp/MinkowskiSum.cpp
     src/nfp/NFPCalculator.cpp
+    src/nfp/calculatenfp.cpp
+    src/nfp/Libnest2D_NFP.cpp
 
     # Config
     src/config/DeepNestConfig.cpp
@@ -93,6 +95,8 @@ set(DEEPNEST_HEADERS
     include/deepnest/nfp/NFPCache.h
     include/deepnest/nfp/MinkowskiSum.h
     include/deepnest/nfp/NFPCalculator.h
+    include/deepnest/nfp/calculatenfp.h
+    include/deepnest/nfp/Libnest2D_NFP.h
 
     # Config
     include/deepnest/config/DeepNestConfig.h
@@ -229,3 +233,27 @@ if(BUILD_TESTS AND Qt5_FOUND)
 else()
     message(STATUS "Skipping test tools (BUILD_TESTS=${BUILD_TESTS}, Qt5_FOUND=${Qt5_FOUND})")
 endif()
+
+# SvgBrowser Application
+if(Qt5_FOUND)
+    add_executable(SvgBrowser
+        src/apps/SvgBrowser/main.cpp
+        src/apps/SvgBrowser/MainWindow.cpp
+        src/apps/SvgBrowser/MainWindow.h
+        src/apps/SvgBrowser/ZoomableGraphicsView.cpp
+        src/apps/SvgBrowser/ZoomableGraphicsView.h
+        tests/SVGLoader.cpp
+        tests/SVGLoader.h
+    )
+
+    target_link_libraries(SvgBrowser
+        PRIVATE
+        deepnest
+        Qt5::Core
+        Qt5::Gui
+        Qt5::Widgets
+    )
+    
+    target_include_directories(SvgBrowser PRIVATE tests)
+endif()
+

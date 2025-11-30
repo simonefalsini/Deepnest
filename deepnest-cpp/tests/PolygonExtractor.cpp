@@ -20,6 +20,7 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QDir>
 #include <QTextStream>
 #include <iostream>
 #include <vector>
@@ -317,7 +318,11 @@ bool savePolygonToSVG(const deepnest::Polygon& poly, const QString& filename) {
  */
 bool savePairToSVG(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB,
                    const std::vector<deepnest::Polygon>& nfps, const QString& filename) {
-    QFile file(filename);
+
+    QString filepath = QString(".") + QDir::separator() + QString("out") + QDir::separator() + filename;
+    QDir dout;
+    dout.mkdir(QString(".") + QDir::separator() + QString("out"));
+    QFile file(filepath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return false;
     }
@@ -397,44 +402,55 @@ bool savePairToSVG(const deepnest::Polygon& polyA, const deepnest::Polygon& poly
 /**
  * Test Minkowski sum for a polygon pair
  */
-std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false) {
-    std::cout << "\n=== Testing Minkowski Sum ===" << std::endl;
-    std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
-    std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
-    std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false, bool verbose = false) {
 
-    // Print first few points for debugging
-    std::cout << "  A points[0-3]: ";
-    for (size_t i = 0; i < std::min(size_t(4), polyA.points.size()); ++i) {
-        std::cout << "(" << polyA.points[i].x << "," << polyA.points[i].y << ") ";
-    }
-    std::cout << std::endl;
+    if (verbose)
+    {
+        std::cout << "\n=== Testing Minkowski Sum ===" << std::endl;
+        std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
+        std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
+        std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
 
-    std::cout << "  B points[0-3]: ";
-    for (size_t i = 0; i < std::min(size_t(4), polyB.points.size()); ++i) {
-        std::cout << "(" << polyB.points[i].x << "," << polyB.points[i].y << ") ";
+        // Print first few points for debugging
+        std::cout << "  A points[0-3]: ";
+        for (size_t i = 0; i < std::min(size_t(4), polyA.points.size()); ++i) {
+            std::cout << "(" << polyA.points[i].x << "," << polyA.points[i].y << ") ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "  B points[0-3]: ";
+        for (size_t i = 0; i < std::min(size_t(4), polyB.points.size()); ++i) {
+            std::cout << "(" << polyB.points[i].x << "," << polyB.points[i].y << ") ";
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
+
 
     // Test Minkowski sum
-    auto nfps = deepnest::scale::MinkowskiSum::calculateNFP(polyA, polyB);
+    //auto nfps = deepnest::scale::MinkowskiSum::calculateNFP(polyA, polyB);
+    auto nfps = deepnest::newmnk::calculateNFP(polyA, polyB);
 
     // CRITICAL: Apply B[0] translation to match NFPCalculator behavior
     // JavaScript (background.js:202-203): clipperNfp[i].x += B[0].x; clipperNfp[i].y += B[0].y;
     // C++ (NFPCalculator.cpp:113): result.translate(B.points[0].x, B.points[0].y)
-    if (!nfps.empty() && !polyB.points.empty()) {
+    /*if (!nfps.empty() && !polyB.points.empty()) {
         for (auto& nfp : nfps) {
             nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
         }
         std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
-    }
+    }*/
 
     if (nfps.empty()) {
         std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
     } else {
-        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
-        for (size_t i = 0; i < nfps.size(); ++i) {
-            std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+
+        if (verbose)
+        {
+            std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
+            for (size_t i = 0; i < nfps.size(); ++i) {
+                std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+            }
+
         }
 
         // Save combined visualization if requested
@@ -442,7 +458,6 @@ std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, 
             QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
                               .arg(polyA.id).arg(polyB.id);
             savePairToSVG(polyA, polyB, nfps, filename);
-            std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
         }
     }
 
@@ -452,24 +467,30 @@ std::vector<deepnest::Polygon> testMinkowskiSum(const deepnest::Polygon& polyA, 
 /**
  * Test orbital tracing for a polygon pair
  */
-std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false) {
-    std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
-    std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
-    std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
-    std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false, bool verbose = false) {
+    
+    if (verbose)
+    {
+        std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
+        std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
+        std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
+        std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+    }
 
-    auto nfps = deepnest::trunk::MinkowskiSum::calculateNFP(polyA, polyB);
-
-    //auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
-    /*
+    auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
+    
     std::vector<deepnest::Polygon> nfps;
 
     if (nfpPoints.empty() || nfpPoints[0].empty()) {
         std::cout << "  ❌ FAILED: Orbital tracing returned empty result" << std::endl;
     } else {
-        std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP region(s) generated" << std::endl;
-        for (size_t i = 0; i < nfpPoints.size(); ++i) {
-            std::cout << "    NFP[" << i << "]: " << nfpPoints[i].size() << " points" << std::endl;
+        if (verbose)
+        {
+            std::cout << "  ✅ SUCCESS: " << nfpPoints.size() << " NFP region(s) generated" << std::endl;
+            for (size_t i = 0; i < nfpPoints.size(); ++i) {
+                std::cout << "    NFP[" << i << "]: " << nfpPoints[i].size() << " points" << std::endl;
+            }
+
         }
 
         // Convert to Polygon for visualization
@@ -479,32 +500,13 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
             nfps.push_back(nfp);
         }
 
-        QString filename = QString("polygon_pair_%1_%2_orbital.svg")
-                          .arg(polyA.id).arg(polyB.id);
-        //savePairToSVG(polyA, polyB, nfps, filename);
-        std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
-    }*/
-    if (!nfps.empty() && !polyB.points.empty()) {
-        for (auto& nfp : nfps) {
-            nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
-        }
-        std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
-    }
+        if (saveResults)
+        {
+            QString filename = QString("polygon_pair_%1_%2_orbital.svg")
+                              .arg(polyA.id).arg(polyB.id);
+            savePairToSVG(polyA, polyB, nfps, filename);
 
-    if (nfps.empty()) {
-        std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
-    }
-    else {
-        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
-        for (size_t i = 0; i < nfps.size(); ++i) {
-            std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
         }
-
-        // Save combined visualization
-        QString filename = QString("polygon_pair_%1_%2_minkowski.svg")
-            .arg(polyA.id).arg(polyB.id);
-        //savePairToSVG(polyA, polyB, nfps, filename);
-        std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
     }
 
     return nfps;
@@ -513,11 +515,16 @@ std::vector<deepnest::Polygon> testOrbitalTracing(const deepnest::Polygon& polyA
 /**
  * Test trunc minkowski for a polygon pair
  */
-std::vector<deepnest::Polygon> testTrunkMinkowski(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false) {
-    std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
-    std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
-    std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
-    std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+std::vector<deepnest::Polygon> testTrunkMinkowski(const deepnest::Polygon& polyA, const deepnest::Polygon& polyB, bool inside, bool saveResults = false, bool verbose = false) {
+
+    if (verbose)
+    {
+        std::cout << "\n=== Testing Orbital Tracing ===" << std::endl;
+        std::cout << "  Polygon A: " << polyA.points.size() << " points" << std::endl;
+        std::cout << "  Polygon B: " << polyB.points.size() << " points" << std::endl;
+        std::cout << "  Mode: " << (inside ? "INSIDE" : "OUTSIDE") << std::endl;
+
+    }
 
     //auto nfpPoints = deepnest::GeometryUtil::noFitPolygon(polyA.points, polyB.points, inside);
     auto nfps = deepnest::trunk::MinkowskiSum::calculateNFP(polyA, polyB);
@@ -526,23 +533,30 @@ std::vector<deepnest::Polygon> testTrunkMinkowski(const deepnest::Polygon& polyA
         for (auto& nfp : nfps) {
             nfp = nfp.translate(polyB.points[0].x, polyB.points[0].y);
         }
-        std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
+        if (verbose)
+            std::cout << "  Translated NFP by B[0] = (" << polyB.points[0].x << ", " << polyB.points[0].y << ")" << std::endl;
     }
 
     if (nfps.empty()) {
         std::cout << "  ❌ FAILED: Minkowski sum returned empty result" << std::endl;
     }
     else {
-        std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
-        for (size_t i = 0; i < nfps.size(); ++i) {
-            std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+
+        if (verbose)
+        {
+            std::cout << "  ✅ SUCCESS: " << nfps.size() << " NFP polygon(s) generated" << std::endl;
+            for (size_t i = 0; i < nfps.size(); ++i) {
+                std::cout << "    NFP[" << i << "]: " << nfps[i].points.size() << " points" << std::endl;
+            }
+
         }
 
-        // Save combined visualization
-        QString filename = QString("polygon_pair_%1_%2_trunk.svg")
-            .arg(polyA.id).arg(polyB.id);
-        //savePairToSVG(polyA, polyB, nfps, filename);
-        std::cout << "  Saved visualization: " << filename.toStdString() << std::endl;
+        // Save combined visualization if requested
+        if (saveResults) {
+            QString filename = QString("polygon_pair_%1_%2_trunk.svg")
+                .arg(polyA.id).arg(polyB.id);
+            savePairToSVG(polyA, polyB, nfps, filename);
+        }
     }
 
     return nfps;
@@ -569,7 +583,7 @@ int main(int argc, char *argv[]) {
 
     QString svgFile = argv[1];
     bool testAllPairs = false;
-    bool saveNFPResults = false;  // Flag for saving NFP visualizations
+    bool saveNFPResults = true;  // Flag for saving NFP visualizations
     QString sheetFile = "";  // Separate file for sheet
 
     // Check for options
@@ -782,7 +796,7 @@ int main(int argc, char *argv[]) {
         }
 
         // ========== PART 2: Test all INNER NFP pairs (sheet vs part) ==========
-        std::cout << "\n========================================" << std::endl;
+         /*std::cout << "\n========================================" << std::endl;
         std::cout << "  PART 2: INNER NFP (sheet vs part)" << std::endl;
         std::cout << "========================================" << std::endl;
         
@@ -800,7 +814,7 @@ int main(int argc, char *argv[]) {
                   << std::abs(deepnest::GeometryUtil::polygonArea(sheet.points)) << std::endl;
         
         std::cout << "Testing " << polygons.size() << " pairs..." << std::endl;
-        
+       
         for (size_t rot = 0; rot < 360; rot+=90) 
             for (size_t j = 0; j < polygons.size(); j++) {
                 testsCompleted++;
@@ -857,7 +871,7 @@ int main(int argc, char *argv[]) {
                         else {
                             testsEmpty++;
                         }
-                    }*/
+                    }
 
                 }
                 catch (const std::exception& e) {
@@ -886,7 +900,7 @@ int main(int argc, char *argv[]) {
                     failures.push_back(failure);
                     testsEmpty++;
                 }
-            }
+            }*/
    
         // ========== SUMMARY ==========
         std::cout << "\n========================================" << std::endl;
